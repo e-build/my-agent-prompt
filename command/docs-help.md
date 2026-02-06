@@ -19,6 +19,7 @@ agent: doc-manager
 | `/docs-status` | 문서화 현황 대시보드 | 문서화 상태 파악 필요 시 |
 | `/docs-extract-learning` | 코드에서 개념 추출 | 범용 개념 문서화 필요 시 |
 | `/docs-brainstorm-design` | 설계 문서 구조 기획 | 새 기능 설계 문서 작성 전 |
+| `/docs-quiz` | 문서 기반 퀴즈 생성 | 학습 내용 이해도 점검 시 |
 | `/docs-help` | 커맨드 도움말 | 사용법이 궁금할 때 |
 
 ---
@@ -165,6 +166,30 @@ agent: doc-manager
 
 ---
 
+### /docs-quiz
+
+**목적**: 작성된 문서를 소스로 퀴즈를 생성하여 이해도 점검
+
+**사용법**:
+```
+/docs-quiz docs/02-context-search/              (특정 feature)
+/docs-quiz docs/02-context-search/learning/      (learning만)
+/docs-quiz                                        (전체 docs/)
+```
+
+**동작**:
+1. 소스 문서 수집 및 분석
+2. 사용자 설정 입력 (난이도, 문제 깊이, 문제 개수)
+3. 퀴즈 생성 (객관식/주관식/서술형 혼합, 쉬운 순→어려운 순)
+4. 5문제씩 대화형 출제 및 답변 수집
+5. 채점 후 결과 md 파일 생성
+
+**문제 유형**: 객관식 (4지선다), 주관식 (단답형), 서술형 (2~5문장)
+
+**출력**: `docs/{feature}/quiz-result-{날짜}.md` — 채점, 문제별 해설, 소스 문서 링크 포함
+
+---
+
 ## 일반적인 워크플로우
 
 ### 워크플로우 1: 새 기능 문서화 시작
@@ -234,6 +259,24 @@ agent: doc-manager
    
 3. 현황 확인
    /docs-status
+```
+
+---
+
+### 워크플로우 5: 학습 점검
+
+```
+1. 문서 작성/학습
+   /docs-execute "주제"
+   
+2. 이해도 점검
+   /docs-quiz docs/XX-feature/
+   
+3. 취약 영역 복습
+   (퀴즈 결과의 학습 제안 참고)
+   
+4. 재도전
+   /docs-quiz docs/XX-feature/
 ```
 
 ---
@@ -386,9 +429,10 @@ docs/{번호}-{feature-name}/
 1. `/docs-execute` (가장 자주)
 2. `/docs-status`
 3. `/docs-review`
-4. `/docs-extract-learning`
-5. `/docs-brainstorm-design`
-6. `/docs-make-book` (가끔)
+4. `/docs-quiz`
+5. `/docs-extract-learning`
+6. `/docs-brainstorm-design`
+7. `/docs-make-book` (가끔)
 
 ---
 
@@ -420,9 +464,9 @@ docs/{번호}-{feature-name}/
 ### 커맨드 체이닝 (순서)
 
 ```
-설계 → 실행 → 추출 → 검토 → 현황
-  ↓      ↓      ↓      ↓      ↓
-brainstorm → execute → extract → review → status
+설계 → 실행 → 추출 → 검토 → 퀴즈 → 현황
+  ↓      ↓      ↓      ↓      ↓      ↓
+brainstorm → execute → extract → review → quiz → status
 ```
 
 ---
