@@ -1,6 +1,5 @@
 ---
 description: "Dedicated project documentation agent. Handles docs-* command execution, document review, book compilation, concept extraction, and all documentation tasks."
-model: anthropic/claude-opus-4-5
 mode: all
 tools:
   write: true

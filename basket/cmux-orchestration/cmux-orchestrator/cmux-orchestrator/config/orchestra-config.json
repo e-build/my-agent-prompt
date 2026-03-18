@@ -1,0 +1,20 @@
+{
+  "created_at": "2026-03-18T16:55:00Z",
+  "presets": {
+    "codex": {"start": "codex", "quit": "/quit", "reset": "/new", "model": "gpt-5.4", "difficulty": "high"},
+    "opencode": {"start": "cco", "quit": "/quit", "reset": "/new", "model": "gpt-5.4", "difficulty": "high"},
+    "gemini": {"start": "gemini", "quit": "/quit", "reset": "/clear", "model": "gemini-3.1-pro", "difficulty": "low"},
+    "glm": {"start": "ccg2", "quit": "/quit", "reset": "/new", "model": "glm-4.7", "difficulty": "low"},
+    "claude": {"start": "claude", "quit": "/exit", "reset": "/clear", "model": "claude-opus", "difficulty": "high"},
+    "minimax": {"start": "ccm", "quit": "/exit", "reset": "/clear", "model": "MiniMax-M2.5", "difficulty": "high"}
+  },
+  "surfaces": {
+    "1": {"ai": "Claude Code", "start_cmd": "claude", "quit_cmd": "/exit", "reset_cmd": "/clear", "model": "claude-opus", "difficulty": "high", "capabilities": ["coding"]},
+    "2": {"ai": "Claude Code", "start_cmd": "claude", "quit_cmd": "/exit", "reset_cmd": "/clear", "model": "claude-opus", "difficulty": "high", "capabilities": ["coding"]},
+    "3": {"ai": "OpenCode", "start_cmd": "cco", "quit_cmd": "/quit", "reset_cmd": "/new", "model": "gpt-5.4", "difficulty": "high", "capabilities": ["coding", "implementation"]},
+    "5": {"ai": "Gemini", "start_cmd": "gemini", "quit_cmd": "/quit", "reset_cmd": "/clear", "model": "gemini-3.1-pro", "difficulty": "low", "capabilities": ["research", "analysis"]},
+    "10": {"ai": "MiniMax", "start_cmd": "ccm", "quit_cmd": "/exit", "reset_cmd": "/clear", "model": "MiniMax-M2.5", "difficulty": "high", "capabilities": ["coding", "analysis"]}
+  },
+  "main_surface": "4",
+  "main_ai": "Opus"
+}

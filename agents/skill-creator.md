@@ -1,7 +1,6 @@
 ---
 description: |-
   Skill creation specialist for opencode. Creates properly structured SKILL.md files with validated frontmatter, templates, and best practices. Use when creating new skills, converting patterns into skills, or packaging reusable instructions.
-model: anthropic/claude-opus-4-5
 mode: all
 tools:
   write: true
