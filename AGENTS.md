@@ -17,6 +17,7 @@
 
 - **이 저장소**: 팀/프로젝트 공유가 필요한 설정, 버전 이력이 필요한 설정
 - **`~/.config/Claude/`**: 개인 로컬 전용 설정 (GSD 워크플로우 등)
+- **`~/.config/opencode/`**: OpenCode 글로벌 설정. `commands/`에 심링크로 이 저장소의 커맨드를 연결함
 
 ### Compatible Agent Tools
 
@@ -29,6 +30,60 @@
 | Amp | https://docs.amp.dev |
 | Codex CLI | https://github.com/openai/codex |
 | Antigravity | https://docs.antigravity.dev |
+
+### OpenCode 글로벌 커맨드 연결 방법
+
+`command/` 디렉토리의 커맨드 파일을 OpenCode 글로벌 커맨드로 등록하려면,
+`~/.config/opencode/commands/`에 심링크를 생성한다.
+
+```bash
+# 예시: ladder-explain 커맨드 등록
+ln -s /path/to/my-agent-prompt/command/ladder-explain.md ~/.config/opencode/commands/ladder-explain.md
+```
+
+현재 등록된 커맨드 패밀리:
+
+| Prefix | 설명 |
+|--------|------|
+| `docs-*` | 문서 관리 워크플로우 |
+| `ladder-*` | 제1원리 기반 학습 도구 세트 |
+
+심링크 일괄 등록 예시 (신규 커맨드 추가 시):
+```bash
+cd ~/.config/opencode/commands
+ln -s /path/to/my-agent-prompt/command/<new-command>.md <new-command>.md
+```
+
+> **주의**: 심링크 소스 경로는 절대 경로로 지정해야 한다.
+
+### OpenCode 글로벌 에이전트 연결 방법
+
+`agents/` 디렉토리의 에이전트 파일을 OpenCode 글로벌 에이전트로 등록하려면,
+`~/.config/opencode/agents/`에 심링크를 생성한다.
+
+```bash
+# 예시: doc-manager 에이전트 등록
+ln -s /path/to/my-agent-prompt/agents/doc-manager.md ~/.config/opencode/agents/doc-manager.md
+```
+
+현재 등록된 에이전트:
+
+| 에이전트 | 설명 |
+|----------|------|
+| `doc-manager` | 문서 관리 전용 에이전트 (`docs-*` 커맨드와 연동) |
+| `skill-creator` | Skill 파일 작성 전문 에이전트 |
+
+### OpenCode 글로벌 스킬 연결 방법
+
+`skills/` 디렉토리(있을 경우)의 스킬 파일을 OpenCode 글로벌 스킬로 등록하려면,
+`~/.config/opencode/skills/`에 심링크를 생성한다.
+
+```bash
+# 예시: 스킬 디렉토리 등록
+ln -s /path/to/my-agent-prompt/skills/<skill-name> ~/.config/opencode/skills/<skill-name>
+```
+
+> **참고**: 스킬은 단일 `.md` 파일이 아닌 디렉토리 단위로 관리된다. 디렉토리 안에 `SKILL.md`가 있어야 OpenCode가 인식한다.
 
 ---
 
