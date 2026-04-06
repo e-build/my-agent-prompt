@@ -63,7 +63,7 @@
 | 에이전트  | 계층          | 역할                                      | 권한           | 위임 가능               | oh-my-openagent 대응 |
 | --------- | ------------- | ----------------------------------------- | -------------- | ----------------------- | -------------------- |
 | Pilot     | Orchestration | 메인 에이전트. 범용 수행 + 오케스트레이션 | 읽기/쓰기/실행 | Worker, Scouter, Architect | Sisyphus + Atlas  |
-| Planner   | Planning      | 인터뷰 → 실행 계획 수립. READ-ONLY        | 계획 파일만    | Scouter                 | Prometheus           |
+| Planner   | Planning      | 인터뷰 → 실행 계획 수립. READ-ONLY        | 계획 파일만    | Scouter, Architect      | Prometheus           |
 | Architect | Consulting    | 아키텍처 자문, 설계 리뷰. READ-ONLY       | READ-ONLY      | Scouter                 | Oracle               |
 | Worker    | Execution     | 단일 태스크 집중 실행. 위임 불가          | 읽기/쓰기/실행 | 없음                    | Sisyphus-Junior      |
 | Scouter   | Utility       | 빠른 코드 탐색/패턴 검색. READ-ONLY       | READ-ONLY      | 없음                    | Explore              |
@@ -102,7 +102,7 @@
 | 계층                 | Planning                                       |
 | 역할                 | 사용자 인터뷰 → 요구사항 정리 → 실행 계획 수립 |
 | 권한                 | READ-ONLY (.forge/plans/*.md 파일만 생성/수정) |
-| 위임 대상            | Scouter                                        |
+| 위임 대상            | Scouter, Architect                                     |
 | 기본 카테고리        | `deep`                                         |
 | oh-my-openagent 대응 | Prometheus                                     |
 
