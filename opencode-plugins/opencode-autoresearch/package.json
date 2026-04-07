@@ -1,0 +1,32 @@
+{
+  "name": "opencode-autoresearch",
+  "version": "0.1.0",
+  "description": "OpenCode plugin package for the lab autoresearch workflow",
+  "type": "module",
+  "main": "index.js",
+  "exports": {
+    ".": "./index.js"
+  },
+  "scripts": {
+    "postinstall": "node postinstall.js"
+  },
+  "dependencies": {
+    "@opencode-ai/plugin": "*"
+  },
+  "files": [
+    "index.js",
+    "postinstall.js",
+    "install-local.sh",
+    "README.md",
+    "agents/",
+    "commands/",
+    "skills/"
+  ],
+  "keywords": [
+    "opencode",
+    "plugin",
+    "autoresearch",
+    "lab",
+    "optimization"
+  ]
+}

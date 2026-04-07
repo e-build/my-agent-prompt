@@ -12,7 +12,6 @@
   - ref - /Users/donggeollee/IdeaProjects/ebuild-github/my-agent-prompt/basket/cmux-orchestration
 - code 탐색 효율 정확도 향상 도구 탐색 (with indexing, embedding)
   - https://github.com/abhigyanpatwari/GitNexus?tab=readme-ov-file
-  
 
 ## ongoing
 - foundation-ladder-learning-framework 작성하기
