@@ -3,6 +3,7 @@ import type { CategoryRouter } from "../kernel/category-router";
 export declare function createModelRouter(registry: AgentRegistry, router: CategoryRouter): (input: {
     sessionID: string;
     agent?: string;
+    variant?: string;
 }, output: {
     message: {
         model: {

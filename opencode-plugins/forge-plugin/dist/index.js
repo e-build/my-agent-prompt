@@ -14377,6 +14377,20 @@ var ForgeConfigSchema = exports_external.object({
 });
 
 // src/config/loader.ts
+function mergeAgentOverrides(userAgents, projectAgents) {
+  if (!userAgents && !projectAgents) {
+    return;
+  }
+  const agentNames = ["pilot", "planner", "architect", "worker", "scouter"];
+  const merged = Object.fromEntries(agentNames.map((name) => [
+    name,
+    userAgents?.[name] || projectAgents?.[name] ? {
+      ...userAgents?.[name],
+      ...projectAgents?.[name]
+    } : undefined
+  ]));
+  return agentNames.some((name) => merged?.[name]) ? merged : undefined;
+}
 async function readConfigFile(filePath) {
   try {
     const text = await readFile(filePath, "utf8");
@@ -14404,10 +14418,7 @@ function mergeConfigs(userConfig, projectConfig) {
       ...userConfig.categories,
       ...projectConfig.categories
     },
-    agents: {
-      ...userConfig.agents,
-      ...projectConfig.agents
-    },
+    agents: mergeAgentOverrides(userConfig.agents, projectConfig.agents),
     disabled_agents: projectConfig.disabled_agents ?? userConfig.disabled_agents
   };
 }
@@ -14454,6 +14465,17 @@ function createEventLogger() {
 }
 
 // src/hooks/model-router.ts
+var FORGE_VARIANT_PREFIX = "forge:";
+function parseForgeCategory(variant) {
+  if (!variant?.startsWith(FORGE_VARIANT_PREFIX)) {
+    return;
+  }
+  const category = variant.slice(FORGE_VARIANT_PREFIX.length);
+  if (category === "quick" || category === "standard" || category === "deep" || category === "visual") {
+    return category;
+  }
+  return;
+}
 function createModelRouter(registry2, router) {
   return async (input, output) => {
     if (!registry2.isForgeAgent(input.agent)) {
@@ -14462,8 +14484,33 @@ function createModelRouter(registry2, router) {
     if (registry2.isDisabled(input.agent)) {
       return;
     }
-    const category = registry2.getDefaultCategory(input.agent);
+    const category = parseForgeCategory(input.variant) ?? registry2.getDefaultCategory(input.agent);
     output.message.model = router.parse(router.resolveAgent(input.agent, category));
+  };
+}
+
+// src/hooks/planner-write-guard.ts
+import { join as join2, normalize, relative } from "path";
+function isEditablePlanPath(projectDirectory, filePath) {
+  const absolutePath = filePath.startsWith("/") ? filePath : join2(projectDirectory, filePath);
+  const relativePath = relative(projectDirectory, normalize(absolutePath));
+  return relativePath === ".forge/plans" || relativePath.startsWith(".forge/plans/");
+}
+function createPlannerWriteGuard(projectDirectory, sessionAgents) {
+  return async (input, output) => {
+    if (!["write", "edit"].includes(input.tool)) {
+      return;
+    }
+    if (sessionAgents.get(input.sessionID) !== "planner") {
+      return;
+    }
+    const filePath = output.args?.filePath;
+    if (!filePath) {
+      return;
+    }
+    if (!isEditablePlanPath(projectDirectory, filePath)) {
+      throw new Error("Planner may only edit .forge/plans/");
+    }
   };
 }
 
@@ -27002,7 +27049,7 @@ function tool(input) {
 tool.schema = exports_external2;
 // src/tools/start-work.ts
 import { mkdir, readFile as readFile2, readdir, stat, writeFile } from "fs/promises";
-import { join as join2, relative } from "path";
+import { join as join3, relative as relative2 } from "path";
 async function readState(statePath) {
   try {
     return JSON.parse(await readFile2(statePath, "utf8"));
@@ -27015,7 +27062,7 @@ async function listPlans(plansDir) {
   const planNames = names.filter((name) => name.endsWith(".md"));
   const withTimes = await Promise.all(planNames.map(async (name) => ({
     name,
-    mtimeMs: (await stat(join2(plansDir, name))).mtimeMs
+    mtimeMs: (await stat(join3(plansDir, name))).mtimeMs
   })));
   return withTimes.sort((left, right) => right.mtimeMs - left.mtimeMs).map((entry) => entry.name);
 }
@@ -27031,9 +27078,9 @@ var startWorkTool = tool({
     plan: tool.schema.string().optional().describe("Optional plan filename without .md")
   },
   async execute(args, context) {
-    const forgeDir = join2(context.directory, ".forge");
-    const plansDir = join2(forgeDir, "plans");
-    const statePath = join2(forgeDir, "state.json");
+    const forgeDir = join3(context.directory, ".forge");
+    const plansDir = join3(forgeDir, "plans");
+    const statePath = join3(forgeDir, "state.json");
     const explicitPlan = normalizePlanName(args.plan);
     let planFile = explicitPlan;
     const state = await readState(statePath);
@@ -27051,7 +27098,7 @@ var startWorkTool = tool({
     if (!planFile) {
       return "No Forge plan files found. Use Planner to create a plan first.";
     }
-    const planPath = join2(plansDir, planFile);
+    const planPath = join3(plansDir, planFile);
     let content;
     try {
       content = await readFile2(planPath, "utf8");
@@ -27059,7 +27106,7 @@ var startWorkTool = tool({
       return `Plan not found: ${planFile}`;
     }
     const nextState = {
-      active_plan: relative(context.directory, planPath),
+      active_plan: relative2(context.directory, planPath),
       started_at: state.started_at ?? new Date().toISOString(),
       session_ids: Array.from(new Set([...state.session_ids ?? [], context.sessionID]))
     };
@@ -27084,12 +27131,20 @@ var ForgePlugin = async (ctx) => {
   const config3 = await loadConfig(ctx.directory);
   const registry3 = createAgentRegistry(config3);
   const router = createCategoryRouter(config3);
+  const sessionAgents = new Map;
+  const plannerWriteGuard = createPlannerWriteGuard(ctx.directory, sessionAgents);
   return {
     tool: {
       start_work: startWorkTool
     },
     config: createAgentRegistrar(registry3, router),
-    "chat.message": createModelRouter(registry3, router),
+    "chat.message": async (input, output) => {
+      if (input.agent) {
+        sessionAgents.set(input.sessionID, input.agent);
+      }
+      await createModelRouter(registry3, router)(input, output);
+    },
+    "tool.execute.before": plannerWriteGuard,
     event: createEventLogger()
   };
 };
