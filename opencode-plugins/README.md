@@ -14,6 +14,7 @@
 | Package | 목적 | 로컬 설치 |
 |---------|------|-----------|
 | `opencode-autoresearch` | `lab-*` Bilevel Autoresearch 워크플로우 | `bash opencode-plugins/opencode-autoresearch/install-local.sh` |
+| `forge-plugin` | 5개 전문 에이전트와 카테고리 기반 모델 라우팅을 제공하는 OpenCode harness plugin | `opencode.json`의 `plugin` 배열에 패키지 절대 경로 추가 |
 
 ## 새 플러그인 추가 체크리스트
 

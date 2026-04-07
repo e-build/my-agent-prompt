@@ -68,6 +68,7 @@ ln -s /path/to/my-agent-prompt/command/<new-command>.md <new-command>.md
 | Package | 설명 | 로컬 설치 |
 |---------|------|-----------|
 | `opencode-autoresearch` | `lab-*` Bilevel Autoresearch 최적화 루프 | `bash /path/to/my-agent-prompt/opencode-plugins/opencode-autoresearch/install-local.sh` |
+| `forge-plugin` | 5개 전문 에이전트와 카테고리 기반 모델 라우팅을 제공하는 OpenCode harness plugin | `~/.config/opencode/opencode.json`의 `plugin` 배열에 패키지 절대 경로 추가 |
 
 로컬 설치 스크립트는 `~/.config/opencode/{commands,agents,skills,plugins}`에 필요한 심링크를 한 번에 만든다.
 제거: `bash /path/to/my-agent-prompt/opencode-plugins/opencode-autoresearch/install-local.sh --uninstall`
