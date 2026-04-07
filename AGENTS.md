@@ -32,91 +32,56 @@
 | Codex CLI | https://github.com/openai/codex |
 | Antigravity | https://docs.antigravity.dev |
 
-### OpenCode 글로벌 커맨드 연결 방법
+### OpenCode 글로벌 리소스 심링크 설정
 
-`command/` 디렉토리의 standalone 커맨드 파일을 OpenCode 글로벌 커맨드로 등록하려면,
-`~/.config/opencode/commands/`에 심링크를 생성한다.
+이 저장소의 자원을 OpenCode 글로벌 설정에 매핑하는 전체 목록이다.
+심링크 소스 경로는 반드시 **절대 경로**로 지정한다.
 
-> **참고**: 저장소 루트는 `command/`를 사용하지만, `opencode-plugins/` 내부 패키지는 OpenCode 패키지 관례에 맞춰 `commands/`를 사용한다.
+#### 리소스 매핑표
 
-```bash
-# 예시: ladder-explain 커맨드 등록
-ln -s /path/to/my-agent-prompt/command/ladder-explain.md ~/.config/opencode/commands/ladder-explain.md
-```
+| 저장소 경로 | OpenCode 글로벌 경로 | 비고 |
+|-------------|---------------------|------|
+| `agents/doc-manager.md` | `~/.config/opencode/agents/doc-manager.md` | |
+| `agents/skill-creator.md` | `~/.config/opencode/agents/skill-creator.md` | |
+| `command/docs-*.md` (6개) | `~/.config/opencode/commands/docs-*.md` | |
+| `command/ladder-*.md` (10개) | `~/.config/opencode/commands/ladder-*.md` | |
+| `skills/create-command/` | `~/.config/opencode/skills/create-command/` | 디렉토리 단위 심링크 |
+| `opencode-plugins/opencode-autoresearch/` | `~/.config/opencode/{commands,agents,skills,plugins}/` | `install-local.sh` 실행 |
+| `opencode-plugins/forge-plugin/dist/index.js` | `opencode.json`의 `plugin` 배열 | 절대 경로 직접 등록 |
 
-현재 등록된 커맨드 패밀리:
+> 스킬은 단일 파일이 아닌 **디렉토리 단위**로 심링크한다. 디렉토리 안에 `SKILL.md`가 있어야 OpenCode가 인식한다.
+> 저장소 루트 `command/`(단수)는 standalone 커맨드 전용이다. `opencode-plugins/` 내부는 OpenCode 패키지 관례에 따라 `commands/`(복수)를 사용한다.
 
-| Prefix | 설명 |
-|--------|------|
-| `docs-*` | 문서 관리 워크플로우 |
-| `ladder-*` | 제1원리 기반 학습 도구 세트 |
-
-심링크 수동 등록 예시 (신규 standalone 커맨드 추가 시):
-```bash
-cd ~/.config/opencode/commands
-ln -s /path/to/my-agent-prompt/command/<new-command>.md <new-command>.md
-```
-
-> **주의**: 심링크 소스 경로는 절대 경로로 지정해야 한다.
-
-### OpenCode Plugin Package 연결 방법
-
-`opencode-plugins/` 아래 각 디렉토리는 배포 가능한 OpenCode plugin 패키지다. 패키지는 `index.js`와 함께 필요한 `commands/`, `agents/`, `skills/` 자산을 함께 포함할 수 있다.
-
-현재 포함된 패키지:
-
-| Package | 설명 | 로컬 설치 |
-|---------|------|-----------|
-| `opencode-autoresearch` | `lab-*` Bilevel Autoresearch 최적화 루프 | `bash /path/to/my-agent-prompt/opencode-plugins/opencode-autoresearch/install-local.sh` |
-| `forge-plugin` | 5개 전문 에이전트와 카테고리 기반 모델 라우팅을 제공하는 OpenCode harness plugin | `~/.config/opencode/opencode.json`의 `plugin` 배열에 패키지 절대 경로 추가 |
-
-로컬 설치 스크립트는 `~/.config/opencode/{commands,agents,skills,plugins}`에 필요한 심링크를 한 번에 만든다.
-제거: `bash /path/to/my-agent-prompt/opencode-plugins/opencode-autoresearch/install-local.sh --uninstall`
-
-npm 또는 패키지 매니저로 배포하는 경우에는 각 패키지의 `postinstall.js`가 markdown 자산 설치를 담당한다.
-
-`lab-*` 워크플로우를 바로 검증하려면:
+#### 일괄 설정 예시
 
 ```bash
-bash /path/to/my-agent-prompt/opencode-plugins/opencode-autoresearch/install-local.sh
+REPO=/path/to/my-agent-prompt
+OC=~/.config/opencode
+
+# agents
+ln -s $REPO/agents/doc-manager.md   $OC/agents/doc-manager.md
+ln -s $REPO/agents/skill-creator.md $OC/agents/skill-creator.md
+
+# commands (docs-*)
+for f in $REPO/command/docs-*.md; do ln -s "$f" $OC/commands/$(basename "$f"); done
+
+# commands (ladder-*)
+for f in $REPO/command/ladder-*.md; do ln -s "$f" $OC/commands/$(basename "$f"); done
+
+# skills
+ln -s $REPO/skills/create-command $OC/skills/create-command
+
+# opencode-autoresearch plugin (commands + agents + skills + plugin 자산 일괄)
+bash $REPO/opencode-plugins/opencode-autoresearch/install-local.sh
 ```
 
-이후 현재 프로젝트에서 `/lab-init` 후 `/lab-run` 순서로 사용한다.
+forge-plugin은 빌드 후 `~/.config/opencode/opencode.json`에 직접 등록한다:
 
-### OpenCode 글로벌 에이전트 연결 방법
-
-`agents/` 디렉토리의 에이전트 파일을 OpenCode 글로벌 에이전트로 등록하려면,
-`~/.config/opencode/agents/`에 심링크를 생성한다.
-
-```bash
-# 예시: doc-manager 에이전트 등록
-ln -s /path/to/my-agent-prompt/agents/doc-manager.md ~/.config/opencode/agents/doc-manager.md
+```json
+{
+  "plugin": ["/path/to/my-agent-prompt/opencode-plugins/forge-plugin/dist/index.js"]
+}
 ```
-
-현재 포함된 standalone 에이전트:
-
-| 에이전트 | 설명 |
-|----------|------|
-| `doc-manager` | 문서 관리 전용 에이전트 (`docs-*` 커맨드와 연동) |
-| `skill-creator` | Skill 파일 작성 전문 에이전트 |
-
-plugin 설치로 추가되는 에이전트 예시:
-
-| 에이전트 | 설명 |
-|----------|------|
-| `lab-orchestrator` | `opencode-autoresearch` 패키지가 설치하는 Bilevel Autoresearch 오케스트레이터 (`lab-*` 커맨드와 연동) |
-
-### OpenCode 글로벌 스킬 연결 방법
-
-`skills/` 디렉토리(있을 경우)의 standalone 스킬 파일을 OpenCode 글로벌 스킬로 등록하려면,
-`~/.config/opencode/skills/`에 심링크를 생성한다.
-
-```bash
-# 예시: 스킬 디렉토리 등록
-ln -s /path/to/my-agent-prompt/skills/<skill-name> ~/.config/opencode/skills/<skill-name>
-```
-
-> **참고**: 스킬은 단일 `.md` 파일이 아닌 디렉토리 단위로 관리된다. 디렉토리 안에 `SKILL.md`가 있어야 OpenCode가 인식한다. plugin 패키지에 포함된 스킬도 동일한 방식으로 설치된다.
 
 ---
 
