@@ -32,6 +32,24 @@ describe("mergeConfigs", () => {
 
     expect(mergeConfigs(userConfig, undefined)).toEqual(userConfig)
   })
+
+  test("deep merges agent overrides for the same agent", () => {
+    const userConfig: ForgeConfig = {
+      agents: {
+        pilot: { prompt_append: "Use concise outputs." },
+      },
+    }
+    const projectConfig: ForgeConfig = {
+      agents: {
+        pilot: { model: "openai/gpt-5.4" },
+      },
+    }
+
+    expect(mergeConfigs(userConfig, projectConfig).agents?.pilot).toEqual({
+      model: "openai/gpt-5.4",
+      prompt_append: "Use concise outputs.",
+    })
+  })
 })
 
 describe("loadConfigFromPaths", () => {

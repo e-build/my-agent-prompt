@@ -4,6 +4,30 @@ import { homedir } from "node:os"
 import { parse } from "jsonc-parser"
 import { ForgeConfigSchema, type ForgeConfig } from "./schema"
 
+function mergeAgentOverrides(
+  userAgents?: ForgeConfig["agents"],
+  projectAgents?: ForgeConfig["agents"],
+): ForgeConfig["agents"] | undefined {
+  if (!userAgents && !projectAgents) {
+    return undefined
+  }
+
+  const agentNames = ["pilot", "planner", "architect", "worker", "scouter"] as const
+  const merged = Object.fromEntries(
+    agentNames.map((name) => [
+      name,
+      userAgents?.[name] || projectAgents?.[name]
+        ? {
+            ...userAgents?.[name],
+            ...projectAgents?.[name],
+          }
+        : undefined,
+    ]),
+  ) as ForgeConfig["agents"]
+
+  return agentNames.some((name) => merged?.[name]) ? merged : undefined
+}
+
 async function readConfigFile(filePath: string): Promise<ForgeConfig | undefined> {
   try {
     const text = await readFile(filePath, "utf8")
@@ -38,10 +62,7 @@ export function mergeConfigs(
       ...userConfig.categories,
       ...projectConfig.categories,
     },
-    agents: {
-      ...userConfig.agents,
-      ...projectConfig.agents,
-    },
+    agents: mergeAgentOverrides(userConfig.agents, projectConfig.agents),
     disabled_agents: projectConfig.disabled_agents ?? userConfig.disabled_agents,
   }
 }
