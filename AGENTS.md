@@ -47,7 +47,7 @@
 | `command/ladder-*.md` (10개) | `~/.config/opencode/commands/ladder-*.md` | |
 | `skills/create-command/` | `~/.config/opencode/skills/create-command/` | 디렉토리 단위 심링크 |
 | `opencode-plugins/opencode-autoresearch/` | `~/.config/opencode/{commands,agents,skills,plugins}/` | `install-local.sh` 실행 |
-| `opencode-plugins/forge-plugin/dist/index.js` | `opencode.json`의 `plugin` 배열 | 절대 경로 직접 등록 |
+| `opencode-plugins/forge-plugin/dist/index.js` | `~/.config/opencode/plugins/forge-plugin.js` | 빌드 후 심링크 |
 
 > 스킬은 단일 파일이 아닌 **디렉토리 단위**로 심링크한다. 디렉토리 안에 `SKILL.md`가 있어야 OpenCode가 인식한다.
 > 저장소 루트 `command/`(단수)는 standalone 커맨드 전용이다. `opencode-plugins/` 내부는 OpenCode 패키지 관례에 따라 `commands/`(복수)를 사용한다.
@@ -73,14 +73,9 @@ ln -s $REPO/skills/create-command $OC/skills/create-command
 
 # opencode-autoresearch plugin (commands + agents + skills + plugin 자산 일괄)
 bash $REPO/opencode-plugins/opencode-autoresearch/install-local.sh
-```
 
-forge-plugin은 빌드 후 `~/.config/opencode/opencode.json`에 직접 등록한다:
-
-```json
-{
-  "plugin": ["/path/to/my-agent-prompt/opencode-plugins/forge-plugin/dist/index.js"]
-}
+# forge-plugin (빌드 후 plugins 디렉토리에 심링크)
+ln -s $REPO/opencode-plugins/forge-plugin/dist/index.js $OC/plugins/forge-plugin.js
 ```
 
 ---
