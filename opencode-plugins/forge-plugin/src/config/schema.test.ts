@@ -6,16 +6,26 @@ describe("ForgeConfigSchema", () => {
     expect(ForgeConfigSchema.parse({})).toEqual({})
   })
 
-  test("parses category overrides", () => {
+  test("parses agent model overrides", () => {
     const result = ForgeConfigSchema.parse({
-      categories: {
-        quick: { model: "anthropic/claude-haiku-4-5" },
-        deep: { model: "openai/gpt-5.4" },
+      agents: {
+        scouter: { model: "anthropic/claude-haiku-4-5" },
+        planner: { model: "openai/gpt-5.4" },
       },
     })
 
-    expect(result.categories?.quick?.model).toBe("anthropic/claude-haiku-4-5")
-    expect(result.categories?.deep?.model).toBe("openai/gpt-5.4")
+    expect(result.agents?.scouter?.model).toBe("anthropic/claude-haiku-4-5")
+    expect(result.agents?.planner?.model).toBe("openai/gpt-5.4")
+  })
+
+  test("rejects category overrides", () => {
+    expect(() =>
+      ForgeConfigSchema.parse({
+        categories: {
+          quick: { model: "anthropic/claude-haiku-4-5" },
+        },
+      }),
+    ).toThrow()
   })
 
   test("rejects disabled pilot", () => {

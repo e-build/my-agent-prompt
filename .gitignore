@@ -11,6 +11,11 @@ build/
 out/
 *.js.map
 
+# Tracked OpenCode plugin build artifact
+!opencode-plugins/forge-plugin/dist/
+!opencode-plugins/forge-plugin/dist/**/
+!opencode-plugins/forge-plugin/dist/**
+
 # Git worktrees
 .worktrees/
 

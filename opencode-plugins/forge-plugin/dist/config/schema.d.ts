@@ -1,19 +1,5 @@
 import { z } from "zod";
 export declare const ForgeConfigSchema: z.ZodObject<{
-    categories: z.ZodOptional<z.ZodObject<{
-        quick: z.ZodOptional<z.ZodObject<{
-            model: z.ZodString;
-        }, z.core.$strip>>;
-        standard: z.ZodOptional<z.ZodObject<{
-            model: z.ZodString;
-        }, z.core.$strip>>;
-        deep: z.ZodOptional<z.ZodObject<{
-            model: z.ZodString;
-        }, z.core.$strip>>;
-        visual: z.ZodOptional<z.ZodObject<{
-            model: z.ZodString;
-        }, z.core.$strip>>;
-    }, z.core.$strip>>;
     agents: z.ZodOptional<z.ZodObject<{
         pilot: z.ZodOptional<z.ZodObject<{
             model: z.ZodOptional<z.ZodString>;
@@ -42,5 +28,5 @@ export declare const ForgeConfigSchema: z.ZodObject<{
         worker: "worker";
         scouter: "scouter";
     }>>>;
-}, z.core.$strip>;
+}, z.core.$strict>;
 export type ForgeConfig = z.infer<typeof ForgeConfigSchema>;

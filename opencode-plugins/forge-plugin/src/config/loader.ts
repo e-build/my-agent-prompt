@@ -58,10 +58,6 @@ export function mergeConfigs(
   }
 
   return {
-    categories: {
-      ...userConfig.categories,
-      ...projectConfig.categories,
-    },
     agents: mergeAgentOverrides(userConfig.agents, projectConfig.agents),
     disabled_agents: projectConfig.disabled_agents ?? userConfig.disabled_agents,
   }

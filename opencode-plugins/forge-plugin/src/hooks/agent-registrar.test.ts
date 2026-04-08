@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test"
 import type { Config } from "@opencode-ai/plugin"
 import { createAgentRegistrar } from "./agent-registrar"
 import { createAgentRegistry } from "../kernel/agent-registry"
-import { createCategoryRouter } from "../kernel/category-router"
+import { createAgentModelResolver } from "../kernel/agent-model-resolver"
 
 describe("createAgentRegistrar", () => {
   test("registers active agents and start-work command", async () => {
@@ -10,9 +10,9 @@ describe("createAgentRegistrar", () => {
     const registry = createAgentRegistry({
       disabled_agents: ["architect"],
     })
-    const router = createCategoryRouter({})
+    const resolver = createAgentModelResolver({})
 
-    await createAgentRegistrar(registry, router)(config)
+    await createAgentRegistrar(registry, resolver)(config)
 
     expect(Object.keys(config.agent ?? {}).sort()).toEqual([
       "pilot",
@@ -21,5 +21,6 @@ describe("createAgentRegistrar", () => {
       "worker",
     ])
     expect(config.command?.["start-work"]?.agent).toBe("pilot")
+    expect(config.command?.["forge-models"]?.agent).toBe("pilot")
   })
 })

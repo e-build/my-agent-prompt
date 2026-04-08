@@ -8,17 +8,17 @@ import { loadConfigFromPaths, mergeConfigs } from "./loader"
 describe("mergeConfigs", () => {
   test("project config overrides user config", () => {
     const userConfig: ForgeConfig = {
-      categories: {
-        quick: { model: "anthropic/claude-haiku-4-5" },
+      agents: {
+        scouter: { model: "anthropic/claude-haiku-4-5" },
       },
     }
     const projectConfig: ForgeConfig = {
-      categories: {
-        quick: { model: "openai/gpt-4o-mini" },
+      agents: {
+        scouter: { model: "openai/gpt-4o-mini" },
       },
     }
 
-    expect(mergeConfigs(userConfig, projectConfig).categories?.quick?.model).toBe(
+    expect(mergeConfigs(userConfig, projectConfig).agents?.scouter?.model).toBe(
       "openai/gpt-4o-mini",
     )
   })
@@ -71,8 +71,8 @@ describe("loadConfigFromPaths", () => {
       userPath,
       `{
         // user defaults
-        "categories": {
-          "quick": { "model": "anthropic/claude-haiku-4-5" }
+        "agents": {
+          "scouter": { "model": "anthropic/claude-haiku-4-5" }
         }
       }`,
     )
@@ -88,7 +88,7 @@ describe("loadConfigFromPaths", () => {
 
     const result = await loadConfigFromPaths(userPath, projectPath)
 
-    expect(result.categories?.quick?.model).toBe("anthropic/claude-haiku-4-5")
+    expect(result.agents?.scouter?.model).toBe("anthropic/claude-haiku-4-5")
     expect(result.agents?.pilot?.model).toBe("anthropic/claude-opus-4-6")
   })
 

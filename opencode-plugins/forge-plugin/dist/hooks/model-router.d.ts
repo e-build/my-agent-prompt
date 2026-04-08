@@ -1,6 +1,6 @@
 import type { AgentRegistry } from "../kernel/agent-registry";
-import type { CategoryRouter } from "../kernel/category-router";
-export declare function createModelRouter(registry: AgentRegistry, router: CategoryRouter): (input: {
+import type { AgentModelResolver } from "../kernel/agent-model-resolver";
+export declare function createModelRouter(registry: AgentRegistry, resolver: AgentModelResolver): (input: {
     sessionID: string;
     agent?: string;
     variant?: string;

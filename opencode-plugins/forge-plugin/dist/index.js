@@ -14352,20 +14352,11 @@ function date4(params) {
 // node_modules/zod/v4/classic/external.js
 config(en_default());
 // src/config/schema.ts
-var CategorySchema = exports_external.object({
-  model: exports_external.string()
-});
 var AgentOverrideSchema = exports_external.object({
   model: exports_external.string().optional(),
   prompt_append: exports_external.string().optional()
 });
 var ForgeConfigSchema = exports_external.object({
-  categories: exports_external.object({
-    quick: CategorySchema.optional(),
-    standard: CategorySchema.optional(),
-    deep: CategorySchema.optional(),
-    visual: CategorySchema.optional()
-  }).optional(),
   agents: exports_external.object({
     pilot: AgentOverrideSchema.optional(),
     planner: AgentOverrideSchema.optional(),
@@ -14374,7 +14365,7 @@ var ForgeConfigSchema = exports_external.object({
     scouter: AgentOverrideSchema.optional()
   }).optional(),
   disabled_agents: exports_external.array(exports_external.enum(["planner", "architect", "worker", "scouter"])).optional()
-});
+}).strict();
 
 // src/config/loader.ts
 function mergeAgentOverrides(userAgents, projectAgents) {
@@ -14414,10 +14405,6 @@ function mergeConfigs(userConfig, projectConfig) {
     return userConfig;
   }
   return {
-    categories: {
-      ...userConfig.categories,
-      ...projectConfig.categories
-    },
     agents: mergeAgentOverrides(userConfig.agents, projectConfig.agents),
     disabled_agents: projectConfig.disabled_agents ?? userConfig.disabled_agents
   };
@@ -14436,19 +14423,24 @@ async function loadConfig(projectDirectory) {
 }
 
 // src/hooks/agent-registrar.ts
-function createAgentRegistrar(registry2, router) {
+function createAgentRegistrar(registry2, resolver) {
   return async (config2) => {
     config2.agent = {
       ...config2.agent ?? {}
     };
     for (const definition of registry2.getActive()) {
-      config2.agent[definition.name] = registry2.buildConfig(definition.name, router.resolveAgent(definition.name, definition.defaultCategory));
+      config2.agent[definition.name] = registry2.buildConfig(definition.name, resolver.resolveAgentModel(definition.name));
     }
     config2.command = {
       ...config2.command ?? {},
       "start-work": {
         description: "Load the active Forge plan and start executing it",
         template: "Use the start_work tool to load the active Forge plan. If the user passed arguments, treat them as the plan name: $ARGUMENTS",
+        agent: "pilot"
+      },
+      "forge-models": {
+        description: "Recommend Forge agent models from available OpenCode models",
+        template: "Use the recommend_models tool to show recommended Forge agent model bindings for the current project.",
         agent: "pilot"
       }
     };
@@ -14465,18 +14457,7 @@ function createEventLogger() {
 }
 
 // src/hooks/model-router.ts
-var FORGE_VARIANT_PREFIX = "forge:";
-function parseForgeCategory(variant) {
-  if (!variant?.startsWith(FORGE_VARIANT_PREFIX)) {
-    return;
-  }
-  const category = variant.slice(FORGE_VARIANT_PREFIX.length);
-  if (category === "quick" || category === "standard" || category === "deep" || category === "visual") {
-    return category;
-  }
-  return;
-}
-function createModelRouter(registry2, router) {
+function createModelRouter(registry2, resolver) {
   return async (input, output) => {
     if (!registry2.isForgeAgent(input.agent)) {
       return;
@@ -14484,8 +14465,7 @@ function createModelRouter(registry2, router) {
     if (registry2.isDisabled(input.agent)) {
       return;
     }
-    const category = parseForgeCategory(input.variant) ?? registry2.getDefaultCategory(input.agent);
-    output.message.model = router.parse(router.resolveAgent(input.agent, category));
+    output.message.model = resolver.parse(resolver.resolveAgentModel(input.agent));
   };
 }
 
@@ -14526,20 +14506,18 @@ function parseModelString(model) {
   };
 }
 
-// src/kernel/category-router.ts
-var DEFAULT_MODELS = {
-  quick: "anthropic/claude-haiku-4-5",
-  standard: "anthropic/claude-sonnet-4-6",
-  deep: "openai/gpt-5.4",
-  visual: "google/gemini-3.1-pro"
+// src/kernel/agent-model-resolver.ts
+var DEFAULT_AGENT_MODELS = {
+  pilot: "anthropic/claude-sonnet-4-6",
+  planner: "openai/gpt-5.4",
+  architect: "openai/gpt-5.4",
+  worker: "anthropic/claude-sonnet-4-6",
+  scouter: "anthropic/claude-haiku-4-5"
 };
-function createCategoryRouter(config2) {
+function createAgentModelResolver(config2) {
   return {
-    resolveCategory(category) {
-      return config2.categories?.[category]?.model ?? DEFAULT_MODELS[category];
-    },
-    resolveAgent(agent, category) {
-      return config2.agents?.[agent]?.model ?? this.resolveCategory(category);
+    resolveAgentModel(agent) {
+      return config2.agents?.[agent]?.model ?? DEFAULT_AGENT_MODELS[agent];
     },
     parse(model) {
       return parseModelString(model);
@@ -14662,31 +14640,26 @@ function createWorkerAgent(model, promptAppend) {
 var DEFINITIONS = [
   {
     name: "pilot",
-    defaultCategory: "standard",
     delegatesTo: ["worker", "scouter", "architect"],
     createConfig: createPilotAgent
   },
   {
     name: "planner",
-    defaultCategory: "deep",
     delegatesTo: ["scouter", "architect"],
     createConfig: createPlannerAgent
   },
   {
     name: "architect",
-    defaultCategory: "deep",
     delegatesTo: ["scouter"],
     createConfig: createArchitectAgent
   },
   {
     name: "worker",
-    defaultCategory: "standard",
     delegatesTo: [],
     createConfig: createWorkerAgent
   },
   {
     name: "scouter",
-    defaultCategory: "quick",
     delegatesTo: [],
     createConfig: createScouterAgent
   }
@@ -14705,10 +14678,6 @@ function createAgentRegistry(config2) {
     },
     isDisabled(name) {
       return name !== "pilot" && disabled.has(name);
-    },
-    getDefaultCategory(name) {
-      const definition = getDefinition(name);
-      return definition.defaultCategory;
     },
     canDelegate(from, to) {
       return getDefinition(from).delegatesTo.includes(to);
@@ -27047,12 +27016,160 @@ function tool(input) {
   return input;
 }
 tool.schema = exports_external2;
+// src/tools/model-bindings.ts
+import { execFile } from "child_process";
+import { mkdir, readFile as readFile2, writeFile } from "fs/promises";
+import { join as join3 } from "path";
+
+// src/kernel/model-recommendations.ts
+var AGENTS = ["pilot", "planner", "architect", "worker", "scouter"];
+var PREFERENCES = {
+  pilot: ["gpt-5.4", "claude-sonnet", "gpt-5.2"],
+  planner: ["gpt-5.4", "gpt-5.3", "claude-opus", "claude-sonnet"],
+  architect: ["gpt-5.4", "gpt-5.3", "claude-opus", "claude-sonnet"],
+  worker: ["claude-sonnet", "gpt-5-codex", "gpt-5.4", "gpt-4.1"],
+  scouter: ["claude-haiku", "gemini", "flash", "gpt-5-mini", "gpt-4o-mini"]
+};
+var REASONS = {
+  pilot: "main orchestration benefits from a strong general coding model",
+  planner: "planning benefits from the strongest reasoning model available",
+  architect: "architecture trade-off analysis benefits from deep reasoning",
+  worker: "implementation benefits from a reliable coding model",
+  scouter: "codebase exploration benefits from a fast and lighter model"
+};
+function parseModelList(output) {
+  return output.split(`
+`).map((line) => line.trim()).filter((line) => /^[^\s/]+\/.+/.test(line));
+}
+function recommendAgentModels(models, config3) {
+  const candidates = models.filter(isDefaultCandidate);
+  return AGENTS.map((agent) => {
+    const currentModel = config3.agents?.[agent]?.model ?? DEFAULT_AGENT_MODELS[agent];
+    return {
+      agent,
+      currentModel,
+      recommendedModel: chooseModel(agent, candidates) ?? currentModel,
+      reason: REASONS[agent]
+    };
+  });
+}
+function applyAgentModelBindings(config3, recommendations) {
+  const agents = { ...config3.agents ?? {} };
+  for (const recommendation of recommendations) {
+    agents[recommendation.agent] = {
+      ...agents[recommendation.agent],
+      model: recommendation.recommendedModel
+    };
+  }
+  return {
+    ...config3,
+    agents
+  };
+}
+function formatRecommendations(recommendations) {
+  return [
+    "# Forge model recommendations",
+    "",
+    ...recommendations.flatMap((recommendation) => [
+      `## ${recommendation.agent}`,
+      `current: ${recommendation.currentModel}`,
+      `recommended: ${recommendation.recommendedModel}`,
+      `reason: ${recommendation.reason}`,
+      ""
+    ]),
+    "Approve binding before writing these recommendations to .forge/config.jsonc."
+  ].join(`
+`);
+}
+function chooseModel(agent, models) {
+  const preferences = PREFERENCES[agent];
+  for (const preference of preferences) {
+    const match = models.find((model) => model.toLowerCase().includes(preference));
+    if (match) {
+      return match;
+    }
+  }
+  return;
+}
+function isDefaultCandidate(model) {
+  const lowered = model.toLowerCase();
+  return !lowered.includes("free") && !lowered.includes("preview") && !lowered.includes("embedding");
+}
+
+// src/tools/model-bindings.ts
+async function loadProjectConfig(configPath) {
+  try {
+    return ForgeConfigSchema.parse(parse2(await readFile2(configPath, "utf8")));
+  } catch (error92) {
+    const code = error92.code;
+    if (code === "ENOENT") {
+      return {};
+    }
+    throw error92;
+  }
+}
+async function getModels(models) {
+  if (models) {
+    return models;
+  }
+  const output = await new Promise((resolve, reject) => {
+    execFile("opencode", ["models", "--pure"], { encoding: "utf8" }, (error92, stdout, stderr) => {
+      if (error92) {
+        reject(new Error(stderr.trim() || error92.message));
+        return;
+      }
+      resolve(stdout);
+    });
+  });
+  return parseModelList(output);
+}
+var recommendModelsTool = tool({
+  description: "Recommend Forge agent model bindings from available OpenCode models.",
+  args: {
+    models: tool.schema.array(tool.schema.string()).optional().describe("Optional model list for tests or manual input. Defaults to `opencode models --pure`.")
+  },
+  async execute(args, context) {
+    const configPath = join3(context.directory, ".forge", "config.jsonc");
+    const config3 = await loadProjectConfig(configPath);
+    const models = await getModels(args.models);
+    const recommendations = recommendAgentModels(models, config3);
+    return formatRecommendations(recommendations);
+  }
+});
+var bindModelsTool = tool({
+  description: "Write approved Forge agent model bindings to .forge/config.jsonc.",
+  args: {
+    approved: tool.schema.boolean().describe("Must be true only after the user explicitly approves binding the recommended models."),
+    models: tool.schema.array(tool.schema.string()).optional().describe("Optional model list for tests or manual input. Defaults to `opencode models --pure`.")
+  },
+  async execute(args, context) {
+    if (!args.approved) {
+      return "Model binding requires explicit user approval before writing .forge/config.jsonc.";
+    }
+    const forgeDir = join3(context.directory, ".forge");
+    const configPath = join3(forgeDir, "config.jsonc");
+    const config3 = await loadProjectConfig(configPath);
+    const models = await getModels(args.models);
+    const recommendations = recommendAgentModels(models, config3);
+    const nextConfig = applyAgentModelBindings(config3, recommendations);
+    await mkdir(forgeDir, { recursive: true });
+    await writeFile(configPath, `${JSON.stringify(nextConfig, null, 2)}
+`, "utf8");
+    return [
+      "Updated .forge/config.jsonc with approved Forge model bindings.",
+      "",
+      formatRecommendations(recommendations)
+    ].join(`
+`);
+  }
+});
+
 // src/tools/start-work.ts
-import { mkdir, readFile as readFile2, readdir, stat, writeFile } from "fs/promises";
-import { join as join3, relative as relative2 } from "path";
+import { mkdir as mkdir2, readFile as readFile3, readdir, stat, writeFile as writeFile2 } from "fs/promises";
+import { join as join4, relative as relative2 } from "path";
 async function readState(statePath) {
   try {
-    return JSON.parse(await readFile2(statePath, "utf8"));
+    return JSON.parse(await readFile3(statePath, "utf8"));
   } catch {
     return {};
   }
@@ -27062,7 +27179,7 @@ async function listPlans(plansDir) {
   const planNames = names.filter((name) => name.endsWith(".md"));
   const withTimes = await Promise.all(planNames.map(async (name) => ({
     name,
-    mtimeMs: (await stat(join3(plansDir, name))).mtimeMs
+    mtimeMs: (await stat(join4(plansDir, name))).mtimeMs
   })));
   return withTimes.sort((left, right) => right.mtimeMs - left.mtimeMs).map((entry) => entry.name);
 }
@@ -27078,9 +27195,9 @@ var startWorkTool = tool({
     plan: tool.schema.string().optional().describe("Optional plan filename without .md")
   },
   async execute(args, context) {
-    const forgeDir = join3(context.directory, ".forge");
-    const plansDir = join3(forgeDir, "plans");
-    const statePath = join3(forgeDir, "state.json");
+    const forgeDir = join4(context.directory, ".forge");
+    const plansDir = join4(forgeDir, "plans");
+    const statePath = join4(forgeDir, "state.json");
     const explicitPlan = normalizePlanName(args.plan);
     let planFile = explicitPlan;
     const state = await readState(statePath);
@@ -27098,10 +27215,10 @@ var startWorkTool = tool({
     if (!planFile) {
       return "No Forge plan files found. Use Planner to create a plan first.";
     }
-    const planPath = join3(plansDir, planFile);
+    const planPath = join4(plansDir, planFile);
     let content;
     try {
-      content = await readFile2(planPath, "utf8");
+      content = await readFile3(planPath, "utf8");
     } catch {
       return `Plan not found: ${planFile}`;
     }
@@ -27110,8 +27227,8 @@ var startWorkTool = tool({
       started_at: state.started_at ?? new Date().toISOString(),
       session_ids: Array.from(new Set([...state.session_ids ?? [], context.sessionID]))
     };
-    await mkdir(forgeDir, { recursive: true });
-    await writeFile(statePath, `${JSON.stringify(nextState, null, 2)}
+    await mkdir2(forgeDir, { recursive: true });
+    await writeFile2(statePath, `${JSON.stringify(nextState, null, 2)}
 `, "utf8");
     return [
       `# Active Forge Plan`,
@@ -27130,19 +27247,21 @@ var startWorkTool = tool({
 var ForgePlugin = async (ctx) => {
   const config3 = await loadConfig(ctx.directory);
   const registry3 = createAgentRegistry(config3);
-  const router = createCategoryRouter(config3);
+  const resolver = createAgentModelResolver(config3);
   const sessionAgents = new Map;
   const plannerWriteGuard = createPlannerWriteGuard(ctx.directory, sessionAgents);
   return {
     tool: {
+      bind_models: bindModelsTool,
+      recommend_models: recommendModelsTool,
       start_work: startWorkTool
     },
-    config: createAgentRegistrar(registry3, router),
+    config: createAgentRegistrar(registry3, resolver),
     "chat.message": async (input, output) => {
       if (input.agent) {
         sessionAgents.set(input.sessionID, input.agent);
       }
-      await createModelRouter(registry3, router)(input, output);
+      await createModelRouter(registry3, resolver)(input, output);
     },
     "tool.execute.before": plannerWriteGuard,
     event: createEventLogger()
