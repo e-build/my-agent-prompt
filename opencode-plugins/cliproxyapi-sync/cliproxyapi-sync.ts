@@ -50,6 +50,12 @@ type ModelMetadataByOwner = Record<
   >
 >
 
+type Variant = {
+  reasoningEffort: string
+  reasoningSummary?: "auto"
+  include?: string[]
+}
+
 type ProviderRecord = NonNullable<Config["provider"]>
 type ProviderInfo = ProviderRecord[string]
 type PersistedConfig = Record<string, unknown> & {
@@ -62,17 +68,35 @@ type NextProviderState = {
   changed: boolean
 }
 
-const CONFIG_PATH = path.join(os.homedir(), ".config", "opencode", "opencode.json")
 const DEFAULT_MANAGEMENT_KEY = "1234qwer!"
 const COPILOT_REASONING_INCLUDE = ["reasoning.encrypted_content"]
-const COPILOT_REASONING_VARIANTS = new Set(["low", "medium", "high", "xhigh"])
+const REASONING_VARIANTS = new Set(["auto", "minimal", "low", "medium", "high", "xhigh", "max"])
 const METADATA_CHANNEL_OWNER_MAP = {
-  "github-copilot": "github-copilot",
   codex: "openai",
 } as const
+const METADATA_CHANNELS = [
+  "github-copilot",
+  "codex",
+  "antigravity",
+  "claude",
+  "gemini",
+  "vertex",
+  "gemini-cli",
+  "aistudio",
+  "qwen",
+  "iflow",
+  "kimi",
+  "kiro",
+  "kilo",
+  "amazonq",
+]
 
 function normalizeBaseUrl(baseURL: string) {
   return baseURL.replace(/\/+$/, "")
+}
+
+export function getConfigPath() {
+  return process.env.OPENCODE_CONFIG_PATH || path.join(os.homedir(), ".config", "opencode", "opencode.json")
 }
 
 function normalizeOwner(owner: string) {
@@ -147,19 +171,23 @@ function buildManagedModel(
 }
 
 function buildVariants(owner: string, thinkingLevels: string[] | undefined) {
-  const normalizedOwner = normalizeOwner(owner)
-  if (normalizedOwner !== "github-copilot" && normalizedOwner !== "openai") return undefined
   if (!thinkingLevels?.length) return undefined
+  const normalizedOwner = normalizeOwner(owner)
+  const shouldIncludeCopilotOptions = normalizedOwner === "github-copilot" || normalizedOwner === "openai"
 
   const entries = thinkingLevels
-    .filter((level) => COPILOT_REASONING_VARIANTS.has(level))
+    .filter((level) => REASONING_VARIANTS.has(level))
     .map((level) => [
       level,
       {
         reasoningEffort: level,
-        reasoningSummary: "auto" as const,
-        include: COPILOT_REASONING_INCLUDE,
-      },
+        ...(shouldIncludeCopilotOptions
+          ? {
+              reasoningSummary: "auto" as const,
+              include: COPILOT_REASONING_INCLUDE,
+            }
+          : {}),
+      } satisfies Variant,
     ])
 
   if (entries.length === 0) return undefined
@@ -197,25 +225,55 @@ function normalizeThinkingLevels(levels: unknown) {
   return normalized.length > 0 ? normalized : undefined
 }
 
-function buildMetadataByOwner(payloads: ManagementModelDefinitionsResponse[]): ModelMetadataByOwner {
+function buildMetadataByOwner(payloads: ManagementModelDefinitionsResponse[], modelsPayload?: ModelResponse): ModelMetadataByOwner {
   const byOwner: ModelMetadataByOwner = {}
+  const ownersByModel = buildOwnersByModel(modelsPayload)
 
   for (const payload of payloads) {
     for (const model of payload.models ?? []) {
       if (typeof model.id !== "string" || model.id.length === 0) continue
 
-      const owner = payload.channel ? METADATA_CHANNEL_OWNER_MAP[payload.channel as keyof typeof METADATA_CHANNEL_OWNER_MAP] : undefined
-      if (!owner) continue
+      const owners = resolveMetadataOwners(payload.channel, model.id, ownersByModel)
+      if (owners.length === 0) continue
 
-      byOwner[owner] ??= {}
-      byOwner[owner][model.id] = {
-        displayName: typeof model.display_name === "string" && model.display_name.length > 0 ? model.display_name : undefined,
-        thinkingLevels: normalizeThinkingLevels(model.thinking?.levels),
+      for (const owner of owners) {
+        byOwner[owner] ??= {}
+        byOwner[owner][model.id] = {
+          displayName: typeof model.display_name === "string" && model.display_name.length > 0 ? model.display_name : undefined,
+          thinkingLevels: normalizeThinkingLevels(model.thinking?.levels),
+        }
       }
     }
   }
 
   return byOwner
+}
+
+function buildOwnersByModel(payload: ModelResponse | undefined) {
+  const ownersByModel = new Map<string, Set<string>>()
+
+  for (const model of payload?.data ?? []) {
+    if (typeof model.id !== "string" || model.id.length === 0) continue
+    if (typeof model.owned_by !== "string" || model.owned_by.length === 0) continue
+
+    const owners = ownersByModel.get(model.id) ?? new Set<string>()
+    owners.add(model.owned_by)
+    ownersByModel.set(model.id, owners)
+  }
+
+  return ownersByModel
+}
+
+function resolveMetadataOwners(channel: string | undefined, modelId: string, ownersByModel: Map<string, Set<string>>) {
+  if (!channel) return []
+
+  const mappedOwner = METADATA_CHANNEL_OWNER_MAP[channel as keyof typeof METADATA_CHANNEL_OWNER_MAP]
+  if (mappedOwner) return [mappedOwner]
+
+  const matchingOwners = ownersByModel.get(modelId)
+  if (matchingOwners?.has(channel)) return [channel]
+
+  return []
 }
 
 function resolveSeedProvider(config: Config) {
@@ -248,10 +306,15 @@ export function buildManagedProviders(seedProvider: ProviderInfo, modelsByOwner:
   )
 }
 
-async function fetchMetadataByOwner(baseURL: string, managementKey: string, log: (message: string) => Promise<void>) {
+async function fetchMetadataByOwner(
+  baseURL: string,
+  managementKey: string,
+  modelsPayload: ModelResponse,
+  log: (message: string) => Promise<void>,
+) {
   const metadataPayloads: ManagementModelDefinitionsResponse[] = []
 
-  for (const channel of ["github-copilot", "codex"]) {
+  for (const channel of METADATA_CHANNELS) {
     try {
       metadataPayloads.push(await fetchModelDefinitions(baseURL, managementKey, channel))
     } catch (error) {
@@ -260,7 +323,7 @@ async function fetchMetadataByOwner(baseURL: string, managementKey: string, log:
     }
   }
 
-  return buildMetadataByOwner(metadataPayloads)
+  return buildMetadataByOwner(metadataPayloads, modelsPayload)
 }
 
 function stableStringify(value: unknown) {
@@ -269,6 +332,15 @@ function stableStringify(value: unknown) {
 
 function getPersistedProviders(config: PersistedConfig): ProviderRecord {
   return isProviderRecord(config.provider) ? config.provider : {}
+}
+
+function sanitizePersistedProvider(provider: ProviderInfo): ProviderInfo {
+  if (!provider || typeof provider !== "object") return provider
+
+  return {
+    ...provider,
+    options: stripManagementKey(provider.options),
+  }
 }
 
 function isManagedProviderId(id: string) {
@@ -281,7 +353,9 @@ export function buildNextProviderState(
 ): NextProviderState {
   const persistedProviders = getPersistedProviders(persistedConfig)
   const unmanagedProviders = Object.fromEntries(
-    Object.entries(persistedProviders).filter(([id]) => !isManagedProviderId(id)),
+    Object.entries(persistedProviders)
+      .filter(([id]) => !isManagedProviderId(id))
+      .map(([id, provider]) => [id, sanitizePersistedProvider(provider)]),
   )
   const nextProvider = {
     ...unmanagedProviders,
@@ -300,13 +374,14 @@ export function buildNextProviderState(
 
 async function writeConfigAtomically(config: Config) {
   const nextContent = `${stableStringify(config)}\n`
-  const tempPath = `${CONFIG_PATH}.tmp`
+  const configPath = getConfigPath()
+  const tempPath = `${configPath}.tmp`
   await fs.writeFile(tempPath, nextContent, "utf8")
-  await fs.rename(tempPath, CONFIG_PATH)
+  await fs.rename(tempPath, configPath)
 }
 
 async function readPersistedConfig() {
-  const content = await fs.readFile(CONFIG_PATH, "utf8")
+  const content = await fs.readFile(getConfigPath(), "utf8")
   const parsed = JSON.parse(content)
   if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
     throw new Error("Persisted config root must be an object")
@@ -357,7 +432,7 @@ async function syncCliproxyapiProvider(config: Config, log: (message: string) =>
 
   try {
     const payload = await fetchModels(baseURL, apiKey)
-    const metadataByOwner = await fetchMetadataByOwner(baseURL, managementKey, log)
+    const metadataByOwner = await fetchMetadataByOwner(baseURL, managementKey, payload, log)
 
     const modelsByOwner = buildModelsByOwner(payload, metadataByOwner)
     const managedProviders = buildManagedProviders(
