@@ -12,6 +12,79 @@ afterEach(() => {
   delete process.env.OPENCODE_CONFIG_PATH
 })
 
+async function writeTempOpenCodeConfig(config: unknown) {
+  const tempHome = await fs.mkdtemp(path.join(os.tmpdir(), "cliproxyapi-sync-"))
+  const configDir = path.join(tempHome, ".config", "opencode")
+  const configPath = path.join(configDir, "opencode.json")
+  await fs.mkdir(configDir, { recursive: true })
+  await fs.writeFile(configPath, `${JSON.stringify(config)}\n`, "utf8")
+  process.env.OPENCODE_CONFIG_PATH = configPath
+}
+
+function stubAntigravityModelFetch() {
+  globalThis.fetch = async (input) => {
+    const url = String(input)
+    if (url === "http://localhost:8317/v1/models") {
+      return new Response(
+        JSON.stringify({
+          data: [{ id: "gemini-3-flash", owned_by: "antigravity" }],
+        }),
+      )
+    }
+
+    if (url.endsWith("/v0/management/model-definitions/antigravity")) {
+      return new Response(
+        JSON.stringify({
+          channel: "antigravity",
+          models: [
+            {
+              id: "gemini-3-flash",
+              display_name: "Gemini 3 Flash",
+              thinking: { levels: ["minimal", "low", "medium", "high"] },
+            },
+          ],
+        }),
+      )
+    }
+
+    return new Response(JSON.stringify({ channel: url.split("/").at(-1), models: [] }))
+  }
+}
+
+function buildSeedProvider() {
+  return {
+    name: "CLIProxyAPI",
+    npm: "@ai-sdk/openai-compatible",
+    options: {
+      apiKey: "test-api-key",
+      baseURL: "http://localhost:8317/v1",
+    },
+    models: {},
+  }
+}
+
+function buildAntigravityProvider() {
+  return {
+    name: "CP Antigravity",
+    npm: "@ai-sdk/openai-compatible",
+    options: {
+      apiKey: "test-api-key",
+      baseURL: "http://localhost:8317/v1",
+    },
+    models: {
+      "gemini-3-flash": {
+        name: "Gemini 3 Flash",
+        variants: {
+          minimal: { reasoningEffort: "minimal" },
+          low: { reasoningEffort: "low" },
+          medium: { reasoningEffort: "medium" },
+          high: { reasoningEffort: "high" },
+        },
+      },
+    },
+  }
+}
+
 describe("buildModelsByOwner", () => {
   test("adds github-copilot reasoning variants from management metadata", () => {
     const result = buildModelsByOwner(
@@ -214,59 +287,14 @@ describe("CliproxyapiSyncPlugin", () => {
   })
 
   test("maps thinking metadata to matching generic provider owners during sync", async () => {
-    const tempHome = await fs.mkdtemp(path.join(os.tmpdir(), "cliproxyapi-sync-"))
-    const configDir = path.join(tempHome, ".config", "opencode")
-    const configPath = path.join(configDir, "opencode.json")
-    await fs.mkdir(configDir, { recursive: true })
-    await fs.writeFile(
-      configPath,
-      `${JSON.stringify({
-        provider: {
-          cliproxyapi: {
-            name: "CLIProxyAPI",
-            npm: "@ai-sdk/openai-compatible",
-            options: {
-              apiKey: "test-api-key",
-              baseURL: "http://localhost:8317/v1",
-            },
-            models: {},
-          },
-        },
-      })}\n`,
-      "utf8",
-    )
+    await writeTempOpenCodeConfig({
+      provider: {
+        cliproxyapi: buildSeedProvider(),
+      },
+    })
+    stubAntigravityModelFetch()
 
-    process.env.OPENCODE_CONFIG_PATH = configPath
     const { CliproxyapiSyncPlugin } = await import("./cliproxyapi-sync")
-
-    globalThis.fetch = async (input) => {
-      const url = String(input)
-      if (url === "http://localhost:8317/v1/models") {
-        return new Response(
-          JSON.stringify({
-            data: [{ id: "gemini-3-flash", owned_by: "antigravity" }],
-          }),
-        )
-      }
-
-      if (url.endsWith("/v0/management/model-definitions/antigravity")) {
-        return new Response(
-          JSON.stringify({
-            channel: "antigravity",
-            models: [
-              {
-                id: "gemini-3-flash",
-                display_name: "Gemini 3 Flash",
-                thinking: { levels: ["minimal", "low", "medium", "high"] },
-              },
-            ],
-          }),
-        )
-      }
-
-      return new Response(JSON.stringify({ channel: url.split("/").at(-1), models: [] }))
-    }
-
     const plugin = await CliproxyapiSyncPlugin({
       client: {
         app: {
@@ -276,15 +304,7 @@ describe("CliproxyapiSyncPlugin", () => {
     })
     const config = {
       provider: {
-        cliproxyapi: {
-          name: "CLIProxyAPI",
-          npm: "@ai-sdk/openai-compatible",
-          options: {
-            apiKey: "test-api-key",
-            baseURL: "http://localhost:8317/v1",
-          },
-          models: {},
-        },
+        cliproxyapi: buildSeedProvider(),
       },
     }
 
@@ -299,5 +319,170 @@ describe("CliproxyapiSyncPlugin", () => {
         high: { reasoningEffort: "high" },
       },
     })
+  })
+
+  test("shows a success toast after config hook completes with delay", async () => {
+    await writeTempOpenCodeConfig({
+      provider: {
+        cliproxyapi: buildSeedProvider(),
+      },
+    })
+    stubAntigravityModelFetch()
+
+    const { CliproxyapiSyncPlugin } = await import("./cliproxyapi-sync")
+    const toastCalls: unknown[] = []
+    const plugin = await CliproxyapiSyncPlugin({
+      client: {
+        app: {
+          log: () => Promise.resolve(),
+        },
+        tui: {
+          showToast: (input) => {
+            toastCalls.push(input)
+            return Promise.resolve(true)
+          },
+        },
+      },
+    })
+
+    await plugin.config({
+      provider: {
+        cliproxyapi: buildSeedProvider(),
+      },
+    })
+
+    // Toast should not fire immediately (needs delay for TUI to connect)
+    expect(toastCalls).toEqual([])
+
+    // Wait for the delayed toast to fire
+    await new Promise((resolve) => setTimeout(resolve, 4000))
+
+    expect(toastCalls).toEqual([
+      {
+        body: {
+          title: "CLIProxyAPI Sync",
+          message:
+            "CLIProxyAPI sync updated: 1 providers, 1 models. Added provider cp-antigravity, model cp-antigravity/gemini-3-flash",
+          variant: "success",
+          duration: 5000,
+        },
+      },
+    ])
+  })
+
+  test("shows a success toast when providers are already up to date", async () => {
+    await writeTempOpenCodeConfig({
+      provider: {
+        cliproxyapi: buildSeedProvider(),
+        "cp-antigravity": buildAntigravityProvider(),
+      },
+    })
+    stubAntigravityModelFetch()
+
+    const { CliproxyapiSyncPlugin } = await import("./cliproxyapi-sync")
+    const toastCalls: unknown[] = []
+    const plugin = await CliproxyapiSyncPlugin({
+      client: {
+        app: {
+          log: () => Promise.resolve(),
+        },
+        tui: {
+          showToast: (input) => {
+            toastCalls.push(input)
+            return Promise.resolve(true)
+          },
+        },
+      },
+    })
+
+    await plugin.config({
+      provider: {
+        cliproxyapi: buildSeedProvider(),
+        "cp-antigravity": buildAntigravityProvider(),
+      },
+    })
+
+    // Wait for the delayed toast
+    await new Promise((resolve) => setTimeout(resolve, 4000))
+
+    expect(toastCalls).toEqual([
+      {
+        body: {
+          title: "CLIProxyAPI Sync",
+          message: "CLIProxyAPI sync up to date: 1 providers, 1 models",
+          variant: "success",
+          duration: 5000,
+        },
+      },
+    ])
+  })
+
+  test("does not fail sync when showing the success toast throws", async () => {
+    await writeTempOpenCodeConfig({
+      provider: {
+        cliproxyapi: buildSeedProvider(),
+      },
+    })
+    stubAntigravityModelFetch()
+
+    const { CliproxyapiSyncPlugin } = await import("./cliproxyapi-sync")
+    const plugin = await CliproxyapiSyncPlugin({
+      client: {
+        app: {
+          log: () => Promise.resolve(),
+        },
+        tui: {
+          showToast: () => {
+            throw new Error("toast unavailable")
+          },
+        },
+      },
+    })
+    const config = {
+      provider: {
+        cliproxyapi: buildSeedProvider(),
+      },
+    }
+
+    await expect(plugin.config(config)).resolves.toBeUndefined()
+    // Wait for delayed toast (should not throw)
+    await new Promise((resolve) => setTimeout(resolve, 4000))
+    expect(config.provider?.["cp-antigravity"]?.models?.["gemini-3-flash"]?.name).toBe("Gemini 3 Flash")
+  })
+
+  test("shows toast exactly once even with multiple config calls", async () => {
+    await writeTempOpenCodeConfig({
+      provider: {
+        cliproxyapi: buildSeedProvider(),
+      },
+    })
+    stubAntigravityModelFetch()
+
+    const { CliproxyapiSyncPlugin } = await import("./cliproxyapi-sync")
+    const toastCalls: unknown[] = []
+    const plugin = await CliproxyapiSyncPlugin({
+      client: {
+        app: {
+          log: () => Promise.resolve(),
+        },
+        tui: {
+          showToast: (input) => {
+            toastCalls.push(input)
+            return Promise.resolve(true)
+          },
+        },
+      },
+    })
+
+    await plugin.config({
+      provider: {
+        cliproxyapi: buildSeedProvider(),
+      },
+    })
+
+    // Wait for delayed toast
+    await new Promise((resolve) => setTimeout(resolve, 4000))
+
+    expect(toastCalls).toHaveLength(1)
   })
 })

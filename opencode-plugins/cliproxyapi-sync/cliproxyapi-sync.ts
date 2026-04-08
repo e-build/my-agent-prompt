@@ -68,6 +68,14 @@ type NextProviderState = {
   changed: boolean
 }
 
+type SyncResult = {
+  changed: boolean
+  providerCount: number
+  modelCount: number
+  addedProviders: string[]
+  addedModels: string[]
+}
+
 const DEFAULT_MANAGEMENT_KEY = "1234qwer!"
 const COPILOT_REASONING_INCLUDE = ["reasoning.encrypted_content"]
 const REASONING_VARIANTS = new Set(["auto", "minimal", "low", "medium", "high", "xhigh", "max"])
@@ -372,6 +380,29 @@ export function buildNextProviderState(
   }
 }
 
+function getModelIds(provider: ProviderInfo) {
+  if (!provider || typeof provider !== "object" || !provider.models || typeof provider.models !== "object") return []
+
+  return Object.keys(provider.models)
+}
+
+function buildSyncResult(persistedProviders: ProviderRecord, managedProviders: Config["provider"], changed: boolean): SyncResult {
+  const managedEntries = Object.entries(managedProviders ?? {})
+  const addedProviders = managedEntries.filter(([id]) => !persistedProviders[id]).map(([id]) => id)
+  const addedModels = managedEntries.flatMap(([providerId, provider]) => {
+    const persistedModels = new Set(getModelIds(persistedProviders[providerId]))
+    return getModelIds(provider).filter((modelId) => !persistedModels.has(modelId)).map((modelId) => `${providerId}/${modelId}`)
+  })
+
+  return {
+    changed,
+    providerCount: managedEntries.length,
+    modelCount: managedEntries.reduce((count, [, provider]) => count + getModelIds(provider).length, 0),
+    addedProviders,
+    addedModels,
+  }
+}
+
 async function writeConfigAtomically(config: Config) {
   const nextContent = `${stableStringify(config)}\n`
   const configPath = getConfigPath()
@@ -448,10 +479,12 @@ async function syncCliproxyapiProvider(config: Config, log: (message: string) =>
     )
 
     const persistedConfig = await readPersistedConfig()
+    const persistedProviders = getPersistedProviders(persistedConfig)
     const nextState = buildNextProviderState(persistedConfig, managedProviders)
+    const result = buildSyncResult(persistedProviders, managedProviders, nextState.changed)
     if (!nextState.changed) {
       await log("[cliproxyapi-sync] cp-* providers already up to date")
-      return
+      return result
     }
 
     await writeConfigAtomically(nextState.config as Config)
@@ -459,11 +492,47 @@ async function syncCliproxyapiProvider(config: Config, log: (message: string) =>
     await log(
       `[cliproxyapi-sync] Synced ${Object.keys(managedProviders ?? {}).length} providers from ${payload.data?.length ?? 0} models`,
     )
+    return result
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
     await log(`[cliproxyapi-sync] Sync skipped: ${message}`)
   }
 }
+
+function formatAddedItems(label: string, items: string[]) {
+  if (items.length === 0) return undefined
+  const visibleItems = items.slice(0, 3)
+  const suffix = items.length > visibleItems.length ? `, +${items.length - visibleItems.length} more` : ""
+  return `${label} ${visibleItems.join(", ")}${suffix}`
+}
+
+function formatSyncToastMessage(result: SyncResult) {
+  const status = result.changed ? "updated" : "up to date"
+  const additions = [
+    formatAddedItems("provider", result.addedProviders),
+    formatAddedItems("model", result.addedModels),
+  ].filter(Boolean)
+  const base = `CLIProxyAPI sync ${status}: ${result.providerCount} providers, ${result.modelCount} models`
+
+  return additions.length > 0 ? `${base}. Added ${additions.join(", ")}` : base
+}
+
+function showSuccessToast(client: Parameters<Plugin>[0]["client"], message: string) {
+  try {
+    client.tui?.showToast({
+      body: {
+        title: "CLIProxyAPI Sync",
+        message,
+        variant: "success",
+        duration: 5000,
+      },
+    }).catch(() => {})
+  } catch {
+    // Toast availability should never affect startup sync.
+  }
+}
+
+const TOAST_DELAY_MS = 3000
 
 export const CliproxyapiSyncPlugin: Plugin = async ({ client }) => {
   const log = async (message: string) => {
@@ -479,7 +548,11 @@ export const CliproxyapiSyncPlugin: Plugin = async ({ client }) => {
 
   return {
     config: async (config) => {
-      await syncCliproxyapiProvider(config, log)
+      const result = await syncCliproxyapiProvider(config, log)
+      if (!result) return
+
+      const message = formatSyncToastMessage(result)
+      setTimeout(() => showSuccessToast(client, message), TOAST_DELAY_MS)
     },
   }
 }
