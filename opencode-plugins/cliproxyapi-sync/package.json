@@ -1,0 +1,19 @@
+{
+  "name": "cliproxyapi-sync",
+  "version": "0.1.0",
+  "description": "OpenCode plugin — syncs cp-* providers from a cliproxyapi endpoint",
+  "type": "module",
+  "main": "./dist/index.js",
+  "scripts": {
+    "build": "bun build cliproxyapi-sync.ts --outfile dist/index.js --target bun --format esm",
+    "test": "bun test cliproxyapi-sync.test.ts"
+  },
+  "dependencies": {
+    "@opencode-ai/plugin": "^1.3.15"
+  },
+  "devDependencies": {
+    "@types/node": "^24.5.2",
+    "bun-types": "^1.3.11",
+    "typescript": "^5.7.3"
+  }
+}
