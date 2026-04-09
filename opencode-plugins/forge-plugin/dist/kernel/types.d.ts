@@ -1,5 +1,5 @@
 import type { AgentConfig } from "@opencode-ai/sdk";
-export type AgentName = "pilot" | "planner" | "architect" | "worker" | "scouter";
+export type AgentName = "pilot" | "planner" | "architect" | "worker" | "scouter" | "researcher";
 export interface ModelRef {
     providerID: string;
     modelID: string;

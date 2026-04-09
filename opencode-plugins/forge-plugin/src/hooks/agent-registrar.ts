@@ -1,11 +1,27 @@
 import type { Config } from "@opencode-ai/plugin"
+import type { ForgeConfig } from "../config/schema"
 import type { AgentRegistry } from "../kernel/agent-registry"
 import type { AgentModelResolver } from "../kernel/agent-model-resolver"
 
-export function createAgentRegistrar(registry: AgentRegistry, resolver: AgentModelResolver) {
+const BUILTIN_OPENCODE_AGENTS = ["build", "plan", "general", "explore"] as const
+
+export function createAgentRegistrar(
+  registry: AgentRegistry,
+  resolver: AgentModelResolver,
+  forgeConfig?: ForgeConfig,
+) {
   return async (config: Config) => {
     config.agent = {
       ...(config.agent ?? {}),
+    }
+
+    if (forgeConfig?.disable_builtin_agents) {
+      for (const agentName of BUILTIN_OPENCODE_AGENTS) {
+        config.agent[agentName] = {
+          ...(config.agent[agentName] ?? {}),
+          disable: true,
+        }
+      }
     }
 
     for (const definition of registry.getActive()) {

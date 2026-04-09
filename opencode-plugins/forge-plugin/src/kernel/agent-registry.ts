@@ -3,6 +3,7 @@ import type { ForgeConfig } from "../config/schema"
 import { createArchitectAgent } from "../agents/architect"
 import { createPilotAgent } from "../agents/pilot"
 import { createPlannerAgent } from "../agents/planner"
+import { createResearcherAgent } from "../agents/researcher"
 import { createScouterAgent } from "../agents/scouter"
 import { createWorkerAgent } from "../agents/worker"
 import type { AgentDefinition, AgentName } from "./types"
@@ -10,17 +11,17 @@ import type { AgentDefinition, AgentName } from "./types"
 const DEFINITIONS: AgentDefinition[] = [
   {
     name: "pilot",
-    delegatesTo: ["worker", "scouter", "architect"],
+    delegatesTo: ["worker", "scouter", "architect", "researcher"],
     createConfig: createPilotAgent,
   },
   {
     name: "planner",
-    delegatesTo: ["scouter", "architect"],
+    delegatesTo: ["scouter", "architect", "researcher"],
     createConfig: createPlannerAgent,
   },
   {
     name: "architect",
-    delegatesTo: ["scouter"],
+    delegatesTo: ["scouter", "researcher"],
     createConfig: createArchitectAgent,
   },
   {
@@ -32,6 +33,11 @@ const DEFINITIONS: AgentDefinition[] = [
     name: "scouter",
     delegatesTo: [],
     createConfig: createScouterAgent,
+  },
+  {
+    name: "researcher",
+    delegatesTo: [],
+    createConfig: createResearcherAgent,
   },
 ]
 

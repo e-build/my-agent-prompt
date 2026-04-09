@@ -2,7 +2,7 @@ import type { ForgeConfig } from "../config/schema"
 import type { AgentName } from "./types"
 import { DEFAULT_AGENT_MODELS } from "./agent-model-resolver"
 
-const AGENTS: AgentName[] = ["pilot", "planner", "architect", "worker", "scouter"]
+const AGENTS: AgentName[] = ["pilot", "planner", "architect", "worker", "scouter", "researcher"]
 
 const PREFERENCES: Record<AgentName, string[]> = {
   pilot: ["gpt-5.4", "claude-sonnet", "gpt-5.2"],
@@ -10,6 +10,7 @@ const PREFERENCES: Record<AgentName, string[]> = {
   architect: ["gpt-5.4", "gpt-5.3", "claude-opus", "claude-sonnet"],
   worker: ["claude-sonnet", "gpt-5-codex", "gpt-5.4", "gpt-4.1"],
   scouter: ["claude-haiku", "gemini", "flash", "gpt-5-mini", "gpt-4o-mini"],
+  researcher: ["gpt-5.4", "gpt-5.3", "claude-opus", "gemini", "gpt-4.1"],
 }
 
 const REASONS: Record<AgentName, string> = {
@@ -18,6 +19,7 @@ const REASONS: Record<AgentName, string> = {
   architect: "architecture trade-off analysis benefits from deep reasoning",
   worker: "implementation benefits from a reliable coding model",
   scouter: "codebase exploration benefits from a fast and lighter model",
+  researcher: "external research benefits from a strong reasoning model with good web synthesis",
 }
 
 export interface AgentModelRecommendation {

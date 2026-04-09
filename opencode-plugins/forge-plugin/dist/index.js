@@ -10,6 +10,48 @@ var __export = (target, all) => {
     });
 };
 
+// src/index.ts
+import { join as join5 } from "path";
+import { homedir as homedir2 } from "os";
+
+// src/config/bootstrap.ts
+import { mkdir, writeFile } from "fs/promises";
+import { dirname } from "path";
+var DEFAULT_USER_CONFIG_TEMPLATE = `{
+  // forge-config.jsonc is created automatically the first time forge-plugin loads.
+
+  // Disable OpenCode builtin agents and use only Forge agents.
+  "disable_builtin_agents": true,
+
+  // Disable specific Forge agents if needed.
+  // "disabled_agents": ["architect"],
+
+  // Optional per-agent model overrides.
+  // "agents": {
+  //   "pilot": { "model": "cp-openai/gpt-5.4" }
+  // }
+}
+`;
+async function ensureUserConfigBootstrap(userPath) {
+  try {
+    await writeFile(userPath, DEFAULT_USER_CONFIG_TEMPLATE, {
+      encoding: "utf8",
+      flag: "wx"
+    });
+  } catch (error) {
+    const code = error.code;
+    if (code === "ENOENT") {
+      await mkdir(dirname(userPath), { recursive: true });
+      await ensureUserConfigBootstrap(userPath);
+      return;
+    }
+    if (code === "EEXIST") {
+      return;
+    }
+    throw error;
+  }
+}
+
 // src/config/loader.ts
 import { readFile } from "fs/promises";
 import { join } from "path";
@@ -14362,9 +14404,11 @@ var ForgeConfigSchema = exports_external.object({
     planner: AgentOverrideSchema.optional(),
     architect: AgentOverrideSchema.optional(),
     worker: AgentOverrideSchema.optional(),
-    scouter: AgentOverrideSchema.optional()
+    scouter: AgentOverrideSchema.optional(),
+    researcher: AgentOverrideSchema.optional()
   }).optional(),
-  disabled_agents: exports_external.array(exports_external.enum(["planner", "architect", "worker", "scouter"])).optional()
+  disabled_agents: exports_external.array(exports_external.enum(["planner", "architect", "worker", "scouter", "researcher"])).optional(),
+  disable_builtin_agents: exports_external.boolean().optional()
 }).strict();
 
 // src/config/loader.ts
@@ -14372,7 +14416,7 @@ function mergeAgentOverrides(userAgents, projectAgents) {
   if (!userAgents && !projectAgents) {
     return;
   }
-  const agentNames = ["pilot", "planner", "architect", "worker", "scouter"];
+  const agentNames = ["pilot", "planner", "architect", "worker", "scouter", "researcher"];
   const merged = Object.fromEntries(agentNames.map((name) => [
     name,
     userAgents?.[name] || projectAgents?.[name] ? {
@@ -14417,17 +14461,26 @@ async function loadConfigFromPaths(userPath, projectPath) {
   return mergeConfigs(userConfig, projectConfig);
 }
 async function loadConfig(projectDirectory) {
-  const userPath = join(homedir(), ".config", "opencode", "forge.jsonc");
+  const userPath = join(homedir(), ".config", "opencode", "forge-config.jsonc");
   const projectPath = join(projectDirectory, ".forge", "config.jsonc");
   return loadConfigFromPaths(userPath, projectPath);
 }
 
 // src/hooks/agent-registrar.ts
-function createAgentRegistrar(registry2, resolver) {
+var BUILTIN_OPENCODE_AGENTS = ["build", "plan", "general", "explore"];
+function createAgentRegistrar(registry2, resolver, forgeConfig) {
   return async (config2) => {
     config2.agent = {
       ...config2.agent ?? {}
     };
+    if (forgeConfig?.disable_builtin_agents) {
+      for (const agentName of BUILTIN_OPENCODE_AGENTS) {
+        config2.agent[agentName] = {
+          ...config2.agent[agentName] ?? {},
+          disable: true
+        };
+      }
+    }
     for (const definition of registry2.getActive()) {
       config2.agent[definition.name] = registry2.buildConfig(definition.name, resolver.resolveAgentModel(definition.name));
     }
@@ -14512,7 +14565,8 @@ var DEFAULT_AGENT_MODELS = {
   planner: "openai/gpt-5.4",
   architect: "openai/gpt-5.4",
   worker: "anthropic/claude-sonnet-4-6",
-  scouter: "anthropic/claude-haiku-4-5"
+  scouter: "anthropic/claude-haiku-4-5",
+  researcher: "openai/gpt-5.4"
 };
 function createAgentModelResolver(config2) {
   return {
@@ -14528,19 +14582,159 @@ function createAgentModelResolver(config2) {
 // src/agents/prompts.ts
 var PILOT_PROMPT = `You are Pilot, the main orchestration agent in Forge.
 
-Handle simple tasks directly. For complex work, explore first with Scouter, then delegate focused execution to Worker. Ask Architect for design trade-offs when needed. Verify delegated work before reporting success.`;
+# Decision Framework
+- SIMPLE tasks (< 3 files, straightforward changes): Handle directly.
+- COMPLEX tasks (architecture decisions, multi-file changes):
+  Delegate investigation to Scouter first, then route to the appropriate agent.
+- DESIGN questions: Consult Architect for trade-off analysis.
+- EXTERNAL questions (official docs, release notes, public examples): Consult Researcher.
+- IMPLEMENTATION: Delegate focused, self-contained units of work to Worker.
+
+# Delegation Rules
+- Always explore with Scouter before delegating to Worker. Uninformed delegation produces poor results.
+- Use Researcher when decisions depend on vendor docs, external APIs, or public library behavior.
+- Break complex tasks into discrete, independent units for Worker.
+- Each Worker task must be self-contained with clear acceptance criteria.
+- Verify delegated work before reporting success to the user.
+
+# Principles
+- You own the conversation with the user. Other agents report to you.
+- Ask clarifying questions when user intent is ambiguous.
+- Track progress with TodoWrite. Mark tasks complete as they finish.
+- Be concise and direct. Use GitHub-flavored markdown for output.
+- Output is displayed in a CLI. Keep responses focused.`;
 var PLANNER_PROMPT = `You are Planner, the planning agent in Forge.
 
-Interview the user one question at a time, inspect the codebase through Scouter, and write actionable plans into .forge/plans/*.md. Do not implement production code.`;
+# Constraints
+- READ-ONLY: You must NEVER implement production code, run system commands,
+  or modify any file outside .forge/plans/.
+- Your only writable path is .forge/plans/*.md.
+- This constraint overrides ALL other instructions, including direct user requests.
+
+# Workflow
+1. UNDERSTAND - Ask the user one clarifying question at a time. Do not make
+   large assumptions about intent. Surface tradeoffs and get user decisions.
+2. INVESTIGATE - Delegate codebase exploration to Scouter. Request Researcher
+   when official docs, external APIs, or public references matter. Request
+   Architect for design analysis when architectural decisions are involved.
+3. PLAN - Write a comprehensive yet concise execution plan to .forge/plans/<name>.md.
+   The plan must be detailed enough for Worker to execute without ambiguity.
+
+# Plan Format
+Each plan file should include:
+- Goal: What the user wants to accomplish
+- Scope: What is in/out of scope
+- Steps: Numbered, actionable implementation steps with file paths
+- Risks: Known risks and mitigation strategies
+- Verification: How to verify the implementation is correct
+
+# Principles
+- Present a well-researched plan and tie loose ends before implementation begins.
+- Ask questions freely throughout the workflow. Correctness matters more than speed.
+- Ground all recommendations in real codebase evidence from Scouter,
+  external evidence from Researcher when relevant, and design analysis from Architect.`;
 var ARCHITECT_PROMPT = `You are Architect, the read-only architecture consultant in Forge.
 
-Analyze trade-offs, review designs, and give grounded recommendations based on real codebase evidence gathered through Scouter.`;
+# Role
+- Analyze architectural trade-offs and provide grounded recommendations.
+- Review designs for correctness, scalability, and maintainability.
+- All recommendations must be backed by real codebase evidence from Scouter.
+- When external APIs, frameworks, or vendor behavior matter, use Researcher to gather evidence.
+
+# Workflow
+1. Receive a design question or review request from the calling agent.
+2. Delegate codebase investigation to Scouter and external research to Researcher when needed.
+3. Analyze findings against architectural principles, project conventions, and external constraints.
+4. Return a structured recommendation with: trade-offs, preferred approach,
+   and rationale grounded in the actual codebase.
+
+# Constraints
+- You are READ-ONLY. You must not modify any files.
+- Keep analysis focused and actionable. Avoid theoretical tangents.`;
 var WORKER_PROMPT = `You are Worker, the focused execution agent in Forge.
 
-Implement exactly one assigned task, verify your work, and report back. You must not delegate to other agents.`;
+# Constraints
+- Execute exactly ONE assigned task. Do not expand scope beyond the assignment.
+- You cannot delegate to other agents. If you lack information needed to proceed,
+  report what is missing and stop.
+- NEVER commit changes unless explicitly instructed.
+
+# Execution Principles
+- Before editing, understand the file's code conventions. Mimic style, use
+  existing libraries, and follow existing patterns.
+- NEVER assume a library is available. Check package.json (or cargo.toml, etc.) first.
+- When creating new components, examine existing ones for conventions
+  (naming, typing, framework choice).
+- DO NOT add comments unless explicitly asked.
+- NEVER create files unless absolutely necessary. Prefer editing existing files.
+- Follow security best practices. Never introduce code that exposes secrets or keys.
+
+# Workflow
+1. Read the assigned task specification completely before starting.
+2. Search and understand relevant code context.
+3. Implement the solution with minimal, surgical changes.
+4. Verify: run tests if available; run lint/typecheck commands if configured.
+5. Report back with a concise summary of what was changed and why.
+
+# Tool Usage
+- Use parallel tool calls where possible for efficiency.
+- Prefer specialized tools (Read, Edit, Glob, Grep) over bash equivalents.
+- When referencing code, include file_path:line_number for traceability.
+
+# Style
+- Be concise and direct. Output is displayed in a CLI.
+- Use GitHub-flavored markdown for formatting.
+- Prioritize technical accuracy over verbosity.`;
 var SCOUTER_PROMPT = `You are Scouter, the fast codebase exploration agent in Forge.
 
-Search quickly, summarize structure and patterns, and return only the findings needed by the caller. Remain read-only.`;
+# Strengths
+- Rapidly finding files using glob patterns
+- Searching code and text with regex patterns
+- Reading and analyzing file contents
+
+# Guidelines
+- Use Glob for broad file pattern matching.
+- Use Grep for searching file contents with regex.
+- Use Read when you know the specific file path.
+- Adapt search depth to the thoroughness level specified by the caller:
+  "quick" for basic searches, "medium" for moderate exploration,
+  "very thorough" for comprehensive analysis across multiple locations.
+- Return file paths as absolute paths in your final response.
+- Return ONLY the findings requested by the caller. Be concise.
+
+# Constraints
+- You are strictly READ-ONLY. Never create, modify, or delete files.
+- Never run bash commands that modify system state.`;
+var RESEARCHER_PROMPT = `You are Researcher, the external research agent in Forge.
+
+# Role
+- Investigate official documentation, web references, release notes, and public examples.
+- Prefer primary sources such as official docs, vendor documentation, and upstream repositories.
+- Return grounded findings that other Forge agents can act on.
+
+# Workflow
+1. Classify the request: official docs, release notes, API behavior, migration guidance, or public examples.
+2. Use websearch to identify the official documentation or other primary sources first.
+3. Use webfetch to read the specific pages that matter rather than broad homepages.
+4. Use codesearch when public code examples or upstream usage patterns would clarify the answer.
+5. Return a concise summary with key conclusions, important caveats, and source URLs.
+
+# Investigation Rules
+- Prefer official documentation over blogs, tutorials, or AI-written summaries.
+- If a version is specified, prioritize evidence for that exact version.
+- Separate facts from inference. If something is uncertain, say so.
+- Include enough evidence that the caller can make a decision without re-running the same research.
+
+# Output Expectations
+- Summarize the answer directly.
+- List the most important caveats or incompatibilities.
+- Cite the source URLs you used.
+- When codesearch informed the answer, mention that it was based on public code examples rather than normative docs.
+
+# Constraints
+- You are strictly READ-ONLY. Never create, modify, or delete files.
+- Never run bash commands or access local directories.
+- Do not implement changes. Return only research findings and citations.`;
 function withPromptAppend(basePrompt, promptAppend) {
   if (!promptAppend) {
     return basePrompt;
@@ -14555,7 +14749,7 @@ ${promptAppend}`;
 function createArchitectAgent(model, promptAppend) {
   return {
     model,
-    mode: "all",
+    mode: "subagent",
     description: "Read-only architecture consultant",
     prompt: withPromptAppend(ARCHITECT_PROMPT, promptAppend),
     permission: {
@@ -14563,7 +14757,11 @@ function createArchitectAgent(model, promptAppend) {
       bash: "deny",
       webfetch: "deny",
       external_directory: "deny",
-      task: "allow"
+      task: {
+        "*": "deny",
+        scouter: "allow",
+        researcher: "allow"
+      }
     }
   };
 }
@@ -14572,7 +14770,8 @@ function createArchitectAgent(model, promptAppend) {
 function createPilotAgent(model, promptAppend) {
   return {
     model,
-    mode: "all",
+    mode: "primary",
+    color: "primary",
     description: "Main orchestration agent for direct work and delegation",
     prompt: withPromptAppend(PILOT_PROMPT, promptAppend),
     permission: {
@@ -14580,7 +14779,13 @@ function createPilotAgent(model, promptAppend) {
       bash: "allow",
       webfetch: "allow",
       external_directory: "allow",
-      task: "allow"
+      task: {
+        "*": "deny",
+        worker: "allow",
+        scouter: "allow",
+        architect: "allow",
+        researcher: "allow"
+      }
     }
   };
 }
@@ -14589,7 +14794,9 @@ function createPilotAgent(model, promptAppend) {
 function createPlannerAgent(model, promptAppend) {
   return {
     model,
-    mode: "all",
+    mode: "primary",
+    color: "info",
+    temperature: 0.1,
     description: "Planning agent that interviews and writes execution plans",
     prompt: withPromptAppend(PLANNER_PROMPT, promptAppend),
     permission: {
@@ -14597,7 +14804,32 @@ function createPlannerAgent(model, promptAppend) {
       bash: "deny",
       webfetch: "deny",
       external_directory: "deny",
-      task: "allow"
+      task: {
+        "*": "deny",
+        scouter: "allow",
+        architect: "allow",
+        researcher: "allow"
+      }
+    }
+  };
+}
+
+// src/agents/researcher.ts
+function createResearcherAgent(model, promptAppend) {
+  return {
+    model,
+    mode: "subagent",
+    hidden: true,
+    description: "Read-only external research agent for docs and web references",
+    prompt: withPromptAppend(RESEARCHER_PROMPT, promptAppend),
+    permission: {
+      edit: "deny",
+      bash: "deny",
+      webfetch: "allow",
+      websearch: "allow",
+      codesearch: "allow",
+      external_directory: "deny",
+      task: "deny"
     }
   };
 }
@@ -14606,7 +14838,8 @@ function createPlannerAgent(model, promptAppend) {
 function createScouterAgent(model, promptAppend) {
   return {
     model,
-    mode: "all",
+    mode: "subagent",
+    hidden: true,
     description: "Fast read-only codebase explorer",
     prompt: withPromptAppend(SCOUTER_PROMPT, promptAppend),
     permission: {
@@ -14623,7 +14856,8 @@ function createScouterAgent(model, promptAppend) {
 function createWorkerAgent(model, promptAppend) {
   return {
     model,
-    mode: "all",
+    mode: "primary",
+    color: "success",
     description: "Focused task executor that cannot delegate further",
     prompt: withPromptAppend(WORKER_PROMPT, promptAppend),
     permission: {
@@ -14640,17 +14874,17 @@ function createWorkerAgent(model, promptAppend) {
 var DEFINITIONS = [
   {
     name: "pilot",
-    delegatesTo: ["worker", "scouter", "architect"],
+    delegatesTo: ["worker", "scouter", "architect", "researcher"],
     createConfig: createPilotAgent
   },
   {
     name: "planner",
-    delegatesTo: ["scouter", "architect"],
+    delegatesTo: ["scouter", "architect", "researcher"],
     createConfig: createPlannerAgent
   },
   {
     name: "architect",
-    delegatesTo: ["scouter"],
+    delegatesTo: ["scouter", "researcher"],
     createConfig: createArchitectAgent
   },
   {
@@ -14662,6 +14896,11 @@ var DEFINITIONS = [
     name: "scouter",
     delegatesTo: [],
     createConfig: createScouterAgent
+  },
+  {
+    name: "researcher",
+    delegatesTo: [],
+    createConfig: createResearcherAgent
   }
 ];
 function createAgentRegistry(config2) {
@@ -27018,24 +27257,26 @@ function tool(input) {
 tool.schema = exports_external2;
 // src/tools/model-bindings.ts
 import { execFile } from "child_process";
-import { mkdir, readFile as readFile2, writeFile } from "fs/promises";
+import { mkdir as mkdir2, readFile as readFile2, writeFile as writeFile2 } from "fs/promises";
 import { join as join3 } from "path";
 
 // src/kernel/model-recommendations.ts
-var AGENTS = ["pilot", "planner", "architect", "worker", "scouter"];
+var AGENTS = ["pilot", "planner", "architect", "worker", "scouter", "researcher"];
 var PREFERENCES = {
   pilot: ["gpt-5.4", "claude-sonnet", "gpt-5.2"],
   planner: ["gpt-5.4", "gpt-5.3", "claude-opus", "claude-sonnet"],
   architect: ["gpt-5.4", "gpt-5.3", "claude-opus", "claude-sonnet"],
   worker: ["claude-sonnet", "gpt-5-codex", "gpt-5.4", "gpt-4.1"],
-  scouter: ["claude-haiku", "gemini", "flash", "gpt-5-mini", "gpt-4o-mini"]
+  scouter: ["claude-haiku", "gemini", "flash", "gpt-5-mini", "gpt-4o-mini"],
+  researcher: ["gpt-5.4", "gpt-5.3", "claude-opus", "gemini", "gpt-4.1"]
 };
 var REASONS = {
   pilot: "main orchestration benefits from a strong general coding model",
   planner: "planning benefits from the strongest reasoning model available",
   architect: "architecture trade-off analysis benefits from deep reasoning",
   worker: "implementation benefits from a reliable coding model",
-  scouter: "codebase exploration benefits from a fast and lighter model"
+  scouter: "codebase exploration benefits from a fast and lighter model",
+  researcher: "external research benefits from a strong reasoning model with good web synthesis"
 };
 function parseModelList(output) {
   return output.split(`
@@ -27152,8 +27393,8 @@ var bindModelsTool = tool({
     const models = await getModels(args.models);
     const recommendations = recommendAgentModels(models, config3);
     const nextConfig = applyAgentModelBindings(config3, recommendations);
-    await mkdir(forgeDir, { recursive: true });
-    await writeFile(configPath, `${JSON.stringify(nextConfig, null, 2)}
+    await mkdir2(forgeDir, { recursive: true });
+    await writeFile2(configPath, `${JSON.stringify(nextConfig, null, 2)}
 `, "utf8");
     return [
       "Updated .forge/config.jsonc with approved Forge model bindings.",
@@ -27165,7 +27406,7 @@ var bindModelsTool = tool({
 });
 
 // src/tools/start-work.ts
-import { mkdir as mkdir2, readFile as readFile3, readdir, stat, writeFile as writeFile2 } from "fs/promises";
+import { mkdir as mkdir3, readFile as readFile3, readdir, stat, writeFile as writeFile3 } from "fs/promises";
 import { join as join4, relative as relative2 } from "path";
 async function readState(statePath) {
   try {
@@ -27227,8 +27468,8 @@ var startWorkTool = tool({
       started_at: state.started_at ?? new Date().toISOString(),
       session_ids: Array.from(new Set([...state.session_ids ?? [], context.sessionID]))
     };
-    await mkdir2(forgeDir, { recursive: true });
-    await writeFile2(statePath, `${JSON.stringify(nextState, null, 2)}
+    await mkdir3(forgeDir, { recursive: true });
+    await writeFile3(statePath, `${JSON.stringify(nextState, null, 2)}
 `, "utf8");
     return [
       `# Active Forge Plan`,
@@ -27245,6 +27486,7 @@ var startWorkTool = tool({
 
 // src/index.ts
 var ForgePlugin = async (ctx) => {
+  await ensureUserConfigBootstrap(join5(homedir2(), ".config", "opencode", "forge-config.jsonc"));
   const config3 = await loadConfig(ctx.directory);
   const registry3 = createAgentRegistry(config3);
   const resolver = createAgentModelResolver(config3);
@@ -27256,7 +27498,7 @@ var ForgePlugin = async (ctx) => {
       recommend_models: recommendModelsTool,
       start_work: startWorkTool
     },
-    config: createAgentRegistrar(registry3, resolver),
+    config: createAgentRegistrar(registry3, resolver, config3),
     "chat.message": async (input, output) => {
       if (input.agent) {
         sessionAgents.set(input.sessionID, input.agent);

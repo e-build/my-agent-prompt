@@ -8,6 +8,7 @@ const DEFAULT_AGENT_MODELS: Record<AgentName, string> = {
   architect: "openai/gpt-5.4",
   worker: "anthropic/claude-sonnet-4-6",
   scouter: "anthropic/claude-haiku-4-5",
+  researcher: "openai/gpt-5.4",
 }
 
 export interface AgentModelResolver {

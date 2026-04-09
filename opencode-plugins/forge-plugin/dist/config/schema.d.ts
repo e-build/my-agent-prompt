@@ -21,12 +21,18 @@ export declare const ForgeConfigSchema: z.ZodObject<{
             model: z.ZodOptional<z.ZodString>;
             prompt_append: z.ZodOptional<z.ZodString>;
         }, z.core.$strip>>;
+        researcher: z.ZodOptional<z.ZodObject<{
+            model: z.ZodOptional<z.ZodString>;
+            prompt_append: z.ZodOptional<z.ZodString>;
+        }, z.core.$strip>>;
     }, z.core.$strip>>;
     disabled_agents: z.ZodOptional<z.ZodArray<z.ZodEnum<{
         planner: "planner";
         architect: "architect";
         worker: "worker";
         scouter: "scouter";
+        researcher: "researcher";
     }>>>;
+    disable_builtin_agents: z.ZodOptional<z.ZodBoolean>;
 }, z.core.$strict>;
 export type ForgeConfig = z.infer<typeof ForgeConfigSchema>;

@@ -1,6 +1,6 @@
 ---
 description: "Dedicated project documentation agent. Handles docs-* command execution, document review, book compilation, concept extraction, and all documentation tasks."
-mode: all
+mode: subagent
 tools:
   write: true
   edit: true

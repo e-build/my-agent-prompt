@@ -9,11 +9,13 @@ describe("mergeConfigs", () => {
   test("project config overrides user config", () => {
     const userConfig: ForgeConfig = {
       agents: {
+        researcher: { model: "openai/gpt-5.4" },
         scouter: { model: "anthropic/claude-haiku-4-5" },
       },
     }
     const projectConfig: ForgeConfig = {
       agents: {
+        researcher: { prompt_append: "Prefer official docs." },
         scouter: { model: "openai/gpt-4o-mini" },
       },
     }
@@ -21,6 +23,10 @@ describe("mergeConfigs", () => {
     expect(mergeConfigs(userConfig, projectConfig).agents?.scouter?.model).toBe(
       "openai/gpt-4o-mini",
     )
+    expect(mergeConfigs(userConfig, projectConfig).agents?.researcher).toEqual({
+      model: "openai/gpt-5.4",
+      prompt_append: "Prefer official docs.",
+    })
   })
 
   test("preserves user config when project config absent", () => {
@@ -64,7 +70,7 @@ describe("loadConfigFromPaths", () => {
   })
 
   test("loads JSONC config files", async () => {
-    const userPath = join(tempDir, "forge.jsonc")
+    const userPath = join(tempDir, "forge-config.jsonc")
     const projectPath = join(tempDir, "project.jsonc")
 
     await writeFile(

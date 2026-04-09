@@ -12,7 +12,7 @@ function mergeAgentOverrides(
     return undefined
   }
 
-  const agentNames = ["pilot", "planner", "architect", "worker", "scouter"] as const
+  const agentNames = ["pilot", "planner", "architect", "worker", "scouter", "researcher"] as const
   const merged = Object.fromEntries(
     agentNames.map((name) => [
       name,
@@ -76,7 +76,7 @@ export async function loadConfigFromPaths(
 }
 
 export async function loadConfig(projectDirectory: string): Promise<ForgeConfig> {
-  const userPath = join(homedir(), ".config", "opencode", "forge.jsonc")
+  const userPath = join(homedir(), ".config", "opencode", "forge-config.jsonc")
   const projectPath = join(projectDirectory, ".forge", "config.jsonc")
   return loadConfigFromPaths(userPath, projectPath)
 }

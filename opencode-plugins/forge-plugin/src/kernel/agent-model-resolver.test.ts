@@ -10,6 +10,7 @@ describe("createAgentModelResolver", () => {
     expect(resolver.resolveAgentModel("architect")).toBe(DEFAULT_AGENT_MODELS.architect)
     expect(resolver.resolveAgentModel("worker")).toBe(DEFAULT_AGENT_MODELS.worker)
     expect(resolver.resolveAgentModel("scouter")).toBe(DEFAULT_AGENT_MODELS.scouter)
+    expect(resolver.resolveAgentModel("researcher")).toBe(DEFAULT_AGENT_MODELS.researcher)
   })
 
   test("prefers agent override over default model", () => {
