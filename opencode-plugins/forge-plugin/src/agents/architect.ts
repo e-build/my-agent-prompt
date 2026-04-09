@@ -4,7 +4,7 @@ import { ARCHITECT_PROMPT, withPromptAppend } from "./prompts"
 export function createArchitectAgent(model: string, promptAppend?: string): AgentConfig {
   return {
     model,
-    mode: "all",
+    mode: "subagent",
     description: "Read-only architecture consultant",
     prompt: withPromptAppend(ARCHITECT_PROMPT, promptAppend),
     permission: {
@@ -12,7 +12,11 @@ export function createArchitectAgent(model: string, promptAppend?: string): Agen
       bash: "deny",
       webfetch: "deny",
       external_directory: "deny",
-      task: "allow",
+      task: {
+        "*": "deny",
+        scouter: "allow",
+        researcher: "allow",
+      },
     } as AgentConfig["permission"],
   }
 }

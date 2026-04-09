@@ -3,7 +3,15 @@ import fs from "fs/promises"
 import os from "os"
 import path from "path"
 
-import { buildManagedProviders, buildModelsByOwner, buildNextProviderState, getConfigPath } from "./cliproxyapi-sync"
+import {
+  buildManagedProviders,
+  buildModelsByOwner,
+  buildNextProviderState,
+  filterApiKeyModels,
+  getConfigPath,
+  normalizeAuthFileModels,
+  resolveSeedProvider,
+} from "./cliproxyapi-sync"
 
 const originalFetch = globalThis.fetch
 
@@ -24,6 +32,34 @@ async function writeTempOpenCodeConfig(config: unknown) {
 function stubAntigravityModelFetch() {
   globalThis.fetch = async (input) => {
     const url = String(input)
+
+    // Management: auth-files — only antigravity OAuth
+    if (url.endsWith("/v0/management/auth-files")) {
+      return new Response(
+        JSON.stringify({
+          files: [
+            {
+              name: "antigravity-test@example.com.json",
+              provider: "antigravity",
+              account_type: "oauth",
+              disabled: false,
+              status: "active",
+            },
+          ],
+        }),
+      )
+    }
+
+    // Management: auth-files/models for antigravity
+    if (url.includes("/v0/management/auth-files/models")) {
+      return new Response(
+        JSON.stringify({
+          models: [{ id: "gemini-3-flash", owned_by: "antigravity", display_name: "Gemini 3 Flash", type: "antigravity" }],
+        }),
+      )
+    }
+
+    // v1/models — antigravity is an OAuth owner so it will be filtered out by filterApiKeyModels
     if (url === "http://localhost:8317/v1/models") {
       return new Response(
         JSON.stringify({
@@ -84,6 +120,113 @@ function buildAntigravityProvider() {
     },
   }
 }
+
+describe("resolveSeedProvider", () => {
+  test("returns cliproxyapi seed provider when present", () => {
+    const config = {
+      provider: {
+        cliproxyapi: {
+          name: "CLIProxyAPI",
+          npm: "@ai-sdk/openai-compatible",
+          options: { apiKey: "key", baseURL: "http://localhost:8317/v1" },
+          models: {},
+        },
+      },
+    }
+    expect(resolveSeedProvider(config)).toBe(config.provider.cliproxyapi)
+  })
+
+  test("does not use cp-openai as seed provider fallback", () => {
+    const config = {
+      provider: {
+        "cp-openai": {
+          name: "CP OpenAI",
+          npm: "@ai-sdk/openai-compatible",
+          options: { apiKey: "key", baseURL: "http://localhost:8317/v1" },
+          models: {},
+        },
+      },
+    }
+    expect(resolveSeedProvider(config)).toBeNull()
+  })
+
+  test("returns null when no seed provider exists", () => {
+    expect(resolveSeedProvider({ provider: {} })).toBeNull()
+    expect(resolveSeedProvider({})).toBeNull()
+  })
+})
+
+describe("filterApiKeyModels", () => {
+  test("filters out known OAuth owners from v1/models", () => {
+    const payload = {
+      data: [
+        { id: "gpt-5", owned_by: "openai" },
+        { id: "gemini-3-flash", owned_by: "antigravity" },
+        { id: "claude-sonnet", owned_by: "github-copilot" },
+        { id: "go-glm-5", owned_by: "opencode-go" },
+        { id: "zai-glm-5.1", owned_by: "zai" },
+      ],
+    }
+    const result = filterApiKeyModels(payload)
+    expect(result.data?.map((m) => m.id)).toEqual(["go-glm-5", "zai-glm-5.1"])
+  })
+
+  test("passes through models with unknown owners", () => {
+    const payload = {
+      data: [{ id: "custom-model", owned_by: "my-custom-provider" }],
+    }
+    expect(filterApiKeyModels(payload).data).toEqual(payload.data)
+  })
+
+  test("handles empty data gracefully", () => {
+    expect(filterApiKeyModels({}).data).toEqual([])
+    expect(filterApiKeyModels({ data: [] }).data).toEqual([])
+  })
+})
+
+describe("normalizeAuthFileModels", () => {
+  test("converts auth-file model responses to ModelResponse format", () => {
+    const result = normalizeAuthFileModels([
+      {
+        models: [
+          { id: "gpt-5.4", owned_by: "openai", display_name: "GPT 5.4" },
+          { id: "gemini-3-flash", owned_by: "antigravity", display_name: "Gemini 3 Flash" },
+        ],
+      },
+    ])
+    expect(result.data).toEqual([
+      { id: "gpt-5.4", owned_by: "openai" },
+      { id: "gemini-3-flash", owned_by: "antigravity" },
+    ])
+  })
+
+  test("merges multiple auth-file responses", () => {
+    const result = normalizeAuthFileModels([
+      { models: [{ id: "model-a", owned_by: "owner-a" }] },
+      { models: [{ id: "model-b", owned_by: "owner-b" }] },
+    ])
+    expect(result.data?.map((m) => m.id)).toEqual(["model-a", "model-b"])
+  })
+
+  test("skips models with missing id or owned_by", () => {
+    const result = normalizeAuthFileModels([
+      {
+        models: [
+          { id: "valid-model", owned_by: "owner" },
+          { id: "", owned_by: "owner" },
+          { owned_by: "owner" },
+          { id: "no-owner" },
+        ],
+      },
+    ])
+    expect(result.data).toEqual([{ id: "valid-model", owned_by: "owner" }])
+  })
+
+  test("handles empty responses gracefully", () => {
+    expect(normalizeAuthFileModels([]).data).toEqual([])
+    expect(normalizeAuthFileModels([{}]).data).toEqual([])
+  })
+})
 
 describe("buildModelsByOwner", () => {
   test("adds github-copilot reasoning variants from management metadata", () => {
@@ -484,5 +627,187 @@ describe("CliproxyapiSyncPlugin", () => {
     await new Promise((resolve) => setTimeout(resolve, 4000))
 
     expect(toastCalls).toHaveLength(1)
+  })
+
+  test("excludes openai models when codex OAuth auth-file is absent", async () => {
+    await writeTempOpenCodeConfig({
+      provider: {
+        cliproxyapi: buildSeedProvider(),
+      },
+    })
+
+    // auth-files returns nothing (codex OAuth removed), v1/models still has openai
+    globalThis.fetch = async (input) => {
+      const url = String(input)
+      if (url.endsWith("/v0/management/auth-files")) {
+        return new Response(JSON.stringify({ files: [] }))
+      }
+      if (url.endsWith("/v1/models")) {
+        return new Response(
+          JSON.stringify({
+            data: [
+              { id: "gpt-5.4", owned_by: "openai" },
+              { id: "go-glm-5", owned_by: "opencode-go" },
+            ],
+          }),
+        )
+      }
+      return new Response(JSON.stringify({ channel: url.split("/").at(-1), models: [] }))
+    }
+
+    const { CliproxyapiSyncPlugin } = await import("./cliproxyapi-sync")
+    const plugin = await CliproxyapiSyncPlugin({
+      client: { app: { log: () => Promise.resolve() } },
+    })
+    const config = { provider: { cliproxyapi: buildSeedProvider() } }
+    await plugin.config(config)
+
+    expect(config.provider?.["cp-openai"]).toBeUndefined()
+    expect(config.provider?.["cp-opencode-go"]).toBeDefined()
+    expect(config.provider?.["cp-opencode-go"]?.models?.["go-glm-5"]).toBeDefined()
+  })
+
+  test("ignores disabled OAuth auth-files", async () => {
+    await writeTempOpenCodeConfig({
+      provider: {
+        cliproxyapi: buildSeedProvider(),
+      },
+    })
+
+    const requestedAuthFiles: string[] = []
+    globalThis.fetch = async (input) => {
+      const url = String(input)
+
+      if (url.endsWith("/v0/management/auth-files")) {
+        return new Response(
+          JSON.stringify({
+            files: [
+              {
+                name: "codex-disabled.json",
+                provider: "codex",
+                account_type: "oauth",
+                disabled: true,
+                status: "active",
+              },
+              {
+                name: "antigravity-active.json",
+                provider: "antigravity",
+                account_type: "oauth",
+                disabled: false,
+                status: "active",
+              },
+            ],
+          }),
+        )
+      }
+
+      if (url.includes("/v0/management/auth-files/models")) {
+        const name = new URL(url).searchParams.get("name")
+        requestedAuthFiles.push(name || "")
+
+        if (name === "antigravity-active.json") {
+          return new Response(
+            JSON.stringify({
+              models: [{ id: "gemini-3-flash", owned_by: "antigravity", display_name: "Gemini 3 Flash", type: "antigravity" }],
+            }),
+          )
+        }
+
+        if (name === "codex-disabled.json") {
+          return new Response(
+            JSON.stringify({
+              models: [{ id: "gpt-5.4", owned_by: "openai", display_name: "GPT 5.4", type: "openai" }],
+            }),
+          )
+        }
+      }
+
+      if (url.endsWith("/v1/models")) {
+        return new Response(
+          JSON.stringify({
+            data: [
+              { id: "gpt-5.4", owned_by: "openai" },
+              { id: "gemini-3-flash", owned_by: "antigravity" },
+              { id: "go-glm-5", owned_by: "opencode-go" },
+            ],
+          }),
+        )
+      }
+
+      if (url.endsWith("/v0/management/model-definitions/antigravity")) {
+        return new Response(
+          JSON.stringify({
+            channel: "antigravity",
+            models: [
+              {
+                id: "gemini-3-flash",
+                display_name: "Gemini 3 Flash",
+                thinking: { levels: ["minimal", "low", "medium", "high"] },
+              },
+            ],
+          }),
+        )
+      }
+
+      return new Response(JSON.stringify({ channel: url.split("/").at(-1), models: [] }))
+    }
+
+    const { CliproxyapiSyncPlugin } = await import("./cliproxyapi-sync")
+    const plugin = await CliproxyapiSyncPlugin({
+      client: { app: { log: () => Promise.resolve() } },
+    })
+    const config = { provider: { cliproxyapi: buildSeedProvider() } }
+    await plugin.config(config)
+
+    expect(requestedAuthFiles).toEqual(["antigravity-active.json"])
+    expect(config.provider?.["cp-openai"]).toBeUndefined()
+    expect(config.provider?.["cp-antigravity"]?.models?.["gemini-3-flash"]).toBeDefined()
+    expect(config.provider?.["cp-opencode-go"]?.models?.["go-glm-5"]).toBeDefined()
+  })
+
+  test("logs when seed provider is absent and does not sync", async () => {
+    await writeTempOpenCodeConfig({
+      provider: {
+        "cp-openai": {
+          name: "CP OpenAI",
+          npm: "@ai-sdk/openai-compatible",
+          options: { apiKey: "key", baseURL: "http://localhost:8317/v1" },
+          models: { "gpt-5.4": { name: "GPT 5.4" } },
+        },
+      },
+    })
+
+    let fetchCalled = false
+    const logs: string[] = []
+    globalThis.fetch = async () => {
+      fetchCalled = true
+      return new Response(JSON.stringify({ data: [] }))
+    }
+
+    const { CliproxyapiSyncPlugin } = await import("./cliproxyapi-sync")
+    const plugin = await CliproxyapiSyncPlugin({
+      client: {
+        app: {
+          log: (input) => {
+            logs.push(input.body.message)
+            return Promise.resolve()
+          },
+        },
+      },
+    })
+    const config = {
+      provider: {
+        "cp-openai": {
+          name: "CP OpenAI",
+          npm: "@ai-sdk/openai-compatible",
+          options: { apiKey: "key", baseURL: "http://localhost:8317/v1" },
+          models: { "gpt-5.4": { name: "GPT 5.4" } },
+        },
+      },
+    }
+    await plugin.config(config)
+
+    expect(fetchCalled).toBe(false)
+    expect(logs).toContain("[cliproxyapi-sync] Sync skipped: cliproxyapi seed provider is not configured")
   })
 })

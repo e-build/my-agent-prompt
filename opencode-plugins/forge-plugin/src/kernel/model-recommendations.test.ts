@@ -34,6 +34,7 @@ describe("recommendAgentModels", () => {
       ["architect", "cp-openai/gpt-5.4"],
       ["worker", "cp-github-copilot/claude-sonnet-4.6"],
       ["scouter", "cp-github-copilot/claude-haiku-4.5"],
+      ["researcher", "cp-openai/gpt-5.4"],
     ])
   })
 

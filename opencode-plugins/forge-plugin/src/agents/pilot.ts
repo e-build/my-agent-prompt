@@ -4,7 +4,8 @@ import { PILOT_PROMPT, withPromptAppend } from "./prompts"
 export function createPilotAgent(model: string, promptAppend?: string): AgentConfig {
   return {
     model,
-    mode: "all",
+    mode: "primary",
+    color: "primary",
     description: "Main orchestration agent for direct work and delegation",
     prompt: withPromptAppend(PILOT_PROMPT, promptAppend),
     permission: {
@@ -12,7 +13,13 @@ export function createPilotAgent(model: string, promptAppend?: string): AgentCon
       bash: "allow",
       webfetch: "allow",
       external_directory: "allow",
-      task: "allow",
+      task: {
+        "*": "deny",
+        worker: "allow",
+        scouter: "allow",
+        architect: "allow",
+        researcher: "allow",
+      },
     } as AgentConfig["permission"],
   }
 }

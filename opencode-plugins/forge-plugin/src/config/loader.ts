@@ -4,6 +4,8 @@ import { homedir } from "node:os"
 import { parse } from "jsonc-parser"
 import { ForgeConfigSchema, type ForgeConfig } from "./schema"
 
+const AGENT_NAMES = ["pilot", "planner", "architect", "worker", "scouter", "researcher"] as const
+
 function mergeAgentOverrides(
   userAgents?: ForgeConfig["agents"],
   projectAgents?: ForgeConfig["agents"],
@@ -12,20 +14,38 @@ function mergeAgentOverrides(
     return undefined
   }
 
-  const agentNames = ["pilot", "planner", "architect", "worker", "scouter"] as const
   const merged = Object.fromEntries(
-    agentNames.map((name) => [
+    AGENT_NAMES.map((name) => [
       name,
-      userAgents?.[name] || projectAgents?.[name]
-        ? {
-            ...userAgents?.[name],
-            ...projectAgents?.[name],
-          }
-        : undefined,
+      mergeSingleAgentOverride(userAgents?.[name], projectAgents?.[name]),
     ]),
   ) as ForgeConfig["agents"]
 
-  return agentNames.some((name) => merged?.[name]) ? merged : undefined
+  return AGENT_NAMES.some((name) => merged?.[name]) ? merged : undefined
+}
+
+function mergeSingleAgentOverride(
+  userAgent?: NonNullable<ForgeConfig["agents"]>[typeof AGENT_NAMES[number]],
+  projectAgent?: NonNullable<ForgeConfig["agents"]>[typeof AGENT_NAMES[number]],
+) {
+  if (!userAgent && !projectAgent) {
+    return undefined
+  }
+
+  const model = projectAgent?.model ?? userAgent?.model
+  const fallback_models =
+    projectAgent?.fallback_models !== undefined
+      ? projectAgent.fallback_models
+      : projectAgent?.model !== undefined
+        ? []
+        : (userAgent?.fallback_models ?? [])
+  const prompt_append = projectAgent?.prompt_append ?? userAgent?.prompt_append
+
+  return {
+    ...(model !== undefined ? { model } : {}),
+    ...(fallback_models !== undefined ? { fallback_models } : {}),
+    ...(prompt_append !== undefined ? { prompt_append } : {}),
+  }
 }
 
 async function readConfigFile(filePath: string): Promise<ForgeConfig | undefined> {
@@ -60,6 +80,8 @@ export function mergeConfigs(
   return {
     agents: mergeAgentOverrides(userConfig.agents, projectConfig.agents),
     disabled_agents: projectConfig.disabled_agents ?? userConfig.disabled_agents,
+    disable_builtin_agents:
+      projectConfig.disable_builtin_agents ?? userConfig.disable_builtin_agents,
   }
 }
 
@@ -76,7 +98,7 @@ export async function loadConfigFromPaths(
 }
 
 export async function loadConfig(projectDirectory: string): Promise<ForgeConfig> {
-  const userPath = join(homedir(), ".config", "opencode", "forge.jsonc")
+  const userPath = join(homedir(), ".config", "opencode", "forge-config.jsonc")
   const projectPath = join(projectDirectory, ".forge", "config.jsonc")
   return loadConfigFromPaths(userPath, projectPath)
 }

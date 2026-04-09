@@ -76,6 +76,27 @@ type SyncResult = {
   addedModels: string[]
 }
 
+type AuthFile = {
+  name: string
+  provider: string
+  account_type: string
+  disabled?: boolean
+  status: string
+}
+
+type AuthFilesResponse = {
+  files?: AuthFile[]
+}
+
+type AuthFileModelsResponse = {
+  models?: Array<{
+    id?: string
+    display_name?: string
+    owned_by?: string
+    type?: string
+  }>
+}
+
 const DEFAULT_MANAGEMENT_KEY = "1234qwer!"
 const COPILOT_REASONING_INCLUDE = ["reasoning.encrypted_content"]
 const REASONING_VARIANTS = new Set(["auto", "minimal", "low", "medium", "high", "xhigh", "max"])
@@ -98,6 +119,13 @@ const METADATA_CHANNELS = [
   "kilo",
   "amazonq",
 ]
+
+// Owners that are exclusively served via OAuth auth-files.
+// v1/models entries with these owners are excluded from API-key model discovery.
+const KNOWN_OAUTH_OWNERS: ReadonlySet<string> = new Set([
+  ...METADATA_CHANNELS,
+  ...Object.values(METADATA_CHANNEL_OWNER_MAP),
+])
 
 function normalizeBaseUrl(baseURL: string) {
   return baseURL.replace(/\/+$/, "")
@@ -284,17 +312,11 @@ function resolveMetadataOwners(channel: string | undefined, modelId: string, own
   return []
 }
 
-function resolveSeedProvider(config: Config) {
+export function resolveSeedProvider(config: Config) {
   const cliproxyapi = config.provider?.cliproxyapi
   if (cliproxyapi && typeof cliproxyapi === "object") {
     return cliproxyapi
   }
-
-  const openai = config.provider?.["cp-openai"]
-  if (openai && typeof openai === "object") {
-    return openai
-  }
-
   return null
 }
 
@@ -435,6 +457,76 @@ async function fetchModels(baseURL: string, apiKey: string) {
   return (await response.json()) as ModelResponse
 }
 
+async function fetchAuthFiles(baseURL: string, managementKey: string): Promise<AuthFilesResponse> {
+  const response = await fetch(`${buildManagementBaseUrl(baseURL)}/v0/management/auth-files`, {
+    headers: { Authorization: `Bearer ${managementKey}` },
+  })
+  if (!response.ok) {
+    throw new Error(`Auth files fetch failed with ${response.status} ${response.statusText}`)
+  }
+  return (await response.json()) as AuthFilesResponse
+}
+
+async function fetchAuthFileModels(
+  baseURL: string,
+  managementKey: string,
+  authFileName: string,
+): Promise<AuthFileModelsResponse> {
+  const encoded = encodeURIComponent(authFileName)
+  const response = await fetch(
+    `${buildManagementBaseUrl(baseURL)}/v0/management/auth-files/models?name=${encoded}`,
+    { headers: { Authorization: `Bearer ${managementKey}` } },
+  )
+  if (!response.ok) {
+    throw new Error(`Auth file models fetch failed with ${response.status} ${response.statusText}`)
+  }
+  return (await response.json()) as AuthFileModelsResponse
+}
+
+export function filterApiKeyModels(payload: ModelResponse): ModelResponse {
+  return {
+    ...payload,
+    data: (payload.data ?? []).filter(
+      (model) => typeof model.owned_by === "string" && !KNOWN_OAUTH_OWNERS.has(model.owned_by),
+    ),
+  }
+}
+
+export function normalizeAuthFileModels(responses: AuthFileModelsResponse[]): ModelResponse {
+  const data = responses.flatMap((resp) =>
+    (resp.models ?? [])
+      .filter(
+        (m) =>
+          typeof m.id === "string" && m.id.length > 0 && typeof m.owned_by === "string" && m.owned_by.length > 0,
+      )
+      .map((m) => ({ id: m.id!, owned_by: m.owned_by! })),
+  )
+  return { data }
+}
+
+async function fetchOAuthModels(
+  baseURL: string,
+  managementKey: string,
+  log: (message: string) => Promise<void>,
+): Promise<ModelResponse> {
+  const authFiles = await fetchAuthFiles(baseURL, managementKey)
+  const oauthEntries = (authFiles.files ?? []).filter((f) => f.account_type === "oauth" && f.disabled !== true)
+  const responses: AuthFileModelsResponse[] = []
+
+  for (const entry of oauthEntries) {
+    try {
+      const models = await fetchAuthFileModels(baseURL, managementKey, entry.name)
+      responses.push(models)
+      await log(`[cliproxyapi-sync] OAuth models loaded: ${entry.provider} (${models.models?.length ?? 0} models)`)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      await log(`[cliproxyapi-sync] OAuth models skipped for ${entry.provider}: ${message}`)
+    }
+  }
+
+  return normalizeAuthFileModels(responses)
+}
+
 async function fetchModelDefinitions(baseURL: string, managementKey: string, channel: string) {
   const response = await fetch(`${buildManagementBaseUrl(baseURL)}/v0/management/model-definitions/${channel}`, {
     headers: {
@@ -451,7 +543,10 @@ async function fetchModelDefinitions(baseURL: string, managementKey: string, cha
 
 async function syncCliproxyapiProvider(config: Config, log: (message: string) => Promise<void>) {
   const seedProvider = resolveSeedProvider(config)
-  if (!seedProvider) return
+  if (!seedProvider) {
+    await log("[cliproxyapi-sync] Sync skipped: cliproxyapi seed provider is not configured")
+    return
+  }
 
   const options = seedProvider.options
   if (!options || typeof options !== "object") return
@@ -462,10 +557,21 @@ async function syncCliproxyapiProvider(config: Config, log: (message: string) =>
   if (!baseURL || !apiKey) return
 
   try {
-    const payload = await fetchModels(baseURL, apiKey)
-    const metadataByOwner = await fetchMetadataByOwner(baseURL, managementKey, payload, log)
+    // Phase 1: OAuth models from management API (authoritative source for OAuth providers)
+    const oauthModels = await fetchOAuthModels(baseURL, managementKey, log)
 
-    const modelsByOwner = buildModelsByOwner(payload, metadataByOwner)
+    // Phase 2: API-key models from v1/models, excluding known OAuth owners
+    const allModels = await fetchModels(baseURL, apiKey)
+    const apiKeyModels = filterApiKeyModels(allModels)
+
+    // Merge both sources
+    const mergedPayload: ModelResponse = {
+      data: [...(oauthModels.data ?? []), ...(apiKeyModels.data ?? [])],
+    }
+
+    const metadataByOwner = await fetchMetadataByOwner(baseURL, managementKey, mergedPayload, log)
+
+    const modelsByOwner = buildModelsByOwner(mergedPayload, metadataByOwner)
     const managedProviders = buildManagedProviders(
       {
         ...seedProvider,
@@ -490,7 +596,8 @@ async function syncCliproxyapiProvider(config: Config, log: (message: string) =>
     await writeConfigAtomically(nextState.config as Config)
     config.provider = nextState.provider
     await log(
-      `[cliproxyapi-sync] Synced ${Object.keys(managedProviders ?? {}).length} providers from ${payload.data?.length ?? 0} models`,
+      `[cliproxyapi-sync] Synced ${Object.keys(managedProviders ?? {}).length} providers ` +
+        `(${oauthModels.data?.length ?? 0} OAuth + ${apiKeyModels.data?.length ?? 0} API-key models)`,
     )
     return result
   } catch (error) {

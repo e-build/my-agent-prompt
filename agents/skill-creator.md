@@ -1,7 +1,7 @@
 ---
 description: |-
   Skill creation specialist for opencode. Creates properly structured SKILL.md files with validated frontmatter, templates, and best practices. Use when creating new skills, converting patterns into skills, or packaging reusable instructions.
-mode: all
+mode: subagent
 tools:
   write: true
   edit: true

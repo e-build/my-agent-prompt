@@ -4,7 +4,8 @@ import { WORKER_PROMPT, withPromptAppend } from "./prompts"
 export function createWorkerAgent(model: string, promptAppend?: string): AgentConfig {
   return {
     model,
-    mode: "all",
+    mode: "primary",
+    color: "success",
     description: "Focused task executor that cannot delegate further",
     prompt: withPromptAppend(WORKER_PROMPT, promptAppend),
     permission: {

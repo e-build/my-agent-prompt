@@ -11,6 +11,7 @@ describe("createAgentRegistry", () => {
       "pilot",
       "worker",
       "scouter",
+      "researcher",
     ])
     expect(registry.isDisabled("pilot")).toBe(false)
     expect(registry.isDisabled("planner")).toBe(true)
@@ -21,8 +22,10 @@ describe("createAgentRegistry", () => {
 
     expect(registry.canDelegate("pilot", "worker")).toBe(true)
     expect(registry.canDelegate("pilot", "planner")).toBe(false)
+    expect(registry.canDelegate("pilot", "researcher")).toBe(true)
     expect(registry.canDelegate("worker", "scouter")).toBe(false)
     expect(registry.canDelegate("architect", "scouter")).toBe(true)
+    expect(registry.canDelegate("architect", "researcher")).toBe(true)
   })
 
   test("builds agent configs with prompt append", () => {
