@@ -21,6 +21,93 @@ Forge resolves models in this order:
 project agent override -> user agent default -> built-in agent default
 ```
 
+## Config Reference
+
+Forge reads two config files:
+
+- User config: `~/.config/opencode/forge-config.jsonc`
+- Project config: `.forge/config.jsonc`
+
+The user config defines defaults for every project. The project config overrides those defaults for the current repository only.
+
+### Config Shape
+
+```jsonc
+{
+  "disable_builtin_agents": true,
+  "disabled_agents": ["architect"],
+  "agents": {
+    "pilot": {
+      "model": "cp-openai/gpt-5.4",
+      "prompt_append": "Keep plans short."
+    },
+    "worker": {
+      "model": "cp-github-copilot/claude-sonnet-4.6",
+      "fallback_models": ["cp-openai/gpt-5.4", "cp-openai/gpt-5-mini"],
+      "prompt_append": "Prefer small diffs."
+    }
+  }
+}
+```
+
+### Top-Level Fields
+
+- `disable_builtin_agents`: boolean. Hides builtin OpenCode agents `build`, `plan`, `general`, and `explore` when set to `true`.
+- `disabled_agents`: string array. Disables specific Forge agents such as `architect` or `researcher`.
+- `agents`: object keyed by Forge agent name.
+
+Supported Forge agent keys:
+
+- `pilot`
+- `planner`
+- `architect`
+- `worker`
+- `scouter`
+- `researcher`
+
+### Per-Agent Fields
+
+- `model`: string. Primary model for the agent. Format: `provider/model`.
+- `fallback_models`: string array, optional, maximum 2 entries. Retry chain used only for retryable runtime failures.
+- `prompt_append`: string, optional. Additional prompt text appended to that Forge agent.
+
+### Config Examples
+
+User-level defaults:
+
+```jsonc
+{
+  "disable_builtin_agents": true,
+  "agents": {
+    "pilot": { "model": "cp-openai/gpt-5.4" },
+    "planner": { "model": "cp-openai/gpt-5.4" },
+    "architect": { "model": "cp-openai/gpt-5.4" },
+    "worker": {
+      "model": "cp-github-copilot/claude-sonnet-4.6",
+      "fallback_models": ["cp-openai/gpt-5.4"]
+    },
+    "scouter": { "model": "cp-github-copilot/claude-haiku-4.5" },
+    "researcher": { "model": "cp-openai/gpt-5.4" }
+  }
+}
+```
+
+Project-level override:
+
+```jsonc
+{
+  "agents": {
+    "worker": {
+      "model": "cp-openai/gpt-5-codex",
+      "fallback_models": []
+    },
+    "pilot": {
+      "prompt_append": "Always summarize decisions at the end."
+    }
+  }
+}
+```
+
 Configure agent models in `~/.config/opencode/forge-config.jsonc` for user defaults or
 `.forge/config.jsonc` for a project override:
 
@@ -50,6 +137,16 @@ Configure agent models in `~/.config/opencode/forge-config.jsonc` for user defau
 - If a project wants fallbacks for an overridden model, it must set `fallback_models` explicitly.
 - `fallback_models: []` explicitly disables inherited fallbacks while keeping the inherited model.
 - If a project only changes `prompt_append`, the inherited `model` and `fallback_models` remain in effect.
+
+Effective behavior examples:
+
+| User config | Project config | Effective result |
+| --- | --- | --- |
+| `model=A`, `fallbacks=[B]` | none | `model=A`, `fallbacks=[B]` |
+| `model=A`, `fallbacks=[B]` | `prompt_append=X` | `model=A`, `fallbacks=[B]`, `prompt_append=X` |
+| `model=A`, `fallbacks=[B]` | `model=C` | `model=C`, `fallbacks=[]` |
+| `model=A`, `fallbacks=[B]` | `model=C`, `fallbacks=[D]` | `model=C`, `fallbacks=[D]` |
+| `model=A`, `fallbacks=[B]` | `fallbacks=[]` | `model=A`, `fallbacks=[]` |
 
 Example: disable inherited fallbacks for a project-specific worker model.
 
