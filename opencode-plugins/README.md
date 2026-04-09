@@ -11,7 +11,7 @@
 |---------|------|------|
 | `opencode-autoresearch` | `lab-*` Bilevel Autoresearch 최적화 루프 | [README](./opencode-autoresearch/README.md) |
 | `forge-plugin` | 5개 전문 에이전트와 카테고리 기반 모델 라우팅 harness | [README](./forge-plugin/README.md) |
-| `cliproxyapi-sync` | CLI Proxy API 모델 프로바이더 자동 동기화 (실험적) | — |
+| `cliproxyapi-sync` | CLI Proxy API 모델 프로바이더 자동 동기화 (실험적) | [README](./cliproxyapi-sync/README.md) |
 
 ---
 
@@ -76,9 +76,9 @@ bash opencode-plugins/<package-name>/install-local.sh --uninstall
 
 npm으로 배포할 때 `npm install` 후 자동으로 `fs.cpSync`로 자산을 복사한다. 심링크가 아닌 복사본이므로 소스 변경이 자동 반영되지 않는다.
 
-**패턴 3 — `opencode.json` 직접 등록 (빌드 필요 플러그인)**
+**패턴 3 — `opencode.json` 직접 등록 (예외적 사용)**
 
-TypeScript로 작성한 플러그인은 빌드 후 출력 경로를 `plugin` 배열에 추가한다.
+원격 플러그인이나 `plugins/` 디렉토리 심링크를 사용할 수 없는 경우에만 `plugin` 배열에 직접 등록한다. 로컬에서 개발 중인 플러그인은 가능하면 빌드 산출물을 `~/.config/opencode/plugins/`에 심링크하는 방식을 우선 사용한다.
 
 ```json
 {

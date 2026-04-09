@@ -48,6 +48,7 @@
 | `skills/create-command/` | `~/.config/opencode/skills/create-command/` | 디렉토리 단위 심링크 |
 | `opencode-plugins/opencode-autoresearch/` | `~/.config/opencode/{commands,agents,skills,plugins}/` | `install-local.sh` 실행 |
 | `opencode-plugins/forge-plugin/dist/index.js` | `~/.config/opencode/plugins/forge-plugin.js` | 빌드 후 심링크 |
+| `opencode-plugins/cliproxyapi-sync/dist/index.js` | `~/.config/opencode/plugins/cliproxyapi-sync.js` | 빌드 후 심링크 |
 
 > 스킬은 단일 파일이 아닌 **디렉토리 단위**로 심링크한다. 디렉토리 안에 `SKILL.md`가 있어야 OpenCode가 인식한다.
 > 저장소 루트 `command/`(단수)는 standalone 커맨드 전용이다. `opencode-plugins/` 내부는 OpenCode 패키지 관례에 따라 `commands/`(복수)를 사용한다.
@@ -76,6 +77,9 @@ bash $REPO/opencode-plugins/opencode-autoresearch/install-local.sh
 
 # forge-plugin (빌드 후 plugins 디렉토리에 심링크)
 ln -s $REPO/opencode-plugins/forge-plugin/dist/index.js $OC/plugins/forge-plugin.js
+
+# cliproxyapi-sync (빌드 후 plugins 디렉토리에 심링크)
+ln -sfn $REPO/opencode-plugins/cliproxyapi-sync/dist/index.js $OC/plugins/cliproxyapi-sync.js
 ```
 
 ---
