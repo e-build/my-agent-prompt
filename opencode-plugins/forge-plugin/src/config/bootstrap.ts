@@ -3,10 +3,21 @@ import { dirname } from "node:path"
 import { DEFAULT_AGENT_MODELS } from "../kernel/agent-model-resolver"
 
 function generateDefaultUserConfig(): string {
-  const agents = Object.fromEntries(
-    Object.entries(DEFAULT_AGENT_MODELS).map(([name, model]) => [name, { model }]),
-  )
-  return `${JSON.stringify({ disable_builtin_agents: true, agents }, null, 2)}\n`
+  return `{
+  "disable_builtin_agents": true,
+  "agents": {
+    "pilot": { "model": "${DEFAULT_AGENT_MODELS.pilot}" },
+    "planner": { "model": "${DEFAULT_AGENT_MODELS.planner}" },
+    "architect": { "model": "${DEFAULT_AGENT_MODELS.architect}" },
+    "worker": {
+      "model": "${DEFAULT_AGENT_MODELS.worker}",
+      "fallback_models": ["openai/gpt-5.4"]
+    },
+    "scouter": { "model": "${DEFAULT_AGENT_MODELS.scouter}" },
+    "researcher": { "model": "${DEFAULT_AGENT_MODELS.researcher}" }
+  }
+}
+`
 }
 
 export async function ensureUserConfigBootstrap(userPath: string): Promise<void> {

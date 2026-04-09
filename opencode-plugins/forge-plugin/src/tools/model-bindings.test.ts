@@ -51,7 +51,10 @@ describe("model binding tools", () => {
         {
           disabled_agents: ["architect"],
           agents: {
-            worker: { prompt_append: "Be concise." },
+            worker: {
+              prompt_append: "Be concise.",
+              fallback_models: ["cp-openai/gpt-5.4", "cp-openai/gpt-5-mini"],
+            },
           },
         },
         null,
@@ -77,6 +80,8 @@ describe("model binding tools", () => {
     expect(config).toContain('"disabled_agents": [')
     expect(config).toContain('"prompt_append": "Be concise."')
     expect(config).toContain('"model": "cp-github-copilot/claude-sonnet-4.6"')
+    expect(config).toContain('"fallback_models": [')
+    expect(config).toContain('"cp-openai/gpt-5.4"')
   })
 })
 

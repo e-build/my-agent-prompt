@@ -17,24 +17,66 @@ import { homedir as homedir2 } from "os";
 // src/config/bootstrap.ts
 import { mkdir, writeFile } from "fs/promises";
 import { dirname } from "path";
-var DEFAULT_USER_CONFIG_TEMPLATE = `{
-  // forge-config.jsonc is created automatically the first time forge-plugin loads.
 
-  // Disable OpenCode builtin agents and use only Forge agents.
+// src/kernel/types.ts
+function parseModelString(model) {
+  const [providerID, ...rest] = model.split("/");
+  if (!providerID || rest.length === 0) {
+    throw new Error(`Invalid model string: ${model}`);
+  }
+  return {
+    providerID,
+    modelID: rest.join("/")
+  };
+}
+
+// src/kernel/agent-model-resolver.ts
+var DEFAULT_AGENT_MODELS = {
+  pilot: "anthropic/claude-sonnet-4-6",
+  planner: "openai/gpt-5.4",
+  architect: "openai/gpt-5.4",
+  worker: "anthropic/claude-sonnet-4-6",
+  scouter: "anthropic/claude-haiku-4-5",
+  researcher: "openai/gpt-5.4"
+};
+function createAgentModelResolver(config) {
+  return {
+    resolveAgentModel(agent) {
+      return this.resolveAgentRoute(agent).model;
+    },
+    resolveAgentRoute(agent) {
+      return {
+        model: config.agents?.[agent]?.model ?? DEFAULT_AGENT_MODELS[agent],
+        fallbackModels: config.agents?.[agent]?.fallback_models ?? []
+      };
+    },
+    parse(model) {
+      return parseModelString(model);
+    }
+  };
+}
+
+// src/config/bootstrap.ts
+function generateDefaultUserConfig() {
+  return `{
   "disable_builtin_agents": true,
-
-  // Disable specific Forge agents if needed.
-  // "disabled_agents": ["architect"],
-
-  // Optional per-agent model overrides.
-  // "agents": {
-  //   "pilot": { "model": "cp-openai/gpt-5.4" }
-  // }
+  "agents": {
+    "pilot": { "model": "${DEFAULT_AGENT_MODELS.pilot}" },
+    "planner": { "model": "${DEFAULT_AGENT_MODELS.planner}" },
+    "architect": { "model": "${DEFAULT_AGENT_MODELS.architect}" },
+    "worker": {
+      "model": "${DEFAULT_AGENT_MODELS.worker}",
+      "fallback_models": ["openai/gpt-5.4"]
+    },
+    "scouter": { "model": "${DEFAULT_AGENT_MODELS.scouter}" },
+    "researcher": { "model": "${DEFAULT_AGENT_MODELS.researcher}" }
+  }
 }
 `;
+}
 async function ensureUserConfigBootstrap(userPath) {
   try {
-    await writeFile(userPath, DEFAULT_USER_CONFIG_TEMPLATE, {
+    await writeFile(userPath, generateDefaultUserConfig(), {
       encoding: "utf8",
       flag: "wx"
     });
@@ -14396,6 +14438,7 @@ config(en_default());
 // src/config/schema.ts
 var AgentOverrideSchema = exports_external.object({
   model: exports_external.string().optional(),
+  fallback_models: exports_external.array(exports_external.string()).max(2).optional(),
   prompt_append: exports_external.string().optional()
 });
 var ForgeConfigSchema = exports_external.object({
@@ -14412,19 +14455,29 @@ var ForgeConfigSchema = exports_external.object({
 }).strict();
 
 // src/config/loader.ts
+var AGENT_NAMES = ["pilot", "planner", "architect", "worker", "scouter", "researcher"];
 function mergeAgentOverrides(userAgents, projectAgents) {
   if (!userAgents && !projectAgents) {
     return;
   }
-  const agentNames = ["pilot", "planner", "architect", "worker", "scouter", "researcher"];
-  const merged = Object.fromEntries(agentNames.map((name) => [
+  const merged = Object.fromEntries(AGENT_NAMES.map((name) => [
     name,
-    userAgents?.[name] || projectAgents?.[name] ? {
-      ...userAgents?.[name],
-      ...projectAgents?.[name]
-    } : undefined
+    mergeSingleAgentOverride(userAgents?.[name], projectAgents?.[name])
   ]));
-  return agentNames.some((name) => merged?.[name]) ? merged : undefined;
+  return AGENT_NAMES.some((name) => merged?.[name]) ? merged : undefined;
+}
+function mergeSingleAgentOverride(userAgent, projectAgent) {
+  if (!userAgent && !projectAgent) {
+    return;
+  }
+  const model = projectAgent?.model ?? userAgent?.model;
+  const fallback_models = projectAgent?.fallback_models !== undefined ? projectAgent.fallback_models : projectAgent?.model !== undefined ? [] : userAgent?.fallback_models ?? [];
+  const prompt_append = projectAgent?.prompt_append ?? userAgent?.prompt_append;
+  return {
+    ...model !== undefined ? { model } : {},
+    ...fallback_models !== undefined ? { fallback_models } : {},
+    ...prompt_append !== undefined ? { prompt_append } : {}
+  };
 }
 async function readConfigFile(filePath) {
   try {
@@ -14450,7 +14503,8 @@ function mergeConfigs(userConfig, projectConfig) {
   }
   return {
     agents: mergeAgentOverrides(userConfig.agents, projectConfig.agents),
-    disabled_agents: projectConfig.disabled_agents ?? userConfig.disabled_agents
+    disabled_agents: projectConfig.disabled_agents ?? userConfig.disabled_agents,
+    disable_builtin_agents: projectConfig.disable_builtin_agents ?? userConfig.disable_builtin_agents
   };
 }
 async function loadConfigFromPaths(userPath, projectPath) {
@@ -14509,8 +14563,212 @@ function createEventLogger() {
   };
 }
 
+// src/hooks/error-classifier.ts
+var RETRYABLE_STATUS_CODES = new Set([429, 500, 502, 503, 504]);
+var RETRYABLE_MESSAGE_PATTERNS = [
+  /etimedout/i,
+  /timeout/i,
+  /timed out/i,
+  /temporary unavailable/i,
+  /connection reset/i,
+  /network error/i,
+  /econnreset/i,
+  /service unavailable/i
+];
+var NON_RETRYABLE_MESSAGE_PATTERNS = [
+  /missing api key/i,
+  /api key/i,
+  /model not found/i,
+  /unauthorized/i,
+  /forbidden/i,
+  /authentication/i
+];
+function getMessage(error48) {
+  if (!error48) {
+    return "";
+  }
+  if (typeof error48 === "string") {
+    return error48;
+  }
+  if (error48 instanceof Error) {
+    return error48.message;
+  }
+  if (typeof error48 === "object") {
+    const record2 = error48;
+    const messageCandidates = [
+      record2.message,
+      record2.error?.message,
+      record2.data?.message
+    ];
+    const message = messageCandidates.find((value) => typeof value === "string");
+    return message ?? "";
+  }
+  return "";
+}
+function getStatusCode(error48) {
+  if (!error48 || typeof error48 !== "object") {
+    return;
+  }
+  const record2 = error48;
+  const status = [
+    record2.statusCode,
+    record2.status,
+    record2.error?.statusCode,
+    record2.data?.statusCode
+  ].find((value) => typeof value === "number");
+  return status;
+}
+function isRetryableApiError(error48) {
+  const statusCode = getStatusCode(error48);
+  if (statusCode !== undefined) {
+    return RETRYABLE_STATUS_CODES.has(statusCode);
+  }
+  const message = getMessage(error48);
+  if (!message) {
+    return false;
+  }
+  if (NON_RETRYABLE_MESSAGE_PATTERNS.some((pattern) => pattern.test(message))) {
+    return false;
+  }
+  return RETRYABLE_MESSAGE_PATTERNS.some((pattern) => pattern.test(message));
+}
+
+// src/hooks/fallback-event-handler.ts
+async function getLastUserTextParts(context, sessionID) {
+  const messagesResult = await context.client.session.messages({
+    path: { id: sessionID },
+    query: { directory: context.directory }
+  });
+  const messages = Array.isArray(messagesResult) ? messagesResult : messagesResult.data ?? [];
+  const lastUserMessage = messages.filter((message) => message.info?.role === "user").pop();
+  return (lastUserMessage?.parts ?? []).filter((part) => part.type === "text" && typeof part.text === "string" && part.text.length > 0).map((part) => ({ type: "text", text: part.text }));
+}
+function createFallbackEventHandler(registry2, resolver, fallbackState, sessionAgents, context) {
+  return async ({ event }) => {
+    const properties = event.properties ?? {};
+    const sessionID = properties.sessionID ?? properties.info?.id;
+    if (!sessionID) {
+      return;
+    }
+    if (event.type === "session.idle") {
+      fallbackState.clear(sessionID);
+      return;
+    }
+    if (event.type === "session.stop" || event.type === "session.deleted") {
+      fallbackState.clear(sessionID);
+      sessionAgents.delete(sessionID);
+      return;
+    }
+    if (event.type !== "session.error") {
+      return;
+    }
+    const agent = sessionAgents.get(sessionID);
+    if (!registry2.isForgeAgent(agent) || registry2.isDisabled(agent)) {
+      return;
+    }
+    if (!isRetryableApiError(properties.error)) {
+      return;
+    }
+    const route = resolver.resolveAgentRoute(agent);
+    const pendingFallback = fallbackState.peek(sessionID, agent);
+    if (pendingFallback) {
+      if (context) {
+        const retryParts2 = await getLastUserTextParts(context, sessionID);
+        if (retryParts2.length > 0) {
+          await context.client.session.promptAsync({
+            path: { id: sessionID },
+            body: {
+              agent,
+              model: resolver.parse(pendingFallback.model),
+              parts: retryParts2
+            },
+            query: { directory: context.directory }
+          });
+        }
+      }
+      return;
+    }
+    fallbackState.arm(sessionID, agent, route.fallbackModels);
+    const armedFallback = fallbackState.peek(sessionID, agent);
+    if (!context || !armedFallback) {
+      return;
+    }
+    const retryParts = await getLastUserTextParts(context, sessionID);
+    if (retryParts.length === 0) {
+      return;
+    }
+    await context.client.session.promptAsync({
+      path: { id: sessionID },
+      body: {
+        agent,
+        model: resolver.parse(armedFallback.model),
+        parts: retryParts
+      },
+      query: { directory: context.directory }
+    });
+  };
+}
+
+// src/hooks/fallback-state.ts
+function createFallbackState() {
+  const states = new Map;
+  const toPendingFallback = (state) => {
+    if (!state) {
+      return;
+    }
+    const model = state.models[state.index];
+    if (!model) {
+      return;
+    }
+    return {
+      agent: state.agent,
+      attempt: state.index + 1,
+      model
+    };
+  };
+  return {
+    arm(sessionID, agent, models) {
+      const filtered = models.filter(Boolean);
+      if (filtered.length === 0) {
+        states.delete(sessionID);
+        return;
+      }
+      states.set(sessionID, {
+        agent,
+        models: filtered,
+        index: 0
+      });
+    },
+    peek(sessionID, agent) {
+      const state = states.get(sessionID);
+      if (agent && state?.agent !== agent) {
+        return;
+      }
+      return toPendingFallback(state);
+    },
+    consume(sessionID, agent) {
+      const state = states.get(sessionID);
+      if (agent && state?.agent !== agent) {
+        return;
+      }
+      const fallback = toPendingFallback(state);
+      if (!state || !fallback) {
+        return;
+      }
+      state.index += 1;
+      if (state.index >= state.models.length) {
+        states.delete(sessionID);
+      }
+      return fallback;
+    },
+    clear(sessionID) {
+      states.delete(sessionID);
+    }
+  };
+}
+
 // src/hooks/model-router.ts
-function createModelRouter(registry2, resolver) {
+function createModelRouter(registry2, resolver, fallbackState) {
   return async (input, output) => {
     if (!registry2.isForgeAgent(input.agent)) {
       return;
@@ -14518,7 +14776,9 @@ function createModelRouter(registry2, resolver) {
     if (registry2.isDisabled(input.agent)) {
       return;
     }
-    output.message.model = resolver.parse(resolver.resolveAgentModel(input.agent));
+    const pendingFallback = fallbackState?.consume(input.sessionID, input.agent);
+    const model = pendingFallback?.model ?? resolver.resolveAgentModel(input.agent);
+    output.message.model = resolver.parse(model);
   };
 }
 
@@ -14543,38 +14803,6 @@ function createPlannerWriteGuard(projectDirectory, sessionAgents) {
     }
     if (!isEditablePlanPath(projectDirectory, filePath)) {
       throw new Error("Planner may only edit .forge/plans/");
-    }
-  };
-}
-
-// src/kernel/types.ts
-function parseModelString(model) {
-  const [providerID, ...rest] = model.split("/");
-  if (!providerID || rest.length === 0) {
-    throw new Error(`Invalid model string: ${model}`);
-  }
-  return {
-    providerID,
-    modelID: rest.join("/")
-  };
-}
-
-// src/kernel/agent-model-resolver.ts
-var DEFAULT_AGENT_MODELS = {
-  pilot: "anthropic/claude-sonnet-4-6",
-  planner: "openai/gpt-5.4",
-  architect: "openai/gpt-5.4",
-  worker: "anthropic/claude-sonnet-4-6",
-  scouter: "anthropic/claude-haiku-4-5",
-  researcher: "openai/gpt-5.4"
-};
-function createAgentModelResolver(config2) {
-  return {
-    resolveAgentModel(agent) {
-      return config2.agents?.[agent]?.model ?? DEFAULT_AGENT_MODELS[agent];
-    },
-    parse(model) {
-      return parseModelString(model);
     }
   };
 }
@@ -27491,7 +27719,11 @@ var ForgePlugin = async (ctx) => {
   const registry3 = createAgentRegistry(config3);
   const resolver = createAgentModelResolver(config3);
   const sessionAgents = new Map;
+  const fallbackState = createFallbackState();
   const plannerWriteGuard = createPlannerWriteGuard(ctx.directory, sessionAgents);
+  const eventLogger = createEventLogger();
+  const fallbackEventHandler = createFallbackEventHandler(registry3, resolver, fallbackState, sessionAgents, ctx);
+  const modelRouter = createModelRouter(registry3, resolver, fallbackState);
   return {
     tool: {
       bind_models: bindModelsTool,
@@ -27503,10 +27735,13 @@ var ForgePlugin = async (ctx) => {
       if (input.agent) {
         sessionAgents.set(input.sessionID, input.agent);
       }
-      await createModelRouter(registry3, resolver)(input, output);
+      await modelRouter(input, output);
     },
     "tool.execute.before": plannerWriteGuard,
-    event: createEventLogger()
+    event: async (input) => {
+      await eventLogger(input);
+      await fallbackEventHandler(input);
+    }
   };
 };
 var src_default = ForgePlugin;

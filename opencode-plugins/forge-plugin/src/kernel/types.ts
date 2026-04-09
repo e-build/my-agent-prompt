@@ -13,6 +13,11 @@ export interface ModelRef {
   modelID: string
 }
 
+export interface AgentModelRoute {
+  model: string
+  fallbackModels: string[]
+}
+
 export interface AgentDefinition {
   name: AgentName
   delegatesTo: AgentName[]

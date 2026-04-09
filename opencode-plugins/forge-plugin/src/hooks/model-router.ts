@@ -1,7 +1,12 @@
 import type { AgentRegistry } from "../kernel/agent-registry"
 import type { AgentModelResolver } from "../kernel/agent-model-resolver"
+import type { FallbackStateStore } from "./fallback-state"
 
-export function createModelRouter(registry: AgentRegistry, resolver: AgentModelResolver) {
+export function createModelRouter(
+  registry: AgentRegistry,
+  resolver: AgentModelResolver,
+  fallbackState?: FallbackStateStore,
+) {
   return async (
     input: {
       sessionID: string
@@ -25,6 +30,8 @@ export function createModelRouter(registry: AgentRegistry, resolver: AgentModelR
       return
     }
 
-    output.message.model = resolver.parse(resolver.resolveAgentModel(input.agent))
+    const pendingFallback = fallbackState?.consume(input.sessionID, input.agent)
+    const model = pendingFallback?.model ?? resolver.resolveAgentModel(input.agent)
+    output.message.model = resolver.parse(model)
   }
 }

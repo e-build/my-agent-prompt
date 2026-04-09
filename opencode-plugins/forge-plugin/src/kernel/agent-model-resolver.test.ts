@@ -25,6 +25,22 @@ describe("createAgentModelResolver", () => {
     )
   })
 
+  test("resolves primary model and fallback chain together", () => {
+    const resolver = createAgentModelResolver({
+      agents: {
+        worker: {
+          model: "cp-github-copilot/claude-sonnet-4.6",
+          fallback_models: ["cp-openai/gpt-5.4", "cp-openai/gpt-5-mini"],
+        },
+      },
+    })
+
+    expect(resolver.resolveAgentRoute("worker")).toEqual({
+      model: "cp-github-copilot/claude-sonnet-4.6",
+      fallbackModels: ["cp-openai/gpt-5.4", "cp-openai/gpt-5-mini"],
+    })
+  })
+
   test("parses provider and model ids", () => {
     expect(createAgentModelResolver({}).parse("cp-openai/gpt-5.4")).toEqual({
       providerID: "cp-openai",

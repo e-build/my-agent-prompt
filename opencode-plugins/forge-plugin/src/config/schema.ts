@@ -2,6 +2,7 @@ import { z } from "zod"
 
 const AgentOverrideSchema = z.object({
   model: z.string().optional(),
+  fallback_models: z.array(z.string()).max(2).optional(),
   prompt_append: z.string().optional(),
 })
 

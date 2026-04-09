@@ -29,6 +29,7 @@ describe("ensureUserConfigBootstrap", () => {
     expect(parsed.agents.pilot.model).toBeTruthy()
     expect(parsed.agents.worker).toBeDefined()
     expect(parsed.agents.worker.model).toBeTruthy()
+    expect(parsed.agents.worker.fallback_models).toEqual(["openai/gpt-5.4"])
   })
 
   test("does not overwrite existing forge-config.jsonc", async () => {

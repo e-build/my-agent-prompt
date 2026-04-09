@@ -5,6 +5,8 @@ import { ensureUserConfigBootstrap } from "./config/bootstrap"
 import { loadConfig } from "./config/loader"
 import { createAgentRegistrar } from "./hooks/agent-registrar"
 import { createEventLogger } from "./hooks/event-logger"
+import { createFallbackEventHandler } from "./hooks/fallback-event-handler"
+import { createFallbackState } from "./hooks/fallback-state"
 import { createModelRouter } from "./hooks/model-router"
 import { createPlannerWriteGuard } from "./hooks/planner-write-guard"
 import { createAgentModelResolver } from "./kernel/agent-model-resolver"
@@ -18,7 +20,17 @@ const ForgePlugin: Plugin = async (ctx) => {
   const registry = createAgentRegistry(config)
   const resolver = createAgentModelResolver(config)
   const sessionAgents = new Map<string, string>()
+  const fallbackState = createFallbackState()
   const plannerWriteGuard = createPlannerWriteGuard(ctx.directory, sessionAgents)
+  const eventLogger = createEventLogger()
+  const fallbackEventHandler = createFallbackEventHandler(
+    registry,
+    resolver,
+    fallbackState,
+    sessionAgents,
+    ctx,
+  )
+  const modelRouter = createModelRouter(registry, resolver, fallbackState)
 
   return {
     tool: {
@@ -31,10 +43,13 @@ const ForgePlugin: Plugin = async (ctx) => {
       if (input.agent) {
         sessionAgents.set(input.sessionID, input.agent)
       }
-      await createModelRouter(registry, resolver)(input, output)
+      await modelRouter(input, output)
     },
     "tool.execute.before": plannerWriteGuard,
-    event: createEventLogger(),
+    event: async (input) => {
+      await eventLogger(input)
+      await fallbackEventHandler(input)
+    },
   }
 }
 
