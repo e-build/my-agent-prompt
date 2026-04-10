@@ -48,7 +48,7 @@
 | `skills/create-command/` | `~/.config/opencode/skills/create-command/` | 디렉토리 단위 심링크 |
 | `opencode-plugins/opencode-autoresearch/` | `~/.config/opencode/{commands,agents,skills,plugins}/` | `install-local.sh` 실행 |
 | `opencode-plugins/forge-plugin/dist/index.js` | `~/.config/opencode/plugins/forge-plugin.js` | 빌드 후 심링크 |
-| `opencode-plugins/cliproxyapi-sync/dist/index.js` | `~/.config/opencode/plugins/cliproxyapi-sync.js` | 빌드 후 심링크 |
+| `opencode-plugins/cliproxyapi-sync/cliproxyapi-sync.ts` | `~/.config/opencode/plugins/cliproxyapi-sync.ts` | 소스 직접 심링크, 설정은 `~/.config/opencode/cliproxyapi-sync-config.jsonc` |
 
 > 스킬은 단일 파일이 아닌 **디렉토리 단위**로 심링크한다. 디렉토리 안에 `SKILL.md`가 있어야 OpenCode가 인식한다.
 > 저장소 루트 `command/`(단수)는 standalone 커맨드 전용이다. `opencode-plugins/` 내부는 OpenCode 패키지 관례에 따라 `commands/`(복수)를 사용한다.
@@ -78,8 +78,12 @@ bash $REPO/opencode-plugins/opencode-autoresearch/install-local.sh
 # forge-plugin (빌드 후 plugins 디렉토리에 심링크)
 ln -s $REPO/opencode-plugins/forge-plugin/dist/index.js $OC/plugins/forge-plugin.js
 
-# cliproxyapi-sync (빌드 후 plugins 디렉토리에 심링크)
-ln -sfn $REPO/opencode-plugins/cliproxyapi-sync/dist/index.js $OC/plugins/cliproxyapi-sync.js
+# cliproxyapi-sync (소스 직접 심링크, 빌드 불필요)
+ln -s $REPO/opencode-plugins/cliproxyapi-sync/cliproxyapi-sync.ts $OC/plugins/cliproxyapi-sync.ts
+
+# cliproxyapi-sync config
+# 첫 실행 시 $OC/cliproxyapi-sync-config.jsonc 가 자동 생성된다.
+# baseURL / apiKey 는 provider.cliproxyapi 대신 이 파일에 입력한다.
 ```
 
 ---

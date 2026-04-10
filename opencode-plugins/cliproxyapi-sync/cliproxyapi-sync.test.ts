@@ -8,10 +8,10 @@ import {
   buildModelsByOwner,
   buildNextProviderState,
   filterApiKeyModels,
-  getConfigPath,
   normalizeAuthFileModels,
   resolveSeedProvider,
-} from "./cliproxyapi-sync"
+} from "./core"
+import { getConfigPath, getPluginConfigPath } from "./config"
 
 const originalFetch = globalThis.fetch
 
@@ -27,6 +27,12 @@ async function writeTempOpenCodeConfig(config: unknown) {
   await fs.mkdir(configDir, { recursive: true })
   await fs.writeFile(configPath, `${JSON.stringify(config)}\n`, "utf8")
   process.env.OPENCODE_CONFIG_PATH = configPath
+}
+
+async function writeTempPluginConfig(config: string) {
+  const pluginConfigPath = getPluginConfigPath()
+  await fs.mkdir(path.dirname(pluginConfigPath), { recursive: true })
+  await fs.writeFile(pluginConfigPath, config, "utf8")
 }
 
 function stubAntigravityModelFetch() {
@@ -423,6 +429,12 @@ describe("buildModelsByOwner", () => {
 })
 
 describe("CliproxyapiSyncPlugin", () => {
+  test("plugin entry exports only the plugin function for local loading", async () => {
+    const module = await import("./cliproxyapi-sync")
+
+    expect(Object.keys(module).sort()).toEqual(["CliproxyapiSyncPlugin"])
+  })
+
   test("uses an explicit config path override when provided", () => {
     process.env.OPENCODE_CONFIG_PATH = "/tmp/opencode-test-config.json"
 
@@ -765,17 +777,35 @@ describe("CliproxyapiSyncPlugin", () => {
     expect(config.provider?.["cp-opencode-go"]?.models?.["go-glm-5"]).toBeDefined()
   })
 
-  test("logs when seed provider is absent and does not sync", async () => {
-    await writeTempOpenCodeConfig({
-      provider: {
-        "cp-openai": {
-          name: "CP OpenAI",
-          npm: "@ai-sdk/openai-compatible",
-          options: { apiKey: "key", baseURL: "http://localhost:8317/v1" },
-          models: { "gpt-5.4": { name: "GPT 5.4" } },
+  test("syncs when only the dedicated cliproxyapi config file is present", async () => {
+    await writeTempOpenCodeConfig({ provider: {} })
+    await writeTempPluginConfig(`{
+  "baseURL": "http://localhost:8317/v1",
+  "apiKey": "test-api-key"
+}
+`)
+
+    stubAntigravityModelFetch()
+    const logs: string[] = []
+    const { CliproxyapiSyncPlugin } = await import("./cliproxyapi-sync")
+    const plugin = await CliproxyapiSyncPlugin({
+      client: {
+        app: {
+          log: (input) => {
+            logs.push(input.body.message)
+            return Promise.resolve()
+          },
         },
       },
     })
+
+    await plugin.config({ provider: {} })
+
+    expect(logs.some((line) => line.includes("Synced") || line.includes("already up to date"))).toBe(true)
+  })
+
+  test("bootstraps the dedicated config file and logs its path when no config exists", async () => {
+    await writeTempOpenCodeConfig({ provider: {} })
 
     let fetchCalled = false
     const logs: string[] = []
@@ -795,19 +825,39 @@ describe("CliproxyapiSyncPlugin", () => {
         },
       },
     })
-    const config = {
-      provider: {
-        "cp-openai": {
-          name: "CP OpenAI",
-          npm: "@ai-sdk/openai-compatible",
-          options: { apiKey: "key", baseURL: "http://localhost:8317/v1" },
-          models: { "gpt-5.4": { name: "GPT 5.4" } },
-        },
-      },
-    }
-    await plugin.config(config)
+
+    await plugin.config({ provider: {} })
 
     expect(fetchCalled).toBe(false)
-    expect(logs).toContain("[cliproxyapi-sync] Sync skipped: cliproxyapi seed provider is not configured")
+    expect(await fs.readFile(getPluginConfigPath(), "utf8")).toContain('"baseURL": "http://localhost:8317/v1"')
+    expect(logs).toContain(`[cliproxyapi-sync] Sync skipped: fill ${getPluginConfigPath()}`)
   })
+
+  test("migrates provider.cliproxyapi into the dedicated config file before syncing", async () => {
+    await writeTempOpenCodeConfig({
+      provider: {
+        cliproxyapi: buildSeedProvider(),
+      },
+    })
+
+    stubAntigravityModelFetch()
+    const { CliproxyapiSyncPlugin } = await import("./cliproxyapi-sync")
+    const plugin = await CliproxyapiSyncPlugin({
+      client: { app: { log: () => Promise.resolve() } },
+    })
+
+    await plugin.config({
+      provider: {
+        cliproxyapi: buildSeedProvider(),
+      },
+    })
+
+    const pluginConfig = await fs.readFile(getPluginConfigPath(), "utf8")
+    const persistedConfig = JSON.parse(await fs.readFile(getConfigPath(), "utf8"))
+
+    expect(pluginConfig).toContain('"apiKey": "test-api-key"')
+    expect(persistedConfig.provider.cliproxyapi).toBeUndefined()
+    expect(persistedConfig.provider["cp-antigravity"]).toBeDefined()
+  })
+
 })
