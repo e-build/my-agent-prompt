@@ -7,6 +7,7 @@ import type { Config } from "@opencode-ai/plugin"
 
 import {
   buildMissingConfigMessage,
+  buildPartialSyncMessage,
   ensureCliproxyapiConfigBootstrap,
   getConfigPath,
   getPluginConfigPath,
@@ -197,7 +198,7 @@ describe("loadSeedProviderState", () => {
     expect(runtimeConfig.provider?.cliproxyapi).toBeUndefined()
   })
 
-  test("returns the guidance message when the dedicated config file is missing required values", async () => {
+  test("returns a partial-sync seed provider when baseURL exists and apiKey is blank", async () => {
     await writeTempOpenCodeConfig({ provider: {} })
     await mkdir(dirname(getPluginConfigPath()), { recursive: true })
     await writeFile(
@@ -212,7 +213,39 @@ describe("loadSeedProviderState", () => {
 
     const result = await loadSeedProviderState({ provider: {} } as Config, null)
 
+    expect(result).toEqual({
+      seedProvider: {
+        name: "CLIProxyAPI",
+        npm: "@ai-sdk/openai-compatible",
+        options: {
+          apiKey: "",
+          baseURL: "http://localhost:8317/v1",
+        },
+        models: {},
+      },
+      partialSync: true,
+      pluginConfigPath: getPluginConfigPath(),
+      message: buildPartialSyncMessage(getPluginConfigPath()),
+    })
+  })
+
+  test("returns the guidance message when baseURL is missing", async () => {
+    await writeTempOpenCodeConfig({ provider: {} })
+    await mkdir(dirname(getPluginConfigPath()), { recursive: true })
+    await writeFile(
+      getPluginConfigPath(),
+      `{
+  "apiKey": "test-api-key"
+}
+`,
+      "utf8",
+    )
+
+    const result = await loadSeedProviderState({ provider: {} } as Config, null)
+
     expect(result.seedProvider).toBeNull()
-    expect(result.message).toBe(`[cliproxyapi-sync] Sync skipped: fill ${getPluginConfigPath()}`)
+    expect(result.partialSync).toBe(false)
+    expect(result.pluginConfigPath).toBe(getPluginConfigPath())
+    expect(result.message).toBe(buildMissingConfigMessage(getPluginConfigPath()))
   })
 })

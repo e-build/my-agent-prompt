@@ -572,6 +572,152 @@ describe("CliproxyapiSyncPlugin", () => {
     ])
   })
 
+  test("shows a warning toast for partial sync when apiKey is blank", async () => {
+    await writeTempOpenCodeConfig({ provider: {} })
+    await writeTempPluginConfig(`{
+  "baseURL": "http://localhost:8317/v1",
+  "apiKey": ""
+}
+`)
+
+    globalThis.fetch = async (input, init) => {
+      const url = String(input)
+
+      if (url.endsWith("/v0/management/auth-files")) {
+        return new Response(
+          JSON.stringify({
+            files: [
+              {
+                name: "antigravity-test@example.com.json",
+                provider: "antigravity",
+                account_type: "oauth",
+                disabled: false,
+                status: "active",
+              },
+            ],
+          }),
+        )
+      }
+
+      if (url.includes("/v0/management/auth-files/models")) {
+        return new Response(
+          JSON.stringify({
+            models: [{ id: "gemini-3-flash", owned_by: "antigravity", display_name: "Gemini 3 Flash", type: "antigravity" }],
+          }),
+        )
+      }
+
+      if (url === "http://localhost:8317/v1/models") {
+        expect(init?.headers).toBeUndefined()
+        return new Response(JSON.stringify({ error: "Missing API key" }), {
+          status: 401,
+          statusText: "Unauthorized",
+        })
+      }
+
+      if (url.endsWith("/v0/management/model-definitions/antigravity")) {
+        return new Response(
+          JSON.stringify({
+            channel: "antigravity",
+            models: [
+              {
+                id: "gemini-3-flash",
+                display_name: "Gemini 3 Flash",
+                thinking: { levels: ["minimal", "low", "medium", "high"] },
+              },
+            ],
+          }),
+        )
+      }
+
+      return new Response(JSON.stringify({ channel: url.split("/").at(-1), models: [] }))
+    }
+
+    const { CliproxyapiSyncPlugin } = await import("./cliproxyapi-sync")
+    const toastCalls: unknown[] = []
+    const plugin = await CliproxyapiSyncPlugin({
+      client: {
+        app: {
+          log: () => Promise.resolve(),
+        },
+        tui: {
+          showToast: (input) => {
+            toastCalls.push(input)
+            return Promise.resolve(true)
+          },
+        },
+      },
+    })
+
+    await plugin.config({ provider: {} })
+
+    expect(toastCalls).toEqual([])
+
+    await new Promise((resolve) => setTimeout(resolve, 4000))
+
+    expect(toastCalls).toEqual([
+      {
+        body: {
+          title: "CLIProxyAPI Sync",
+          message:
+            `[cliproxyapi-sync] Partial sync: API-key models skipped (Model fetch failed with 401 Unauthorized). ` +
+            `Fill ${getPluginConfigPath()} to enable /v1/models sync.`,
+          variant: "warning",
+          duration: 5000,
+        },
+      },
+    ])
+  })
+
+  test("shows a warning toast with config guidance when baseURL is missing", async () => {
+    await writeTempOpenCodeConfig({ provider: {} })
+    await writeTempPluginConfig(`{
+  "baseURL": "",
+  "apiKey": "test-api-key"
+}
+`)
+
+    let fetchCalled = false
+    globalThis.fetch = async () => {
+      fetchCalled = true
+      return new Response(JSON.stringify({ data: [] }))
+    }
+
+    const { CliproxyapiSyncPlugin } = await import("./cliproxyapi-sync")
+    const toastCalls: unknown[] = []
+    const plugin = await CliproxyapiSyncPlugin({
+      client: {
+        app: {
+          log: () => Promise.resolve(),
+        },
+        tui: {
+          showToast: (input) => {
+            toastCalls.push(input)
+            return Promise.resolve(true)
+          },
+        },
+      },
+    })
+
+    await plugin.config({ provider: {} })
+
+    expect(fetchCalled).toBe(false)
+    expect(toastCalls).toEqual([])
+
+    await new Promise((resolve) => setTimeout(resolve, 4000))
+
+    expect(toastCalls).toEqual([
+      {
+        body: {
+          title: "CLIProxyAPI Sync",
+          message: `[cliproxyapi-sync] Sync skipped: fill ${getPluginConfigPath()}`,
+          variant: "warning",
+          duration: 5000,
+        },
+      },
+    ])
+  })
+
   test("does not fail sync when showing the success toast throws", async () => {
     await writeTempOpenCodeConfig({
       provider: {
@@ -802,6 +948,192 @@ describe("CliproxyapiSyncPlugin", () => {
     await plugin.config({ provider: {} })
 
     expect(logs.some((line) => line.includes("Synced") || line.includes("already up to date"))).toBe(true)
+  })
+
+  test("keeps OAuth sync running when apiKey is blank and /v1/models returns 401", async () => {
+    await writeTempOpenCodeConfig({ provider: {} })
+    await writeTempPluginConfig(`{
+  "baseURL": "http://localhost:8317/v1",
+  "apiKey": ""
+}
+`)
+
+    const logs: string[] = []
+    globalThis.fetch = async (input, init) => {
+      const url = String(input)
+
+      if (url.endsWith("/v0/management/auth-files")) {
+        return new Response(
+          JSON.stringify({
+            files: [
+              {
+                name: "antigravity-test@example.com.json",
+                provider: "antigravity",
+                account_type: "oauth",
+                disabled: false,
+                status: "active",
+              },
+            ],
+          }),
+        )
+      }
+
+      if (url.includes("/v0/management/auth-files/models")) {
+        return new Response(
+          JSON.stringify({
+            models: [{ id: "gemini-3-flash", owned_by: "antigravity", display_name: "Gemini 3 Flash", type: "antigravity" }],
+          }),
+        )
+      }
+
+      if (url === "http://localhost:8317/v1/models") {
+        expect(init?.headers).toBeUndefined()
+        return new Response(JSON.stringify({ error: "Missing API key" }), {
+          status: 401,
+          statusText: "Unauthorized",
+        })
+      }
+
+      if (url.endsWith("/v0/management/model-definitions/antigravity")) {
+        return new Response(
+          JSON.stringify({
+            channel: "antigravity",
+            models: [
+              {
+                id: "gemini-3-flash",
+                display_name: "Gemini 3 Flash",
+                thinking: { levels: ["minimal", "low", "medium", "high"] },
+              },
+            ],
+          }),
+        )
+      }
+
+      return new Response(JSON.stringify({ channel: url.split("/").at(-1), models: [] }))
+    }
+
+    const { CliproxyapiSyncPlugin } = await import("./cliproxyapi-sync")
+    const plugin = await CliproxyapiSyncPlugin({
+      client: {
+        app: {
+          log: (input) => {
+            logs.push(input.body.message)
+            return Promise.resolve()
+          },
+        },
+      },
+    })
+    const config = { provider: {} }
+
+    await plugin.config(config)
+
+    expect(config.provider?.["cp-antigravity"]?.models?.["gemini-3-flash"]).toBeDefined()
+    expect(config.provider?.["cp-openai"]).toBeUndefined()
+    expect(logs.some((line) => line.includes("Partial sync: API-key models skipped"))).toBe(true)
+  })
+
+  test("still performs full sync when apiKey is present", async () => {
+    await writeTempOpenCodeConfig({ provider: {} })
+    await writeTempPluginConfig(`{
+  "baseURL": "http://localhost:8317/v1",
+  "apiKey": "test-api-key"
+}
+`)
+
+    stubAntigravityModelFetch()
+    const { CliproxyapiSyncPlugin } = await import("./cliproxyapi-sync")
+    const plugin = await CliproxyapiSyncPlugin({
+      client: { app: { log: () => Promise.resolve() } },
+    })
+    const config = { provider: {} }
+
+    await plugin.config(config)
+
+    expect(config.provider?.["cp-antigravity"]?.models?.["gemini-3-flash"]).toBeDefined()
+  })
+
+  test("does not downgrade to partial sync when apiKey is present and /v1/models fails", async () => {
+    await writeTempOpenCodeConfig({ provider: {} })
+    await writeTempPluginConfig(`{
+  "baseURL": "http://localhost:8317/v1",
+  "apiKey": "test-api-key"
+}
+`)
+
+    const logs: string[] = []
+    globalThis.fetch = async (input, init) => {
+      const url = String(input)
+
+      if (url.endsWith("/v0/management/auth-files")) {
+        return new Response(
+          JSON.stringify({
+            files: [
+              {
+                name: "antigravity-test@example.com.json",
+                provider: "antigravity",
+                account_type: "oauth",
+                disabled: false,
+                status: "active",
+              },
+            ],
+          }),
+        )
+      }
+
+      if (url.includes("/v0/management/auth-files/models")) {
+        return new Response(
+          JSON.stringify({
+            models: [{ id: "gemini-3-flash", owned_by: "antigravity", display_name: "Gemini 3 Flash", type: "antigravity" }],
+          }),
+        )
+      }
+
+      if (url === "http://localhost:8317/v1/models") {
+        expect(init?.headers).toEqual({
+          Authorization: "Bearer test-api-key",
+        })
+        return new Response(JSON.stringify({ error: "Invalid API key" }), {
+          status: 401,
+          statusText: "Unauthorized",
+        })
+      }
+
+      if (url.endsWith("/v0/management/model-definitions/antigravity")) {
+        return new Response(
+          JSON.stringify({
+            channel: "antigravity",
+            models: [
+              {
+                id: "gemini-3-flash",
+                display_name: "Gemini 3 Flash",
+                thinking: { levels: ["minimal", "low", "medium", "high"] },
+              },
+            ],
+          }),
+        )
+      }
+
+      return new Response(JSON.stringify({ channel: url.split("/").at(-1), models: [] }))
+    }
+
+    const { CliproxyapiSyncPlugin } = await import("./cliproxyapi-sync")
+    const plugin = await CliproxyapiSyncPlugin({
+      client: {
+        app: {
+          log: (input) => {
+            logs.push(input.body.message)
+            return Promise.resolve()
+          },
+        },
+      },
+    })
+    const config = { provider: {} }
+
+    await plugin.config(config)
+
+    expect(config.provider?.["cp-antigravity"]).toBeUndefined()
+    expect(logs).toContain("[cliproxyapi-sync] Sync skipped: Model fetch failed with 401 Unauthorized")
+    expect(logs.some((line) => line.includes("Partial sync: API-key models skipped"))).toBe(false)
   })
 
   test("bootstraps the dedicated config file and logs its path when no config exists", async () => {

@@ -74,6 +74,11 @@ type SyncResult = {
   addedModels: string[]
 }
 
+type SyncOutcome = {
+  result?: SyncResult
+  warningMessage?: string
+}
+
 type AuthFile = {
   name: string
   provider: string
@@ -420,17 +425,21 @@ function buildSyncResult(persistedProviders: ProviderRecord, managedProviders: C
 }
 
 async function fetchModels(baseURL: string, apiKey: string) {
-  const response = await fetch(`${normalizeBaseUrl(baseURL)}/models`, {
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-    },
-  })
+  const headers = apiKey ? { Authorization: `Bearer ${apiKey}` } : undefined
+  const response = await fetch(`${normalizeBaseUrl(baseURL)}/models`, headers ? { headers } : undefined)
 
   if (!response.ok) {
     throw new Error(`Model fetch failed with ${response.status} ${response.statusText}`)
   }
 
   return (await response.json()) as ModelResponse
+}
+
+function buildApiKeyPhaseWarning(pluginConfigPath: string, reason: string) {
+  return (
+    `[cliproxyapi-sync] Partial sync: API-key models skipped (${reason}). ` +
+    `Fill ${pluginConfigPath} to enable /v1/models sync.`
+  )
 }
 
 async function fetchAuthFiles(baseURL: string, managementKey: string): Promise<AuthFilesResponse> {
@@ -517,32 +526,56 @@ async function fetchModelDefinitions(baseURL: string, managementKey: string, cha
   return (await response.json()) as ManagementModelDefinitionsResponse
 }
 
-async function syncCliproxyapiProvider(config: Config, log: (message: string) => Promise<void>) {
-  const { seedProvider, message } = await loadSeedProviderState(config, resolveSeedProvider(config))
+async function syncCliproxyapiProvider(config: Config, log: (message: string) => Promise<void>): Promise<SyncOutcome | undefined> {
+  const { seedProvider, message, partialSync, pluginConfigPath } = await loadSeedProviderState(
+    config,
+    resolveSeedProvider(config),
+  )
+
   if (!seedProvider) {
     if (message) {
       await log(message)
+      return { warningMessage: message }
     }
-    return
+
+    return undefined
   }
 
   const options = seedProvider.options
-  if (!options || typeof options !== "object") return
+  if (!options || typeof options !== "object") return undefined
 
   const baseURL = typeof options.baseURL === "string" ? options.baseURL : ""
   const apiKey = typeof options.apiKey === "string" ? options.apiKey : ""
   const managementKey = resolveManagementKey(options)
-  if (!baseURL || !apiKey) return
+  if (!baseURL) {
+    if (message) {
+      await log(message)
+      return { warningMessage: message }
+    }
+
+    return undefined
+  }
+
+  let warningMessage = partialSync ? message : undefined
 
   try {
-    // Phase 1: OAuth models from management API (authoritative source for OAuth providers)
     const oauthModels = await fetchOAuthModels(baseURL, managementKey, log)
 
-    // Phase 2: API-key models from v1/models, excluding known OAuth owners
-    const allModels = await fetchModels(baseURL, apiKey)
-    const apiKeyModels = filterApiKeyModels(allModels)
+    let apiKeyModels: ModelResponse = { data: [] }
+    try {
+      const allModels = await fetchModels(baseURL, apiKey)
+      apiKeyModels = filterApiKeyModels(allModels)
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : String(error)
 
-    // Merge both sources
+       if (!partialSync) {
+         throw error
+       }
+
+      warningMessage = buildApiKeyPhaseWarning(pluginConfigPath, reason)
+      await log(warningMessage)
+    }
+
     const mergedPayload: ModelResponse = {
       data: [...(oauthModels.data ?? []), ...(apiKeyModels.data ?? [])],
     }
@@ -566,9 +599,16 @@ async function syncCliproxyapiProvider(config: Config, log: (message: string) =>
     const persistedProviders = getPersistedProviders(persistedConfig)
     const nextState = buildNextProviderState(persistedConfig, managedProviders)
     const result = buildSyncResult(persistedProviders, managedProviders, nextState.changed)
+
     if (!nextState.changed) {
-      await log("[cliproxyapi-sync] cp-* providers already up to date")
-      return result
+      if (!warningMessage) {
+        await log("[cliproxyapi-sync] cp-* providers already up to date")
+      }
+
+      return {
+        result,
+        ...(warningMessage ? { warningMessage } : {}),
+      }
     }
 
     await writeConfigAtomically(nextState.config)
@@ -577,10 +617,15 @@ async function syncCliproxyapiProvider(config: Config, log: (message: string) =>
       `[cliproxyapi-sync] Synced ${Object.keys(managedProviders ?? {}).length} providers ` +
         `(${oauthModels.data?.length ?? 0} OAuth + ${apiKeyModels.data?.length ?? 0} API-key models)`,
     )
-    return result
+
+    return {
+      result,
+      ...(warningMessage ? { warningMessage } : {}),
+    }
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
     await log(`[cliproxyapi-sync] Sync skipped: ${message}`)
+    return { warningMessage: `[cliproxyapi-sync] Sync skipped: ${message}` }
   }
 }
 
@@ -602,13 +647,17 @@ function formatSyncToastMessage(result: SyncResult) {
   return additions.length > 0 ? `${base}. Added ${additions.join(", ")}` : base
 }
 
-function showSuccessToast(client: Parameters<Plugin>[0]["client"], message: string) {
+function showToast(
+  client: Parameters<Plugin>[0]["client"],
+  message: string,
+  variant: "success" | "warning",
+) {
   try {
     client.tui?.showToast({
       body: {
         title: "CLIProxyAPI Sync",
         message,
-        variant: "success",
+        variant,
         duration: 5000,
       },
     }).catch(() => {})
@@ -633,11 +682,18 @@ export const CliproxyapiSyncPlugin: Plugin = async ({ client }) => {
 
   return {
     config: async (config) => {
-      const result = await syncCliproxyapiProvider(config, log)
-      if (!result) return
+      const outcome = await syncCliproxyapiProvider(config, log)
+      if (!outcome) return
 
-      const message = formatSyncToastMessage(result)
-      setTimeout(() => showSuccessToast(client, message), TOAST_DELAY_MS)
+      if (outcome.warningMessage) {
+        setTimeout(() => showToast(client, outcome.warningMessage!, "warning"), TOAST_DELAY_MS)
+        return
+      }
+
+      if (!outcome.result) return
+
+      const message = formatSyncToastMessage(outcome.result)
+      setTimeout(() => showToast(client, message, "success"), TOAST_DELAY_MS)
     },
   }
 }

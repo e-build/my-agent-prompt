@@ -32,6 +32,8 @@ type PersistedConfig = Record<string, unknown> & {
 
 export type SeedProviderState = {
   seedProvider: ProviderInfo | null
+  partialSync: boolean
+  pluginConfigPath: string
   message?: string
 }
 
@@ -45,6 +47,10 @@ export function getPluginConfigPath() {
 
 export function buildMissingConfigMessage(filePath = getPluginConfigPath()) {
   return `[cliproxyapi-sync] Sync skipped: fill ${filePath}`
+}
+
+export function buildPartialSyncMessage(filePath = getPluginConfigPath()) {
+  return `[cliproxyapi-sync] Partial sync: fill apiKey in ${filePath} to include API-key models`
 }
 
 export async function ensureCliproxyapiConfigBootstrap(filePath = getPluginConfigPath()): Promise<void> {
@@ -193,15 +199,28 @@ export async function loadSeedProviderState(
       await removeLegacySeedProvider(runtimeConfig)
     }
 
-    if (!pluginConfig.baseURL || !pluginConfig.apiKey) {
+    if (!pluginConfig.baseURL) {
       return {
         seedProvider: null,
+        partialSync: false,
+        pluginConfigPath: configPath,
         message: buildMissingConfigMessage(configPath),
+      }
+    }
+
+    if (!pluginConfig.apiKey) {
+      return {
+        seedProvider: buildSeedProviderFromPluginConfig(pluginConfig),
+        partialSync: true,
+        pluginConfigPath: configPath,
+        message: buildPartialSyncMessage(configPath),
       }
     }
 
     return {
       seedProvider: buildSeedProviderFromPluginConfig(pluginConfig),
+      partialSync: false,
+      pluginConfigPath: configPath,
     }
   }
 
@@ -211,6 +230,8 @@ export async function loadSeedProviderState(
 
     return {
       seedProvider: buildSeedProviderFromPluginConfig((await loadPluginConfig(configPath))!),
+      partialSync: false,
+      pluginConfigPath: configPath,
     }
   }
 
@@ -218,6 +239,8 @@ export async function loadSeedProviderState(
 
   return {
     seedProvider: null,
+    partialSync: false,
+    pluginConfigPath: configPath,
     message: buildMissingConfigMessage(configPath),
   }
 }
