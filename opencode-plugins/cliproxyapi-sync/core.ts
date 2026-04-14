@@ -156,6 +156,21 @@ function buildProviderName(owner: string) {
   return `CP ${titleCasedOwner}`
 }
 
+function buildOwnedModelId(owner: string, id: string) {
+  return `${owner}/${id}`
+}
+
+function stripOwnedModelPrefix(owner: string, id: string) {
+  const prefix = `${owner}/`
+  return id.startsWith(prefix) ? id.slice(prefix.length) : id
+}
+
+function formatManagedModelId(providerId: string, modelId: string) {
+  const owner = providerId.startsWith("cp-") ? providerId.slice(3) : ""
+  const visibleModelId = owner ? stripOwnedModelPrefix(owner, modelId) : modelId
+  return `${providerId}/${visibleModelId}`
+}
+
 function isProviderRecord(value: unknown): value is ProviderRecord {
   return !!value && typeof value === "object" && !Array.isArray(value)
 }
@@ -171,7 +186,7 @@ export function buildModelsByOwner(
     if (typeof model.owned_by !== "string" || model.owned_by.length === 0) continue
 
     const existing = groups.get(model.owned_by) ?? new Set<string>()
-    existing.add(model.id)
+    existing.add(stripOwnedModelPrefix(model.owned_by, model.id))
     groups.set(model.owned_by, existing)
   }
 
@@ -182,7 +197,10 @@ export function buildModelsByOwner(
         const models = Object.fromEntries(
           [...ids]
             .sort((left, right) => left.localeCompare(right))
-            .map((id) => [id, buildManagedModel(owner, id, metadataByOwner[owner]?.[id])]),
+            .map((id) => {
+              const metadata = metadataByOwner[owner]?.[id] ?? metadataByOwner[owner]?.[buildOwnedModelId(owner, id)]
+              return [id, buildManagedModel(owner, id, metadata)]
+            }),
         )
 
         return [owner, models]
@@ -200,7 +218,7 @@ function buildManagedModel(
 ): ManagedModel {
   const variants = buildVariants(owner, metadata?.thinkingLevels)
   return {
-    name: metadata?.displayName || id,
+    name: buildOwnedModelId(owner, id),
     ...(variants ? { variants } : {}),
   }
 }
@@ -273,10 +291,13 @@ function buildMetadataByOwner(payloads: ManagementModelDefinitionsResponse[], mo
 
       for (const owner of owners) {
         byOwner[owner] ??= {}
-        byOwner[owner][model.id] = {
+        const metadata = {
           displayName: typeof model.display_name === "string" && model.display_name.length > 0 ? model.display_name : undefined,
           thinkingLevels: normalizeThinkingLevels(model.thinking?.levels),
         }
+
+        byOwner[owner][model.id] = metadata
+        byOwner[owner][buildOwnedModelId(owner, model.id)] = metadata
       }
     }
   }
@@ -291,9 +312,20 @@ function buildOwnersByModel(payload: ModelResponse | undefined) {
     if (typeof model.id !== "string" || model.id.length === 0) continue
     if (typeof model.owned_by !== "string" || model.owned_by.length === 0) continue
 
+    const rawId = stripOwnedModelPrefix(model.owned_by, model.id)
+
     const owners = ownersByModel.get(model.id) ?? new Set<string>()
     owners.add(model.owned_by)
     ownersByModel.set(model.id, owners)
+
+    const ownersByRawId = ownersByModel.get(rawId) ?? new Set<string>()
+    ownersByRawId.add(model.owned_by)
+    ownersByModel.set(rawId, ownersByRawId)
+
+    const ownedId = buildOwnedModelId(model.owned_by, rawId)
+    const ownersByOwnedId = ownersByModel.get(ownedId) ?? new Set<string>()
+    ownersByOwnedId.add(model.owned_by)
+    ownersByModel.set(ownedId, ownersByOwnedId)
   }
 
   return ownersByModel
@@ -412,7 +444,9 @@ function buildSyncResult(persistedProviders: ProviderRecord, managedProviders: C
   const addedProviders = managedEntries.filter(([id]) => !persistedProviders[id]).map(([id]) => id)
   const addedModels = managedEntries.flatMap(([providerId, provider]) => {
     const persistedModels = new Set(getModelIds(persistedProviders[providerId]))
-    return getModelIds(provider).filter((modelId) => !persistedModels.has(modelId)).map((modelId) => `${providerId}/${modelId}`)
+    return getModelIds(provider)
+      .filter((modelId) => !persistedModels.has(modelId))
+      .map((modelId) => formatManagedModelId(providerId, modelId))
   })
 
   return {
@@ -471,9 +505,13 @@ async function fetchAuthFileModels(
 export function filterApiKeyModels(payload: ModelResponse): ModelResponse {
   return {
     ...payload,
-    data: (payload.data ?? []).filter(
-      (model) => typeof model.owned_by === "string" && !KNOWN_OAUTH_OWNERS.has(model.owned_by),
-    ),
+    data: (payload.data ?? []).filter((model) => {
+      if (typeof model.id !== "string" || model.id.length === 0) return false
+      if (typeof model.owned_by !== "string" || model.owned_by.length === 0) return false
+      if (KNOWN_OAUTH_OWNERS.has(model.owned_by)) return false
+
+      return model.id.startsWith(`${model.owned_by}/`)
+    }),
   }
 }
 
@@ -484,7 +522,7 @@ export function normalizeAuthFileModels(responses: AuthFileModelsResponse[]): Mo
         (m) =>
           typeof m.id === "string" && m.id.length > 0 && typeof m.owned_by === "string" && m.owned_by.length > 0,
       )
-      .map((m) => ({ id: m.id!, owned_by: m.owned_by! })),
+      .map((m) => ({ id: stripOwnedModelPrefix(m.owned_by!, m.id!), owned_by: m.owned_by! })),
   )
   return { data }
 }

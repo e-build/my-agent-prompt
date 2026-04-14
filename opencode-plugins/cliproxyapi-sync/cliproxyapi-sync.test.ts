@@ -115,7 +115,7 @@ function buildAntigravityProvider() {
     },
     models: {
       "gemini-3-flash": {
-        name: "Gemini 3 Flash",
+        name: "antigravity/gemini-3-flash",
         variants: {
           minimal: { reasoningEffort: "minimal" },
           low: { reasoningEffort: "low" },
@@ -166,22 +166,38 @@ describe("filterApiKeyModels", () => {
   test("filters out known OAuth owners from v1/models", () => {
     const payload = {
       data: [
-        { id: "gpt-5", owned_by: "openai" },
-        { id: "gemini-3-flash", owned_by: "antigravity" },
-        { id: "claude-sonnet", owned_by: "github-copilot" },
-        { id: "go-glm-5", owned_by: "opencode-go" },
-        { id: "zai-glm-5.1", owned_by: "zai" },
+        { id: "openai/gpt-5", owned_by: "openai" },
+        { id: "antigravity/gemini-3-flash", owned_by: "antigravity" },
+        { id: "github-copilot/claude-sonnet", owned_by: "github-copilot" },
+        { id: "zai/glm-5.1", owned_by: "zai" },
       ],
     }
     const result = filterApiKeyModels(payload)
-    expect(result.data?.map((m) => m.id)).toEqual(["go-glm-5", "zai-glm-5.1"])
+    expect(result.data?.map((m) => m.id)).toEqual(["zai/glm-5.1"])
   })
 
-  test("passes through models with unknown owners", () => {
+  test("keeps API-key models whose ids use the owned_by slash prefix", () => {
     const payload = {
-      data: [{ id: "custom-model", owned_by: "my-custom-provider" }],
+      data: [
+        { id: "my-custom-provider/custom-model", owned_by: "my-custom-provider" },
+        { id: "zai/glm-5.1", owned_by: "zai" },
+      ],
     }
+
     expect(filterApiKeyModels(payload).data).toEqual(payload.data)
+  })
+
+  test("drops API-key models whose ids do not use the owned_by slash prefix", () => {
+    const payload = {
+      data: [
+        { id: "gpt-5", owned_by: "openai" },
+        { id: "openai-gpt-5", owned_by: "openai" },
+        { id: "anthropic/claude-sonnet", owned_by: "openai" },
+        { id: "custom-model", owned_by: "my-custom-provider" },
+      ],
+    }
+
+    expect(filterApiKeyModels(payload).data).toEqual([])
   })
 
   test("handles empty data gracefully", () => {
@@ -251,7 +267,7 @@ describe("buildModelsByOwner", () => {
     )
 
     expect(result["github-copilot"]["gpt-5.4"]).toEqual({
-      name: "GPT-5.4",
+      name: "github-copilot/gpt-5.4",
       variants: {
         low: {
           reasoningEffort: "low",
@@ -293,7 +309,7 @@ describe("buildModelsByOwner", () => {
     )
 
     expect(result.openai["gpt-5.4"]).toEqual({
-      name: "GPT 5.4",
+      name: "openai/gpt-5.4",
       variants: {
         low: {
           reasoningEffort: "low",
@@ -335,7 +351,7 @@ describe("buildModelsByOwner", () => {
     )
 
     expect(result.antigravity["gemini-3-flash"]).toEqual({
-      name: "Gemini 3 Flash",
+      name: "antigravity/gemini-3-flash",
       variants: {
         minimal: {
           reasoningEffort: "minimal",
@@ -359,7 +375,7 @@ describe("buildModelsByOwner", () => {
     })
 
     expect(result["openai"]["gpt-5.4"]).toEqual({
-      name: "gpt-5.4",
+      name: "openai/gpt-5.4",
     })
   })
 
@@ -379,7 +395,7 @@ describe("buildModelsByOwner", () => {
       {
         openai: {
           "gpt-5.4": {
-            name: "GPT 5.4",
+            name: "openai/gpt-5.4",
           },
         },
       },
@@ -466,7 +482,7 @@ describe("CliproxyapiSyncPlugin", () => {
     await plugin.config(config)
 
     expect(config.provider?.["cp-antigravity"]?.models?.["gemini-3-flash"]).toEqual({
-      name: "Gemini 3 Flash",
+      name: "antigravity/gemini-3-flash",
       variants: {
         minimal: { reasoningEffort: "minimal" },
         low: { reasoningEffort: "low" },
@@ -474,6 +490,7 @@ describe("CliproxyapiSyncPlugin", () => {
         high: { reasoningEffort: "high" },
       },
     })
+    expect(config.provider?.["cp-antigravity"]?.models?.["antigravity/gemini-3-flash"]).toBeUndefined()
   })
 
   test("shows a success toast after config hook completes with delay", async () => {
@@ -748,7 +765,7 @@ describe("CliproxyapiSyncPlugin", () => {
     await expect(plugin.config(config)).resolves.toBeUndefined()
     // Wait for delayed toast (should not throw)
     await new Promise((resolve) => setTimeout(resolve, 4000))
-    expect(config.provider?.["cp-antigravity"]?.models?.["gemini-3-flash"]?.name).toBe("Gemini 3 Flash")
+    expect(config.provider?.["cp-antigravity"]?.models?.["gemini-3-flash"]?.name).toBe("antigravity/gemini-3-flash")
   })
 
   test("shows toast exactly once even with multiple config calls", async () => {
@@ -805,7 +822,7 @@ describe("CliproxyapiSyncPlugin", () => {
           JSON.stringify({
             data: [
               { id: "gpt-5.4", owned_by: "openai" },
-              { id: "go-glm-5", owned_by: "opencode-go" },
+              { id: "opencode-go/go-glm-5", owned_by: "opencode-go" },
             ],
           }),
         )
@@ -886,7 +903,7 @@ describe("CliproxyapiSyncPlugin", () => {
             data: [
               { id: "gpt-5.4", owned_by: "openai" },
               { id: "gemini-3-flash", owned_by: "antigravity" },
-              { id: "go-glm-5", owned_by: "opencode-go" },
+              { id: "opencode-go/go-glm-5", owned_by: "opencode-go" },
             ],
           }),
         )
