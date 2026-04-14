@@ -114,7 +114,7 @@ function buildAntigravityProvider() {
       baseURL: "http://localhost:8317/v1",
     },
     models: {
-      "gemini-3-flash": {
+      "antigravity/gemini-3-flash": {
         name: "antigravity/gemini-3-flash",
         variants: {
           minimal: { reasoningEffort: "minimal" },
@@ -217,8 +217,8 @@ describe("normalizeAuthFileModels", () => {
       },
     ])
     expect(result.data).toEqual([
-      { id: "gpt-5.4", owned_by: "openai" },
-      { id: "gemini-3-flash", owned_by: "antigravity" },
+      { id: "openai/gpt-5.4", owned_by: "openai" },
+      { id: "antigravity/gemini-3-flash", owned_by: "antigravity" },
     ])
   })
 
@@ -227,7 +227,7 @@ describe("normalizeAuthFileModels", () => {
       { models: [{ id: "model-a", owned_by: "owner-a" }] },
       { models: [{ id: "model-b", owned_by: "owner-b" }] },
     ])
-    expect(result.data?.map((m) => m.id)).toEqual(["model-a", "model-b"])
+    expect(result.data?.map((m) => m.id)).toEqual(["owner-a/model-a", "owner-b/model-b"])
   })
 
   test("skips models with missing id or owned_by", () => {
@@ -241,7 +241,7 @@ describe("normalizeAuthFileModels", () => {
         ],
       },
     ])
-    expect(result.data).toEqual([{ id: "valid-model", owned_by: "owner" }])
+    expect(result.data).toEqual([{ id: "owner/valid-model", owned_by: "owner" }])
   })
 
   test("handles empty responses gracefully", () => {
@@ -266,7 +266,7 @@ describe("buildModelsByOwner", () => {
       },
     )
 
-    expect(result["github-copilot"]["gpt-5.4"]).toEqual({
+    expect(result["github-copilot"]["github-copilot/gpt-5.4"]).toEqual({
       name: "github-copilot/gpt-5.4",
       variants: {
         low: {
@@ -308,7 +308,7 @@ describe("buildModelsByOwner", () => {
       },
     )
 
-    expect(result.openai["gpt-5.4"]).toEqual({
+    expect(result.openai["openai/gpt-5.4"]).toEqual({
       name: "openai/gpt-5.4",
       variants: {
         low: {
@@ -350,7 +350,7 @@ describe("buildModelsByOwner", () => {
       },
     )
 
-    expect(result.antigravity["gemini-3-flash"]).toEqual({
+    expect(result.antigravity["antigravity/gemini-3-flash"]).toEqual({
       name: "antigravity/gemini-3-flash",
       variants: {
         minimal: {
@@ -374,7 +374,7 @@ describe("buildModelsByOwner", () => {
       data: [{ id: "gpt-5.4", owned_by: "openai" }],
     })
 
-    expect(result["openai"]["gpt-5.4"]).toEqual({
+    expect(result["openai"]["openai/gpt-5.4"]).toEqual({
       name: "openai/gpt-5.4",
     })
   })
@@ -481,7 +481,7 @@ describe("CliproxyapiSyncPlugin", () => {
 
     await plugin.config(config)
 
-    expect(config.provider?.["cp-antigravity"]?.models?.["gemini-3-flash"]).toEqual({
+    expect(config.provider?.["cp-antigravity"]?.models?.["antigravity/gemini-3-flash"]).toEqual({
       name: "antigravity/gemini-3-flash",
       variants: {
         minimal: { reasoningEffort: "minimal" },
@@ -490,7 +490,7 @@ describe("CliproxyapiSyncPlugin", () => {
         high: { reasoningEffort: "high" },
       },
     })
-    expect(config.provider?.["cp-antigravity"]?.models?.["antigravity/gemini-3-flash"]).toBeUndefined()
+    expect(config.provider?.["cp-antigravity"]?.models?.["gemini-3-flash"]).toBeUndefined()
   })
 
   test("shows a success toast after config hook completes with delay", async () => {
@@ -765,7 +765,7 @@ describe("CliproxyapiSyncPlugin", () => {
     await expect(plugin.config(config)).resolves.toBeUndefined()
     // Wait for delayed toast (should not throw)
     await new Promise((resolve) => setTimeout(resolve, 4000))
-    expect(config.provider?.["cp-antigravity"]?.models?.["gemini-3-flash"]?.name).toBe("antigravity/gemini-3-flash")
+    expect(config.provider?.["cp-antigravity"]?.models?.["antigravity/gemini-3-flash"]?.name).toBe("antigravity/gemini-3-flash")
   })
 
   test("shows toast exactly once even with multiple config calls", async () => {
@@ -839,7 +839,7 @@ describe("CliproxyapiSyncPlugin", () => {
 
     expect(config.provider?.["cp-openai"]).toBeUndefined()
     expect(config.provider?.["cp-opencode-go"]).toBeDefined()
-    expect(config.provider?.["cp-opencode-go"]?.models?.["go-glm-5"]).toBeDefined()
+    expect(config.provider?.["cp-opencode-go"]?.models?.["opencode-go/go-glm-5"]).toBeDefined()
   })
 
   test("ignores disabled OAuth auth-files", async () => {
@@ -936,8 +936,8 @@ describe("CliproxyapiSyncPlugin", () => {
 
     expect(requestedAuthFiles).toEqual(["antigravity-active.json"])
     expect(config.provider?.["cp-openai"]).toBeUndefined()
-    expect(config.provider?.["cp-antigravity"]?.models?.["gemini-3-flash"]).toBeDefined()
-    expect(config.provider?.["cp-opencode-go"]?.models?.["go-glm-5"]).toBeDefined()
+    expect(config.provider?.["cp-antigravity"]?.models?.["antigravity/gemini-3-flash"]).toBeDefined()
+    expect(config.provider?.["cp-opencode-go"]?.models?.["opencode-go/go-glm-5"]).toBeDefined()
   })
 
   test("syncs when only the dedicated cliproxyapi config file is present", async () => {
@@ -1044,7 +1044,7 @@ describe("CliproxyapiSyncPlugin", () => {
 
     await plugin.config(config)
 
-    expect(config.provider?.["cp-antigravity"]?.models?.["gemini-3-flash"]).toBeDefined()
+    expect(config.provider?.["cp-antigravity"]?.models?.["antigravity/gemini-3-flash"]).toBeDefined()
     expect(config.provider?.["cp-openai"]).toBeUndefined()
     expect(logs.some((line) => line.includes("Partial sync: API-key models skipped"))).toBe(true)
   })
@@ -1066,7 +1066,7 @@ describe("CliproxyapiSyncPlugin", () => {
 
     await plugin.config(config)
 
-    expect(config.provider?.["cp-antigravity"]?.models?.["gemini-3-flash"]).toBeDefined()
+    expect(config.provider?.["cp-antigravity"]?.models?.["antigravity/gemini-3-flash"]).toBeDefined()
   })
 
   test("does not downgrade to partial sync when apiKey is present and /v1/models fails", async () => {

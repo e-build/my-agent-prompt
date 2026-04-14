@@ -171,6 +171,10 @@ function formatManagedModelId(providerId: string, modelId: string) {
   return `${providerId}/${visibleModelId}`
 }
 
+function normalizeManagedModelId(owner: string, id: string) {
+  return buildOwnedModelId(owner, stripOwnedModelPrefix(owner, id))
+}
+
 function isProviderRecord(value: unknown): value is ProviderRecord {
   return !!value && typeof value === "object" && !Array.isArray(value)
 }
@@ -186,7 +190,7 @@ export function buildModelsByOwner(
     if (typeof model.owned_by !== "string" || model.owned_by.length === 0) continue
 
     const existing = groups.get(model.owned_by) ?? new Set<string>()
-    existing.add(stripOwnedModelPrefix(model.owned_by, model.id))
+    existing.add(normalizeManagedModelId(model.owned_by, model.id))
     groups.set(model.owned_by, existing)
   }
 
@@ -198,7 +202,7 @@ export function buildModelsByOwner(
           [...ids]
             .sort((left, right) => left.localeCompare(right))
             .map((id) => {
-              const metadata = metadataByOwner[owner]?.[id] ?? metadataByOwner[owner]?.[buildOwnedModelId(owner, id)]
+              const metadata = metadataByOwner[owner]?.[id] ?? metadataByOwner[owner]?.[stripOwnedModelPrefix(owner, id)]
               return [id, buildManagedModel(owner, id, metadata)]
             }),
         )
@@ -218,7 +222,7 @@ function buildManagedModel(
 ): ManagedModel {
   const variants = buildVariants(owner, metadata?.thinkingLevels)
   return {
-    name: buildOwnedModelId(owner, id),
+    name: normalizeManagedModelId(owner, id),
     ...(variants ? { variants } : {}),
   }
 }
@@ -522,7 +526,7 @@ export function normalizeAuthFileModels(responses: AuthFileModelsResponse[]): Mo
         (m) =>
           typeof m.id === "string" && m.id.length > 0 && typeof m.owned_by === "string" && m.owned_by.length > 0,
       )
-      .map((m) => ({ id: stripOwnedModelPrefix(m.owned_by!, m.id!), owned_by: m.owned_by! })),
+      .map((m) => ({ id: buildOwnedModelId(m.owned_by!, stripOwnedModelPrefix(m.owned_by!, m.id!)), owned_by: m.owned_by! })),
   )
   return { data }
 }
