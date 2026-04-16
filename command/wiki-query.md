@@ -1,12 +1,23 @@
 ---
-description: jimmy-working wiki에서 질문에 답하고 관련 지식을 합성한다
+description: wiki에서 질문에 답하고 관련 지식을 합성한다
 ---
 
 # Wiki Query
 
-jimmy-working wiki를 검색하고 질문에 답하는 워크플로우를 실행한다.
+wiki를 검색하고 질문에 답하는 워크플로우를 실행한다.
 
-**Wiki 경로**: `/Users/donggeollee/Obsidian/jimmy-working`
+## Config 로드
+
+`~/.config/opencode/wiki-config.json` 을 읽어 `wiki_root` 경로를 가져온다.
+파일이 없으면 중단하고 안내한다:
+
+```
+wiki-config.json 이 없습니다. 먼저 /wiki-setup 을 실행해 wiki를 초기화하세요.
+```
+
+이후 모든 경로는 `{wiki_root}` 변수를 기반으로 구성한다.
+
+**Wiki 경로**: `{wiki_root}` (wiki-config.json에서 읽음)
 
 ## 사용법
 
@@ -20,9 +31,10 @@ jimmy-working wiki를 검색하고 질문에 답하는 워크플로우를 실행
 
 ## 워크플로우
 
-### 0. Schema 확인
+### 0. Config 및 Schema 확인
 
-`/Users/donggeollee/Obsidian/jimmy-working/AGENTS.md` 를 읽어 위키 구조를 파악한다.
+`~/.config/opencode/wiki-config.json` 에서 `wiki_root` 를 읽는다.
+`{wiki_root}/AGENTS.md` 를 읽어 위키 구조를 파악한다.
 
 ### 1. 질문 분석
 
@@ -30,11 +42,11 @@ jimmy-working wiki를 검색하고 질문에 답하는 워크플로우를 실행
 
 ### 2. index.md 탐색
 
-`wiki/index.md` 를 읽어 관련 있어 보이는 페이지 목록을 추린다.
+`{wiki_root}/wiki/index.md` 를 읽어 관련 있어 보이는 페이지 목록을 추린다.
 
 ### 3. qmd 검색 (BM25 + 벡터 하이브리드)
 
-qmd MCP를 사용해 wiki/ 디렉토리에서 키워드 검색을 수행한다:
+qmd MCP를 사용해 `{wiki_root}/wiki/` 디렉토리에서 키워드 검색을 수행한다:
 
 ```
 qmd_search: 질문의 핵심 키워드
@@ -61,10 +73,10 @@ index.md 탐색과 qmd 결과를 합쳐 가장 관련성 높은 페이지 목록
 
 ### 7. 새 인사이트 저장 (선택적)
 
-답변 과정에서 위키에 없는 유의미한 합성 인사이트가 나왔다면:
+답변 과정에서 wiki에 없는 유의미한 합성 인사이트가 나왔다면:
 - 새 concept 또는 summary 페이지로 저장
-- index.md 업데이트
-- log.md append (`## [YYYY-MM-DD] query | 질문 요약`)
+- `{wiki_root}/wiki/index.md` 업데이트
+- `{wiki_root}/wiki/log.md` 에 append (`## [YYYY-MM-DD] query | 질문 요약`)
 
 ---
 
