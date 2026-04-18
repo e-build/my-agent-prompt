@@ -1,0 +1,54 @@
+{
+  "schemaVersion": "0.1.0",
+  "name": "YouTube - Jimmy Wiki",
+  "behavior": "create",
+  "noteContentFormat": "# {{schema:@VideoObject:name}}\n\n## 메타데이터\n- 채널: {{schema:@VideoObject:author}}\n- 게시일: {{schema:@VideoObject:uploadDate|date:\"YYYY-MM-DD\"}}\n- 길이: {{schema:@VideoObject:duration}}\n- URL: {{url}}\n\n## 설명\n\n{{selectorHtml:#description-inline-expander,#description,ytd-text-inline-expander,yt-attributed-string|markdown|trim}}\n\n## Transcript\n\n{{transcript}}\n\n> 추출 한계: transcript가 없는 영상은 설명 중심으로 기록된다. 설명 selector가 일부 페이지 변형에서 비어 있을 수 있다.\n\n## 메모\n\n- 핵심 인사이트:\n- 확인할 내용:\n\n## 관련 링크\n\n- 원문: {{url}}\n- 썸네일: {{schema:@VideoObject:thumbnailUrl|first}}",
+  "properties": [
+    {
+      "name": "title",
+      "value": "{{schema:@VideoObject:name}}",
+      "type": "text"
+    },
+    {
+      "name": "source",
+      "value": "{{url}}",
+      "type": "text"
+    },
+    {
+      "name": "channel",
+      "value": "{{schema:@VideoObject:author}}",
+      "type": "text"
+    },
+    {
+      "name": "published",
+      "value": "{{schema:@VideoObject:uploadDate|date:\"YYYY-MM-DD\"}}",
+      "type": "date"
+    },
+    {
+      "name": "created",
+      "value": "{{date|date:\"YYYY-MM-DD\"}}",
+      "type": "date"
+    },
+    {
+      "name": "duration",
+      "value": "{{schema:@VideoObject:duration}}",
+      "type": "text"
+    },
+    {
+      "name": "thumbnail",
+      "value": "{{schema:@VideoObject:thumbnailUrl|first}}",
+      "type": "text"
+    },
+    {
+      "name": "tags",
+      "value": "source/youtube",
+      "type": "multitext"
+    }
+  ],
+  "triggers": [
+    "https://www.youtube.com/watch",
+    "https://youtu.be/"
+  ],
+  "noteNameFormat": "{{schema:@VideoObject:uploadDate|date:\"YYYY-MM-DD\"}} YOUTUBE {{schema:@VideoObject:author}} - {{schema:@VideoObject:name|safe_name|trim}}",
+  "path": "sources/web/youtube"
+}

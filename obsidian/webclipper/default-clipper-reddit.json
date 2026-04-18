@@ -1,0 +1,59 @@
+{
+  "schemaVersion": "0.1.0",
+  "name": "Reddit - Jimmy Wiki",
+  "behavior": "create",
+  "noteContentFormat": "# {{selector:shreddit-post?post-title|trim}}\n\n## 메타데이터\n- 서브레딧: {{selector:shreddit-post?subreddit-prefixed-name}}\n- 작성자: {{selector:shreddit-post?author}}\n- 게시일: {{selector:shreddit-post?created-timestamp|date:\"YYYY-MM-DDTHH:mm:ssZ\"}}\n- 점수: {{selector:shreddit-post?score}}\n- 댓글 수: {{selector:shreddit-comment-tree?totalcomments}}\n- URL: {{url}}\n\n## 본문\n\n{{selectorHtml:shreddit-post > div[class=\"text-neutral-content\"],div[data-post-click-location=\"text-body\"]|markdown|trim}}\n\n{{selector:zoomable-img > img?src|image}}\n\n## 댓글\n\n> 추출 한계: Reddit DOM, 접힌 스레드, 더 보기 상태 때문에 일부 댓글이 누락될 수 있다. old.reddit.com 은 이 템플릿의 지원 범위가 아니다.\n\n{{selectorHtml:shreddit-comment-tree|markdown}}\n\n## 메모\n\n- 읽은 맥락:\n- 후속 확인:\n\n## 관련 링크\n\n- 원문: {{url}}",
+  "properties": [
+    {
+      "name": "title",
+      "value": "{{selector:shreddit-post?post-title|trim}}",
+      "type": "text"
+    },
+    {
+      "name": "source",
+      "value": "{{url}}",
+      "type": "text"
+    },
+    {
+      "name": "author",
+      "value": "{{selector:shreddit-post?author}}",
+      "type": "text"
+    },
+    {
+      "name": "subreddit",
+      "value": "{{selector:shreddit-post?subreddit-prefixed-name}}",
+      "type": "text"
+    },
+    {
+      "name": "published",
+      "value": "{{selector:shreddit-post?created-timestamp|date:\"YYYY-MM-DDTHH:mm:ssZ\"}}",
+      "type": "datetime"
+    },
+    {
+      "name": "created",
+      "value": "{{time|date:\"YYYY-MM-DDTHH:mm:ssZ\"}}",
+      "type": "datetime"
+    },
+    {
+      "name": "score",
+      "value": "{{selector:shreddit-post?score}}",
+      "type": "text"
+    },
+    {
+      "name": "comments",
+      "value": "{{selector:shreddit-comment-tree?totalcomments}}",
+      "type": "text"
+    },
+    {
+      "name": "tags",
+      "value": "source/reddit",
+      "type": "multitext"
+    }
+  ],
+  "triggers": [
+    "https://www.reddit.com/",
+    "https://reddit.com/"
+  ],
+  "noteNameFormat": "{{selector:shreddit-post?created-timestamp|date:\"YYYY-MM-DD\"}} REDDIT {{selector:shreddit-post?post-title|trim|safe_name}}",
+  "path": "sources/web/reddit"
+}

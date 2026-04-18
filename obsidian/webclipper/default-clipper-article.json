@@ -1,0 +1,53 @@
+{
+  "schemaVersion": "0.1.0",
+  "name": "Article - Jimmy Wiki",
+  "behavior": "create",
+  "noteContentFormat": "# {{title}}\n\n## 메타데이터\n- 작성자: {{author}}\n- 사이트: {{site}}\n- 게시일: {{published|date:\"YYYY-MM-DD\"}}\n- URL: {{url}}\n\n## 개요\n\n{{description}}\n\n## 본문\n\n{{selectorHtml:article,main,[role=\"main\"],.post-content,.entry-content,.article-body,.markdown-body,.tt_article_useless_p_margin,.contents,.content,.post-body|remove_html:(\"script,style,nav,footer,form,button,aside\")|markdown|replace:\"/\\n{3,}/g\":\"\\n\\n\"|trim}}\n\n> 추출 한계: 본문이 짧거나 일부 UI 텍스트가 섞일 수 있다. 현재 템플릿은 본문 누락을 줄이기 위해 넓은 selector를 우선 사용한다.\n\n## 핵심 내용\n\n- \n\n## 적용 메모\n\n- \n\n## 관련 링크\n\n- 원문: {{url}}",
+  "properties": [
+    {
+      "name": "title",
+      "value": "{{title}}",
+      "type": "text"
+    },
+    {
+      "name": "source",
+      "value": "{{url}}",
+      "type": "text"
+    },
+    {
+      "name": "site",
+      "value": "{{site}}",
+      "type": "text"
+    },
+    {
+      "name": "author",
+      "value": "{{author}}",
+      "type": "text"
+    },
+    {
+      "name": "published",
+      "value": "{{published|date:\"YYYY-MM-DD\"}}",
+      "type": "date"
+    },
+    {
+      "name": "created",
+      "value": "{{date|date:\"YYYY-MM-DD\"}}",
+      "type": "date"
+    },
+    {
+      "name": "description",
+      "value": "{{description}}",
+      "type": "text"
+    },
+    {
+      "name": "tags",
+      "value": "source/article",
+      "type": "multitext"
+    }
+  ],
+  "triggers": [
+    "https://"
+  ],
+  "noteNameFormat": "{{date|date:\"YYYY-MM-DD\"}} ARTICLE {{site|safe_name}} - {{title|safe_name}}",
+  "path": "sources/web/articles"
+}
