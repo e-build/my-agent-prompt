@@ -379,6 +379,21 @@ describe("buildModelsByOwner", () => {
     })
   })
 
+  test("marks image-capable models as attachment-enabled", () => {
+    const result = buildModelsByOwner({
+      data: [{ id: "gemini-3.1-flash-image", owned_by: "antigravity" }],
+    })
+
+    expect(result.antigravity["antigravity/gemini-3.1-flash-image"]).toEqual({
+      name: "antigravity/gemini-3.1-flash-image",
+      attachment: true,
+      modalities: {
+        input: ["text", "image"],
+        output: ["text"],
+      },
+    })
+  })
+
   test("strips management keys from persisted provider options", () => {
     const managedProviders = buildManagedProviders(
       {
@@ -491,6 +506,128 @@ describe("CliproxyapiSyncPlugin", () => {
       },
     })
     expect(config.provider?.["cp-antigravity"]?.models?.["gemini-3-flash"]).toBeUndefined()
+  })
+
+  test("enriches codex OAuth models with attachment capabilities from models.dev", async () => {
+    await writeTempOpenCodeConfig({
+      provider: {
+        cliproxyapi: buildSeedProvider(),
+      },
+    })
+
+    globalThis.fetch = async (input) => {
+      const url = String(input)
+
+      if (url.endsWith("/v0/management/auth-files")) {
+        return new Response(
+          JSON.stringify({
+            files: [
+              {
+                name: "codex-active.json",
+                provider: "codex",
+                account_type: "oauth",
+                disabled: false,
+                status: "active",
+              },
+            ],
+          }),
+        )
+      }
+
+      if (url.includes("/v0/management/auth-files/models")) {
+        return new Response(
+          JSON.stringify({
+            models: [{ id: "gpt-5.4", owned_by: "openai", display_name: "GPT-5.4", type: "openai" }],
+          }),
+        )
+      }
+
+      if (url === "http://localhost:8317/v1/models") {
+        return new Response(JSON.stringify({ data: [] }))
+      }
+
+      if (url === "https://models.dev/api.json") {
+        return new Response(
+          JSON.stringify({
+            openai: {
+              models: {
+                "gpt-5.4": {
+                  attachment: true,
+                  modalities: {
+                    input: ["text", "image", "pdf"],
+                    output: ["text"],
+                  },
+                },
+              },
+            },
+          }),
+        )
+      }
+
+      if (url.endsWith("/v0/management/model-definitions/codex")) {
+        return new Response(
+          JSON.stringify({
+            channel: "codex",
+            models: [
+              {
+                id: "gpt-5.4",
+                display_name: "GPT-5.4",
+                thinking: { levels: ["low", "medium", "high", "xhigh"] },
+              },
+            ],
+          }),
+        )
+      }
+
+      return new Response(JSON.stringify({ channel: url.split("/").at(-1), models: [] }))
+    }
+
+    const { CliproxyapiSyncPlugin } = await import("./cliproxyapi-sync")
+    const plugin = await CliproxyapiSyncPlugin({
+      client: {
+        app: {
+          log: () => Promise.resolve(),
+        },
+      },
+    })
+    const config = {
+      provider: {
+        cliproxyapi: buildSeedProvider(),
+      },
+    }
+
+    await plugin.config(config)
+
+    expect(config.provider?.["cp-openai"]?.models?.["openai/gpt-5.4"]).toEqual({
+      name: "openai/gpt-5.4",
+      attachment: true,
+      modalities: {
+        input: ["text", "image", "pdf"],
+        output: ["text"],
+      },
+      variants: {
+        low: {
+          reasoningEffort: "low",
+          reasoningSummary: "auto",
+          include: ["reasoning.encrypted_content"],
+        },
+        medium: {
+          reasoningEffort: "medium",
+          reasoningSummary: "auto",
+          include: ["reasoning.encrypted_content"],
+        },
+        high: {
+          reasoningEffort: "high",
+          reasoningSummary: "auto",
+          include: ["reasoning.encrypted_content"],
+        },
+        xhigh: {
+          reasoningEffort: "xhigh",
+          reasoningSummary: "auto",
+          include: ["reasoning.encrypted_content"],
+        },
+      },
+    })
   })
 
   test("shows a success toast after config hook completes with delay", async () => {

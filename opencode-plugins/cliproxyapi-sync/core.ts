@@ -23,8 +23,15 @@ type ManagementModelDefinition = {
   }
 }
 
+type ManagedModelModality = "text" | "audio" | "image" | "video" | "pdf"
+
 type ManagedModel = {
   name: string
+  attachment?: boolean
+  modalities?: {
+    input: ManagedModelModality[]
+    output: ManagedModelModality[]
+  }
   variants?: Record<
     string,
     {
@@ -37,15 +44,32 @@ type ManagedModel = {
 
 type ManagedModelsByOwner = Record<string, Record<string, ManagedModel>>
 
+type ManagedModelMetadata = {
+  displayName?: string
+  thinkingLevels?: string[]
+  attachment?: boolean
+  modalities?: ManagedModel["modalities"]
+}
+
 type ModelMetadataByOwner = Record<
   string,
-  Record<
-    string,
-    {
-      displayName?: string
-      thinkingLevels?: string[]
-    }
-  >
+  Record<string, ManagedModelMetadata>
+>
+
+type ModelsDevCatalog = Record<
+  string,
+  {
+    models?: Record<
+      string,
+      {
+        attachment?: unknown
+        modalities?: {
+          input?: unknown
+          output?: unknown
+        }
+      }
+    >
+  }
 >
 
 type Variant = {
@@ -103,6 +127,7 @@ type AuthFileModelsResponse = {
 const DEFAULT_MANAGEMENT_KEY = "1234qwer!"
 const COPILOT_REASONING_INCLUDE = ["reasoning.encrypted_content"]
 const REASONING_VARIANTS = new Set(["auto", "minimal", "low", "medium", "high", "xhigh", "max"])
+const SUPPORTED_MODALITIES = new Set<ManagedModelModality>(["text", "audio", "image", "video", "pdf"])
 const METADATA_CHANNEL_OWNER_MAP = {
   codex: "openai",
 } as const
@@ -215,16 +240,118 @@ export function buildModelsByOwner(
 function buildManagedModel(
   owner: string,
   id: string,
-  metadata?: {
-    displayName?: string
-    thinkingLevels?: string[]
-  },
+  metadata?: ManagedModelMetadata,
 ): ManagedModel {
   const variants = buildVariants(owner, metadata?.thinkingLevels)
+  const capabilities = buildManagedModelCapabilities(owner, id, metadata)
   return {
     name: normalizeManagedModelId(owner, id),
+    ...capabilities,
     ...(variants ? { variants } : {}),
   }
+}
+
+function buildManagedModelCapabilities(owner: string, id: string, metadata?: ManagedModelMetadata) {
+  if (metadata?.modalities) {
+    return {
+      ...(metadata.attachment === true ? { attachment: true } : {}),
+      modalities: metadata.modalities,
+    }
+  }
+
+  if (metadata?.attachment === true) {
+    return { attachment: true }
+  }
+
+  const imageCapable = isImageCapableModel(stripOwnedModelPrefix(owner, id), metadata?.displayName)
+  if (!imageCapable) return {}
+
+  return {
+    attachment: true,
+    modalities: {
+      input: ["text", "image"] as ManagedModelModality[],
+      output: ["text"] as ManagedModelModality[],
+    },
+  }
+}
+
+function isImageCapableModel(id: string, displayName?: string) {
+  const pattern = /(?:^|[-_.\s])(image|vision)(?:$|[-_.\s])/i
+  return pattern.test(id) || (displayName ? pattern.test(displayName) : false)
+}
+
+function normalizeModalities(values: unknown): ManagedModel["modalities"] | undefined {
+  if (!values || typeof values !== "object") return undefined
+
+  const input = normalizeModalityList((values as { input?: unknown }).input)
+  const output = normalizeModalityList((values as { output?: unknown }).output)
+  if (!input || !output) return undefined
+
+  return { input, output }
+}
+
+function normalizeModalityList(values: unknown): ManagedModelModality[] | undefined {
+  if (!Array.isArray(values)) return undefined
+
+  const normalized = values.filter(
+    (value): value is ManagedModelModality => typeof value === "string" && SUPPORTED_MODALITIES.has(value as ManagedModelModality),
+  )
+
+  return normalized.length > 0 ? normalized : undefined
+}
+
+function isDefaultTextOnlyModalities(modalities: ManagedModel["modalities"]) {
+  return (
+    modalities.input.length === 1 &&
+    modalities.input[0] === "text" &&
+    modalities.output.length === 1 &&
+    modalities.output[0] === "text"
+  )
+}
+
+function mergeMetadataByOwner(base: ModelMetadataByOwner, extra: ModelMetadataByOwner): ModelMetadataByOwner {
+  for (const [owner, models] of Object.entries(extra)) {
+    base[owner] ??= {}
+
+    for (const [id, metadata] of Object.entries(models)) {
+      base[owner][id] = {
+        ...base[owner][id],
+        ...metadata,
+      }
+    }
+  }
+
+  return base
+}
+
+function buildModelsDevMetadataByOwner(catalog: ModelsDevCatalog, modelsPayload: ModelResponse): ModelMetadataByOwner {
+  const byOwner: ModelMetadataByOwner = {}
+
+  for (const model of modelsPayload.data ?? []) {
+    if (typeof model.id !== "string" || model.id.length === 0) continue
+    if (typeof model.owned_by !== "string" || model.owned_by.length === 0) continue
+
+    const provider = catalog[model.owned_by] ?? catalog[normalizeOwner(model.owned_by)]
+    const rawId = stripOwnedModelPrefix(model.owned_by, model.id)
+    const modelEntry = provider?.models?.[rawId] ?? provider?.models?.[model.id]
+    if (!modelEntry || typeof modelEntry !== "object") continue
+
+    const attachment = modelEntry.attachment === true ? true : undefined
+    const modalities = normalizeModalities(modelEntry.modalities)
+    if (!attachment && (!modalities || isDefaultTextOnlyModalities(modalities))) continue
+
+    const metadata: ManagedModelMetadata = {
+      ...(attachment ? { attachment } : {}),
+      ...(modalities ? { modalities } : {}),
+    }
+
+    byOwner[model.owned_by] ??= {}
+    byOwner[model.owned_by][rawId] = metadata
+    byOwner[model.owned_by][model.id] = metadata
+    byOwner[model.owned_by][buildOwnedModelId(model.owned_by, rawId)] = metadata
+  }
+
+  return byOwner
 }
 
 function buildVariants(owner: string, thinkingLevels: string[] | undefined) {
@@ -388,7 +515,22 @@ async function fetchMetadataByOwner(
     }
   }
 
-  return buildMetadataByOwner(metadataPayloads, modelsPayload)
+  const metadataByOwner = buildMetadataByOwner(metadataPayloads, modelsPayload)
+
+  try {
+    const response = await fetch("https://models.dev/api.json")
+    if (!response.ok) {
+      throw new Error(`Capability fetch failed with ${response.status} ${response.statusText}`)
+    }
+
+    const catalog = (await response.json()) as ModelsDevCatalog
+    const capabilityMetadata = buildModelsDevMetadataByOwner(catalog, modelsPayload)
+    return mergeMetadataByOwner(metadataByOwner, capabilityMetadata)
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    await log(`[cliproxyapi-sync] models.dev capability sync skipped: ${message}`)
+    return metadataByOwner
+  }
 }
 
 function stableStringify(value: unknown) {
