@@ -12,6 +12,7 @@
 | `command/` | standalone 슬래시 커맨드 정의 (`/docs-*` 등) |
 | `skills/` | standalone 스킬 디렉토리 |
 | `opencode-plugins/` | 설치 가능한 OpenCode plugin 패키지 모음 |
+| `pi-extensions/` | pi 전용 extension 소스 및 로컬 심링크 설치 스크립트 |
 | `refs/` | 에이전트가 참조하는 규칙/가이드라인 문서 |
 | `prompt/` | 프로젝트에서 사용하는 프롬프트 템플릿 및 아키텍처 가이드 |
 
@@ -49,6 +50,7 @@
 | `opencode-plugins/opencode-autoresearch/` | `~/.config/opencode/{commands,agents,skills,plugins}/` | `install-local.sh` 실행 |
 | `opencode-plugins/forge-plugin/dist/index.js` | `~/.config/opencode/plugins/forge-plugin.js` | 빌드 후 심링크 |
 | `opencode-plugins/cliproxyapi-sync/cliproxyapi-sync.ts` | `~/.config/opencode/plugins/cliproxyapi-sync.ts` | 소스 직접 심링크, 설정은 `~/.config/opencode/cliproxyapi-sync-config.jsonc` |
+| `pi-extensions/*.ts` | `~/.pi/agent/extensions/*.ts` | `bash pi-extensions/install-local.sh`로 전역 심링크 |
 
 > 스킬은 단일 파일이 아닌 **디렉토리 단위**로 심링크한다. 디렉토리 안에 `SKILL.md`가 있어야 OpenCode가 인식한다.
 > 저장소 루트 `command/`(단수)는 standalone 커맨드 전용이다. `opencode-plugins/` 내부는 OpenCode 패키지 관례에 따라 `commands/`(복수)를 사용한다.
@@ -84,6 +86,11 @@ ln -s $REPO/opencode-plugins/cliproxyapi-sync/cliproxyapi-sync.ts $OC/plugins/cl
 # cliproxyapi-sync config
 # 첫 실행 시 $OC/cliproxyapi-sync-config.jsonc 가 자동 생성된다.
 # baseURL / apiKey 는 provider.cliproxyapi 대신 이 파일에 입력한다.
+
+# pi extensions (global symlink install)
+bash $REPO/pi-extensions/install-local.sh
+# 제거
+bash $REPO/pi-extensions/install-local.sh --uninstall
 ```
 
 ---
@@ -92,7 +99,7 @@ ln -s $REPO/opencode-plugins/cliproxyapi-sync/cliproxyapi-sync.ts $OC/plugins/cl
 
 이 저장소에서 에이전트의 역할:
 
-1. **프롬프트 파일 관리** — `agents/`, `command/`, `skills/`, `refs/`, `prompt/`, `opencode-plugins/` 내 파일의 생성, 수정, 검토
+1. **프롬프트 파일 관리** — `agents/`, `command/`, `skills/`, `refs/`, `prompt/`, `opencode-plugins/`, `pi-extensions/` 내 파일의 생성, 수정, 검토
 2. **마크다운 품질 유지** — YAML frontmatter 유효성, 중첩 코드블록 등 마크다운 렌더링 이슈 검출 및 수정
 3. **글로벌 설정 동기화** — 각 도구의 로컬 설정 디렉토리(예: `~/.config/opencode/`, `~/.claude/`)와 이 저장소 간 에이전트/커맨드/스킬/플러그인을 가져오거나 내보내기
 4. **아키텍처 가이드 관리** — `prompt/architecture/` 내 아키텍처 문서 작성 및 유지보수
