@@ -6,10 +6,13 @@ type ExtensionAPI = {
   registerProvider(name: string, config: ProviderConfig): void;
 };
 
+type ReasoningLevel = "minimal" | "low" | "medium" | "high" | "xhigh";
+
 type CliproxyapiConfig = {
   baseURL: string;
   apiKey: string;
   managementKey?: string;
+  reasoningVariants?: Record<string, ReasoningLevel[]>;
 };
 
 type ProxyModel = {
@@ -104,6 +107,7 @@ export function buildProviderConfigs(
   metadataByOwner: ModelMetadataByOwner = {},
 ): Record<string, ProviderConfig> {
   const providers: Record<string, ProviderConfig> = {};
+  const seenModelIdsByProvider: Record<string, Set<string>> = {};
   const baseUrl = normalizeBaseUrl(config.baseURL);
 
   for (const model of models) {
@@ -128,16 +132,28 @@ export function buildProviderConfigs(
       },
       models: [],
     };
+    seenModelIdsByProvider[providerName] ??= new Set<string>();
 
-    providers[providerName].models.push({
-      id: normalizedId,
-      name: normalizedId,
-      reasoning: isReasoningModel(rawId),
-      input: supportsImageInput(owner, normalizedId, metadata) ? ["text", "image"] : ["text"],
-      cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-      contextWindow: 128000,
-      maxTokens: 16384,
-    });
+    const modelIds = [
+      normalizedId,
+      ...buildConfiguredReasoningVariantIds(config, owner, normalizedId),
+    ];
+
+    for (const modelId of modelIds) {
+      if (seenModelIdsByProvider[providerName].has(modelId)) continue;
+      seenModelIdsByProvider[providerName].add(modelId);
+
+      const visibleRawId = stripOwnedModelPrefix(owner, modelId);
+      providers[providerName].models.push({
+        id: modelId,
+        name: modelId,
+        reasoning: isReasoningModel(visibleRawId),
+        input: supportsImageInput(owner, normalizedId, metadata) ? ["text", "image"] : ["text"],
+        cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+        contextWindow: 128000,
+        maxTokens: 16384,
+      });
+    }
   }
 
   for (const provider of Object.values(providers)) {
@@ -285,6 +301,39 @@ function stripOwnedModelPrefix(owner: string, id: string): string {
 
 function normalizeManagedModelId(owner: string, id: string): string {
   return buildOwnedModelId(owner, stripOwnedModelPrefix(owner, id));
+}
+
+function buildConfiguredReasoningVariantIds(
+  config: CliproxyapiConfig,
+  owner: string,
+  normalizedId: string,
+): string[] {
+  const configuredLevels = resolveConfiguredReasoningLevels(config, owner, normalizedId);
+  return configuredLevels.map((level) => `${normalizedId}-${level}`);
+}
+
+function resolveConfiguredReasoningLevels(
+  config: CliproxyapiConfig,
+  owner: string,
+  normalizedId: string,
+): ReasoningLevel[] {
+  const rawId = stripOwnedModelPrefix(owner, normalizedId);
+  const configured =
+    config.reasoningVariants?.[normalizedId] ??
+    config.reasoningVariants?.[rawId];
+
+  if (!Array.isArray(configured)) return [];
+
+  const uniqueLevels = new Set<ReasoningLevel>();
+  for (const level of configured) {
+    if (isReasoningLevel(level)) uniqueLevels.add(level);
+  }
+
+  return [...uniqueLevels];
+}
+
+function isReasoningLevel(value: unknown): value is ReasoningLevel {
+  return value === "minimal" || value === "low" || value === "medium" || value === "high" || value === "xhigh";
 }
 
 function isReasoningModel(id: string): boolean {
