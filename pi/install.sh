@@ -4,12 +4,12 @@ set -euo pipefail
 # Install Pi resources from my-agent-prompt/pi/ to ~/.pi/agent
 #
 # Resources managed here:
-#   pi/extensions/        ← 외부 참고 Pi extension들
+#   pi/extensions/        ← Pi extension 일체 (심링크 + 복사)
 #   pi/themes/            ← Pi 테마 10종
 #   pi/config/            ← 설정 예시 (settings, mcp)
 #   pi/bin/pi             ← 컴팩트 Pi 런처
 #
-# cliproxyapi-sync.ts는 pi-extensions/install-local.sh 로 별도 관리
+# cliproxyapi-sync.ts는 pi/extensions/ 내에 있으며 --restore 시 symlink로 설치됨
 # skills/ 는 Pi 전용이 아닌 모든 에이전트 공용 → 이 스크립트에서 제외
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"   # repo root = my-agent-prompt
@@ -45,8 +45,20 @@ if [[ "$RESTORE" == "1" ]]; then
 
   if [[ -d "$PI_DIR/extensions" && "$(ls -A "$PI_DIR/extensions" 2>/dev/null)" ]]; then
     mkdir -p "$PI_HOME/extensions"
-    cp -R "$PI_DIR/extensions"/. "$PI_HOME/extensions/" 2>/dev/null || true
-    echo "  ✓ pi/extensions/ restored"
+    for item in "$PI_DIR/extensions"/*; do
+      base="$(basename "$item")"
+      dest="$PI_HOME/extensions/$base"
+      if [[ "$base" == "cliproxyapi-sync.ts" ]]; then
+        # symlink so it stays in sync with the repo
+        ln -sfn "$item" "$dest"
+        echo "  symlinked: $dest → $item"
+      elif [[ -d "$item" ]]; then
+        cp -R "$item" "$PI_HOME/extensions/" 2>/dev/null || true
+      else
+        cp "$item" "$PI_HOME/extensions/" 2>/dev/null || true
+      fi
+    done
+    echo "  ✓ pi/extensions/ restored (cliproxyapi-sync.ts symlinked)"
   fi
 
   if [[ -d "$PI_DIR/themes" && "$(ls -A "$PI_DIR/themes" 2>/dev/null)" ]]; then
@@ -55,9 +67,6 @@ if [[ "$RESTORE" == "1" ]]; then
     echo "  ✓ pi/themes/ restored"
   fi
 
-  echo ""
-  echo "  Tip: don't forget to also install pi-extensions for cliproxyapi-sync:"
-  echo "    bash pi-extensions/install-local.sh"
 else
   echo "Skipping resource restore. Use --restore to copy extensions and themes."
 fi
@@ -99,5 +108,4 @@ echo ""
 echo "Next steps:"
 echo "  1. Edit ~/.pi/agent/settings.json to set your model/provider and theme"
 echo "  2. Run /reload or restart Pi"
-echo "  3. bash pi-extensions/install-local.sh   (for cliproxyapi-sync)"
-echo "  4. After changes: my-agent-prompt-pi-sync"
+echo "  3. After changes: my-agent-prompt-pi-sync"

@@ -7,13 +7,15 @@ skills/ 디렉토리의 스킬은 모든 에이전트 공용이며, 여기에는
 
 ```
 pi/
-├── extensions/            ← 외부 참고 Pi extension
-│   ├── custom-footer.ts   (토큰/비용/속도 푸터)
-│   ├── context-command.ts (/context 컨텍스트 분석)
-│   ├── local-models.ts    (/local-models 로컬 LLM 매니저)
-│   ├── safety-guard.ts    (/safety 위험 명령 차단)
-│   ├── flow-title.ts      (맞춤형 시작 헤더)
-│   └── filechanges/       (/filechanges 변경사항 리뷰/되돌리기)
+├── extensions/            ← Pi extension 모음
+│   ├── custom-footer.ts       (토큰/비용/속도 푸터)
+│   ├── context-command.ts     (/context 컨텍스트 분석)
+│   ├── local-models.ts        (/local-models 로컬 LLM 매니저)
+│   ├── safety-guard.ts        (/safety 위험 명령 차단)
+│   ├── flow-title.ts          (맞춤형 시작 헤더)
+│   ├── cliproxyapi-sync.ts    (cliproxy model 동기화 — 별도 설정 파일)
+│   ├── cliproxyapi-sync-loading.md  (cliproxyapi-sync 동작 메커니즘 문서)
+│   └── filechanges/           (/filechanges 변경사항 리뷰/되돌리기)
 ├── themes/                ← Pi 테마 10종 (nebula-pulse, tokyo-night 등)
 ├── config/
 │   ├── settings.example.json
@@ -26,13 +28,14 @@ pi/
 ## 설치
 
 ```bash
-# 1. 전체 설치 (extensions + themes + config + launcher)
+# 전체 설치 (extensions + themes + config + launcher + cliproxyapi-sync symlink)
 bash pi/install.sh --restore --copy-config
 
-# 2. cliproxyapi-sync는 별도 설치
-bash pi-extensions/install-local.sh
+# cliproxyapi-sync 설정 파일 입력 (첫 실행 시)
+# ~/.config/opencode/cliproxyapi-sync-config.jsonc
+#   { "baseURL": "http://localhost:8317/v1", "apiKey": "..." }
 
-# 3. 마지막으로 settings.json에서 모델/프로바이더 설정
+# 마지막으로 settings.json에서 모델/프로바이더 설정
 code ~/.pi/agent/settings.json
 ```
 
@@ -44,7 +47,7 @@ Pi 설정을 변경한 후 레포에 백업:
 bash pi/sync.sh
 ```
 
-`cliproxyapi-sync.ts`는 `pi-extensions/`에서 별도 관리되므로 sync에서 제외됩니다.
+`cliproxyapi-sync.ts`는 심링크로 관리되므로 sync에서 제외됩니다. 설정 파일(`cliproxyapi-sync-config.jsonc`)은 사용자 로컬에만 존재하므로 sync되지 않습니다.
 
 ## Extension 설명
 

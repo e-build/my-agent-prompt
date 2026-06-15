@@ -1,6 +1,6 @@
 # cliproxyapi-sync Pi Extension — 로딩 및 동작 메커니즘
 
-`pi-extensions/cliproxyapi-sync.ts`가 pi에 로드되고 동작하는 전체 흐름을 설명한다.
+`pi/extensions/cliproxyapi-sync.ts`가 pi에 로드되고 동작하는 전체 흐름을 설명한다.
 
 ---
 

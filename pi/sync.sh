@@ -4,7 +4,8 @@ set -euo pipefail
 # Sync ~/.pi/agent → my-agent-prompt/pi/
 #
 # This syncs Pi themes, extensions, and example config files back into the repo.
-# cliproxyapi-sync.ts is deliberately excluded — it lives under pi-extensions/.
+# cliproxyapi-sync.ts is deliberately excluded — it is symlinked from pi/extensions/
+# so ci (cp -R) would replace the symlink with a copy.
 
 ROOT="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd 2>/dev/null || cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PI_DIR="$ROOT/pi"
@@ -28,7 +29,7 @@ if [[ -d "$PI_HOME/themes" ]]; then
   echo "  ✓ themes synced"
 fi
 
-# --- Extensions (exclude cliproxyapi-sync.ts — managed via pi-extensions/) ---
+# --- Extensions (exclude cliproxyapi-sync.ts — it's symlinked) ---
 if [[ -d "$PI_HOME/extensions" ]]; then
   mkdir -p "$PI_DIR/extensions"
   # Sync all except cliproxyapi-sync.ts
