@@ -78,6 +78,10 @@ export default function (pi: ExtensionAPI) {
 
 					const branch = footerData.getGitBranch();
 
+					// Current working directory — from session context
+					const rawCwd = ctx.cwd || process.cwd();
+					const cwd = rawCwd.replace(process.env.HOME || "", "~");
+
 					// Colored stat labels — using valid theme token names only
 					const arrowUp = theme.fg("success", "↑") + theme.fg("text", fmt(input));
 					const arrowDown = theme.fg("error", "↓") + theme.fg("text", fmt(output));
@@ -106,8 +110,12 @@ export default function (pi: ExtensionAPI) {
 					// Git branch — use success color
 					const gitStr = branch ? theme.fg("toolDiffAdded", " " + branch) : "";
 
+					// CWD — accent color + ~ prefix for home-relative path
+					const cwdStr = theme.fg("accent", cwd);
+
 					// ===== LEFT: stats with │ separators between each =====
 					const leftParts = [
+						cwdStr,
 						arrowUp,
 						arrowDown,
 						reasoningStr,

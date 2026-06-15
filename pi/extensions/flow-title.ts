@@ -34,15 +34,38 @@ function welcomeConfigPath(): string {
 	return path.join(process.env.PI_HOME || path.join(process.env.HOME || "", ".pi", "agent"), "welcome.json");
 }
 
-function setWelcomeUpdates(enabled: boolean) {
+function readWelcomeConfig(): Record<string, unknown> {
 	const file = welcomeConfigPath();
-	let config: Record<string, unknown> = {};
 	try {
-		config = JSON.parse(fs.readFileSync(file, "utf8"));
-	} catch {}
-	config.updates = enabled;
+		return JSON.parse(fs.readFileSync(file, "utf8"));
+	} catch {
+		return {};
+	}
+}
+
+function writeWelcomeConfig(config: Record<string, unknown>) {
+	const file = welcomeConfigPath();
 	fs.mkdirSync(path.dirname(file), { recursive: true });
 	fs.writeFileSync(file, `${JSON.stringify(config, null, "\t")}\n`);
+}
+
+function setWelcomeUpdates(enabled: boolean) {
+	const config = readWelcomeConfig();
+	config.updates = enabled;
+	writeWelcomeConfig(config);
+}
+
+function getWelcomeMode(): "full" | "minimal" {
+	const config = readWelcomeConfig();
+	const mode = config.mode;
+	if (mode === "minimal") return "minimal";
+	return "full";
+}
+
+function setWelcomeMode(mode: "full" | "minimal") {
+	const config = readWelcomeConfig();
+	config.mode = mode;
+	writeWelcomeConfig(config);
 }
 
 export default function (pi: ExtensionAPI) {
@@ -53,25 +76,37 @@ export default function (pi: ExtensionAPI) {
 		const user = process.env.USER || "user";
 		const model = ctx.model?.id ?? "no model";
 
-		ctx.ui.setHeader((_tui, theme) => ({
-			render(width: number): string[] {
-				const lines = [
-					...LOGO.map((line) => line.replace(/█/g, theme.fg("accent", "█"))),
-					"",
-					`${theme.fg("accent", theme.bold("pi coding agent"))} ${theme.fg("dim", "·")} ${theme.fg("text", user)} ${theme.fg("dim", "·")} ${theme.fg("dim", projectName(dir))}`,
-					`${theme.fg("dim", "version:")} ${theme.fg("text", `v${VERSION}`)}`,
-					`${theme.fg("dim", "model:")} ${theme.fg("text", model)}`,
-					`${theme.fg("dim", "dir:  ")} ${theme.fg("text", dir)}`,
-					"",
-					`${theme.fg("muted", "escape interrupt · ctrl+c/ctrl+d clear/exit · / commands · ! bash · ctrl+o more")}`,
-					`${theme.fg("dim", "Press ctrl+o to show full startup help and loaded resources.")}`,
-					"",
-					`${theme.fg("dim", "Pi can explain its own features and look up its docs. Ask it how to use or extend Pi.")}`,
-				];
-				return lines.map((line) => visibleWidth(line) > width ? truncateToWidth(line, width) : line);
-			},
-			invalidate() {},
-		}));
+		ctx.ui.setHeader((_tui, theme) => {
+			const mode = getWelcomeMode();
+
+			return {
+				render(width: number): string[] {
+					if (mode === "minimal") {
+						// Single-line: version · model · dir
+						const line = `${theme.fg("accent", "pi")} ${theme.fg("dim", "v" + VERSION)} ${theme.fg("dim", "·")} ${theme.fg("muted", model)} ${theme.fg("dim", "·")} ${theme.fg("dim", dir)}`;
+						const padded = line + " ".repeat(Math.max(1, width - visibleWidth(line)));
+						return [truncateToWidth(padded, width)];
+					}
+
+					// Full mode: original rich header
+					const lines = [
+						...LOGO.map((line) => line.replace(/█/g, theme.fg("accent", "█"))),
+						"",
+						`${theme.fg("accent", theme.bold("pi coding agent"))} ${theme.fg("dim", "·")} ${theme.fg("text", user)} ${theme.fg("dim", "·")} ${theme.fg("dim", projectName(dir))}`,
+						`${theme.fg("dim", "version:")} ${theme.fg("text", `v${VERSION}`)}`,
+						`${theme.fg("dim", "model:")} ${theme.fg("text", model)}`,
+						`${theme.fg("dim", "dir:  ")} ${theme.fg("text", dir)}`,
+						"",
+						`${theme.fg("muted", "escape interrupt · ctrl+c/ctrl+d clear/exit · / commands · ! bash · ctrl+o more")}`,
+						`${theme.fg("dim", "Press ctrl+o to show full startup help and loaded resources.")}`,
+						"",
+						`${theme.fg("dim", "Pi can explain its own features and look up its docs. Ask it how to use or extend Pi.")}`,
+					];
+					return lines.map((line) => visibleWidth(line) > width ? truncateToWidth(line, width) : line);
+				},
+				invalidate() {},
+			};
+		});
 	});
 
 	pi.registerCommand("welcome", {
@@ -88,7 +123,22 @@ export default function (pi: ExtensionAPI) {
 				ctx.ui.notify("Welcome update notices disabled for future sessions", "info");
 				return;
 			}
-			ctx.ui.notify("Usage: /welcome updates on | /welcome updates off", "info");
+			if (normalized === "mode minimal") {
+				setWelcomeMode("minimal");
+				ctx.ui.notify("Welcome header set to minimal mode (takes effect next session)", "success");
+				return;
+			}
+			if (normalized === "mode full") {
+				setWelcomeMode("full");
+				ctx.ui.notify("Welcome header set to full mode (takes effect next session)", "success");
+				return;
+			}
+			if (normalized === "mode") {
+				const current = getWelcomeMode();
+				ctx.ui.notify(`Current welcome mode: ${current} (use /welcome mode minimal or /welcome mode full)`, "info");
+				return;
+			}
+			ctx.ui.notify("Usage: /welcome updates on | /welcome updates off | /welcome mode minimal | /welcome mode full", "info");
 		},
 	});
 
