@@ -53,14 +53,35 @@ bash pi/sync.sh
 
 | Extension | 명령어 | 설명 |
 |-----------|--------|------|
-| `custom-footer.ts` | (자동) | 하단에 토큰/비용/속도/생각수준 실시간 표시 |
+| `custom-footer.ts` | (자동) | 하단에 토큰/비용/속도/생각수준/CWD/브랜치 실시간 표시 |
 | `context-command.ts` | `/context` | 시작/대화 컨텍스트 사용량 분석 (Claude Code 스타일) |
 | `local-models.ts` | `/local-models` | Ollama/LM Studio/RunPod 등 로컬 LLM 등록 |
 | `safety-guard.ts` | `/safety` | force push, rm -rf 등 위험 명령 차단 |
-| `flow-title.ts` | (자동) | 시작 시 Pi 로고+버전+모델명 표시 |
-| `filechanges/` | `/filechanges` | Pi edit/write 내역 리뷰, 승인, 되돌리기 |
+| `flow-title.ts` | (자동) | 시작 시 헤더 (full/minimal 모드, `/welcome mode minimal` 전환) |
+| `filechanges/` | `/filechanges`<br>`/filechanges-accept`<br>`/filechanges-decline` | Pi edit/write 내역 리뷰 (select list), diff 확인, 일괄 승인/되돌리기 |
+
+## Skills
+
+이 저장소 root `skills/` 디렉토리는 프로젝트 공용 스킬 + 커뮤니티 스킬을 포함합니다.
+`~/.pi/agent/skills/`에 심링크하여 사용합니다.
+
+### abhinand5/pi-setup 포팅 스킬 (11개)
+
+| Skill | 설명 | 비고 |
+|-------|------|------|
+| `diagnose` | 디버깅 전용 루프 (재현→최소화→가설→계측→수정→회귀) | scripts/hitl-loop.template.sh 포함 |
+| `find-docs` | 웹/로컬 문서 검색 도우미 | |
+| `find-skills` | 사용자에게 적합한 스킬 발견/설치 안내 | |
+| `grill-me` | 계획/설계를 결정 트리로 스트레스 테스트 | |
+| `grill-with-docs` | 계획 검증 + CONTEXT.md/ADR 인라인 업데이트 | ADR-FORMAT.md, CONTEXT-FORMAT.md 포함 |
+| `handoff` | 대화 압축 → 다른 에이전트 handoff 문서 생성 | |
+| `hf-cli` | HuggingFace Hub CLI (모델/데이터셋/Spaces) | |
+| `improve-codebase-architecture` | 도메인 언어 기반 리팩터링 기회 발굴 | DEEPENING.md, HTML-REPORT.md 등 포함 |
+| `mcp-code-search` | MCP grep 서버로 GitHub 코드 검색 | |
+| `teach` | 사용자에게 새 개념/스킬 가르치기 | |
+| `write-a-skill` | 새 스킬 생성 가이드 | |
 
 ## 출처
 
 - abhinand5/pi-setup, amosblomqvist/pi-config, mattpocock/skills 커뮤니티 리소스 기반
-- 필요한 경우 각 extension 상단에 출처 표기
+- 필요한 경우 각 extension/skill 상단에 출처 표기

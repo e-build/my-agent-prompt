@@ -47,6 +47,8 @@
 | `command/docs-*.md` (6개) | `~/.config/opencode/commands/docs-*.md` | |
 | `command/ladder-*.md` (10개) | `~/.config/opencode/commands/ladder-*.md` | |
 | `skills/create-command/` | `~/.config/opencode/skills/create-command/` | 디렉토리 단위 심링크 |
+| `skills/{diagnose,find-docs,find-skills,grill-me,grill-with-docs,handoff,hf-cli,improve-codebase-architecture,mcp-code-search,teach,write-a-skill}/` | `~/.pi/agent/skills/{skill}/` | abhinand5/pi-setup 포팅 스킬 11개, Pi 전용 |
+| `pi/extensions/filechanges/` | `~/.pi/agent/extensions/filechanges/` | Pi 전용 extension (심링크, 복사 불가) |
 | `opencode-plugins/opencode-autoresearch/` | `~/.config/opencode/{commands,agents,skills,plugins}/` | `install-local.sh` 실행 |
 | `opencode-plugins/forge-plugin/dist/index.js` | `~/.config/opencode/plugins/forge-plugin.js` | 빌드 후 심링크 |
 | `opencode-plugins/cliproxyapi-sync/cliproxyapi-sync.ts` | `~/.config/opencode/plugins/cliproxyapi-sync.ts` | 소스 직접 심링크, 설정은 `~/.config/opencode/cliproxyapi-sync-config.jsonc` |
@@ -71,8 +73,13 @@ for f in $REPO/command/docs-*.md; do ln -s "$f" $OC/commands/$(basename "$f"); d
 # commands (ladder-*)
 for f in $REPO/command/ladder-*.md; do ln -s "$f" $OC/commands/$(basename "$f"); done
 
-# skills
+# skills (OpenCode)
 ln -s $REPO/skills/create-command $OC/skills/create-command
+
+# skills (Pi — 11개 abhinand5 포팅)
+for d in diagnose find-docs find-skills grill-me grill-with-docs handoff hf-cli improve-codebase-architecture mcp-code-search teach write-a-skill; do
+  ln -s $REPO/skills/"$d" ~/.pi/agent/skills/"$d"
+done
 
 # opencode-autoresearch plugin (commands + agents + skills + plugin 자산 일괄)
 bash $REPO/opencode-plugins/opencode-autoresearch/install-local.sh
