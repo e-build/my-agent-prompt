@@ -48,17 +48,15 @@ if [[ "$RESTORE" == "1" ]]; then
     for item in "$PI_DIR/extensions"/*; do
       base="$(basename "$item")"
       dest="$PI_HOME/extensions/$base"
-      if [[ "$base" == "cliproxyapi-sync.ts" ]]; then
-        # symlink so it stays in sync with the repo
-        ln -sfn "$item" "$dest"
-        echo "  symlinked: $dest → $item"
-      elif [[ -d "$item" ]]; then
-        cp -R "$item" "$PI_HOME/extensions/" 2>/dev/null || true
-      else
-        cp "$item" "$PI_HOME/extensions/" 2>/dev/null || true
+      # skip docs (.md), config, and npm/git-managed items
+      if [[ "$base" == *.md || "$base" == *.example.* ]]; then
+        continue
       fi
+      # symlink everything so repo changes auto-reflect in Pi
+      ln -sfn "$item" "$dest"
+      echo "  symlinked: $dest → $item"
     done
-    echo "  ✓ pi/extensions/ restored (cliproxyapi-sync.ts symlinked)"
+    echo "  ✓ pi/extensions/ restored (all symlinked)"
   fi
 
   if [[ -d "$PI_DIR/themes" && "$(ls -A "$PI_DIR/themes" 2>/dev/null)" ]]; then
