@@ -74,6 +74,14 @@ type ModelsDevCatalog = Record<
   }
 >;
 
+type CodexModelEntry = {
+  slug?: unknown;
+  context_window?: unknown;
+  max_context_window?: unknown;
+};
+
+type CodexModelsResponse = { models?: CodexModelEntry[] };
+
 const DEFAULT_CONFIG: CliproxyapiConfig = {
   baseURL: "http://localhost:8317/v1",
   apiKey: "dummy",
@@ -81,13 +89,16 @@ const DEFAULT_CONFIG: CliproxyapiConfig = {
 
 const DEFAULT_CONFIG_PATH = join(homedir(), ".config/opencode/cliproxyapi-sync-config.jsonc");
 const SUPPORTED_MODALITIES = new Set<ManagedModelModality>(["text", "audio", "image", "video", "pdf"]);
+const DEFAULT_CONTEXT_WINDOW = 128000;
+const REASONING_SUFFIX_PATTERN = /-(?:minimal|low|medium|high|xhigh)$/i;
 
 export default async function cliproxyapiSync(pi: ExtensionAPI) {
   try {
     const config = await loadConfig();
     const models = await fetchModels(config);
+    const codexContextBySlug = await fetchCodexContextWindows(config);
     const metadataByOwner = await fetchModelsDevMetadataByOwner(models);
-    const providers = buildProviderConfigs(config, models, metadataByOwner);
+    const providers = buildProviderConfigs(config, models, metadataByOwner, codexContextBySlug);
 
     for (const [providerName, providerConfig] of Object.entries(providers)) {
       pi.registerProvider(providerName, providerConfig);
@@ -105,6 +116,7 @@ export function buildProviderConfigs(
   config: CliproxyapiConfig,
   models: ProxyModel[],
   metadataByOwner: ModelMetadataByOwner = {},
+  codexContextBySlug: Map<string, number> = new Map(),
 ): Record<string, ProviderConfig> {
   const providers: Record<string, ProviderConfig> = {};
   const seenModelIdsByProvider: Record<string, Set<string>> = {};
@@ -144,13 +156,19 @@ export function buildProviderConfigs(
       seenModelIdsByProvider[providerName].add(modelId);
 
       const visibleRawId = stripOwnedModelPrefix(owner, modelId);
+      const resolvedContextWindow = resolveContextWindow({
+        modelId,
+        normalizedId,
+        rawId,
+        codexContextBySlug,
+      });
       providers[providerName].models.push({
         id: modelId,
         name: modelId,
         reasoning: isReasoningModel(visibleRawId),
         input: supportsImageInput(owner, normalizedId, metadata) ? ["text", "image"] : ["text"],
         cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-        contextWindow: 128000,
+        contextWindow: resolvedContextWindow,
         maxTokens: 16384,
       });
     }
@@ -200,6 +218,38 @@ async function fetchModels(config: CliproxyapiConfig): Promise<ProxyModel[]> {
       },
     ];
   });
+}
+
+async function fetchCodexContextWindows(config: CliproxyapiConfig): Promise<Map<string, number>> {
+  try {
+    const url = `${normalizeBaseUrl(config.baseURL)}/models?client_version=1`;
+    const response = await fetch(url, {
+      headers: {
+        Authorization: `Bearer ${config.apiKey}`,
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`codex models request failed: HTTP ${response.status}`);
+    }
+
+    const payload = (await response.json()) as CodexModelsResponse;
+    if (!Array.isArray(payload.models)) {
+      throw new Error("codex models response does not contain a models array");
+    }
+
+    const map = new Map<string, number>();
+    for (const entry of payload.models) {
+      const slug = typeof entry.slug === "string" ? entry.slug : undefined;
+      const contextWindow = asPositiveInteger(entry.context_window);
+      if (slug && contextWindow) map.set(slug, contextWindow);
+    }
+    return map;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.warn(`[cliproxyapi-sync] codex context_window sync skipped: ${message}`);
+    return new Map();
+  }
 }
 
 async function fetchModelsDevMetadataByOwner(models: ProxyModel[]): Promise<ModelMetadataByOwner> {
@@ -338,6 +388,32 @@ function isReasoningLevel(value: unknown): value is ReasoningLevel {
 
 function isReasoningModel(id: string): boolean {
   return /(?:thinking|-(?:minimal|low|medium|high|xhigh))$/i.test(id);
+}
+
+function stripReasoningSuffix(id: string): string {
+  return id.replace(REASONING_SUFFIX_PATTERN, "");
+}
+
+function resolveContextWindow(args: {
+  modelId: string;
+  normalizedId: string;
+  rawId: string;
+  codexContextBySlug: Map<string, number>;
+}): number {
+  const strippedModelId = stripReasoningSuffix(args.modelId);
+  return (
+    asPositiveInteger(args.codexContextBySlug.get(strippedModelId)) ??
+    asPositiveInteger(args.codexContextBySlug.get(args.normalizedId)) ??
+    asPositiveInteger(args.codexContextBySlug.get(args.rawId)) ??
+    DEFAULT_CONTEXT_WINDOW
+  );
+}
+
+function asPositiveInteger(value: unknown): number | undefined {
+  if (typeof value !== "number" || !Number.isFinite(value) || !Number.isInteger(value) || value <= 0) {
+    return undefined;
+  }
+  return value;
 }
 
 function supportsImageInput(owner: string, id: string, metadata?: ModelMetadata): boolean {
