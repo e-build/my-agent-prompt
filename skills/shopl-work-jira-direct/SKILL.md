@@ -1,5 +1,5 @@
 ---
-name: jira-direct
+name: shopl-work-jira-direct
 description: Use Jira REST API directly without MCP to fetch issue details, child issues, and focused field data. Use when the user asks about Jira tickets by key and direct API access via shell scripts is preferred.
 ---
 

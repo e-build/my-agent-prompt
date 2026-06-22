@@ -1,5 +1,5 @@
 ---
-name: backend-requirements-from-scrap
+name: shopl-dev-requirements-from-scrap
 description: "Scrap된 기획서, Figma 캡처, 와이어프레임, 샘플 Excel을 현재 백엔드 구현과 대조하여 구현 기준의 백엔드 변경 요구사항, 확인 필요 항목, 기능 단위 하위작업을 추출한다. Trigger: scrap 기획서 분석, 백엔드 요구사항 추출, 현재 구현 반영 요구사항 정리, 기획-구현 gap 분석, Figma scrap 기반 요구사항 문서화."
 ---
 
