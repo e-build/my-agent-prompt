@@ -1,7 +1,8 @@
 # pi/ — Pi 코딩 에이전트 리소스
 
 이 디렉토리는 [Pi coding agent](https://pi.dev) 전용 리소스를 관리합니다.
-skills/ 디렉토리의 스킬은 모든 에이전트 공용이며, 여기에는 Pi 전용 설치/테마/extension/config 만 포함됩니다.
+`bodies/`(공유 명령어 본문)와 `skills/`(Agent Skills)는 모든 에이전트 공용이며,
+여기에는 Pi 전용 설치/테마/extension/config 만 포함됩니다.
 
 ## 구조
 
@@ -62,16 +63,19 @@ bash pi/sync.sh
 
 ## Skills
 
-이 저장소 root `skills/` 디렉토리는 프로젝트 공용 스킬 + 커뮤니티 스킬을 포함합니다.
+이 저장소 root `skills/` 디렉토리는 **Agent Skills** (에이전트가 자율 로드)를 포함합니다.
 `~/.pi/agent/skills/`에 심링크하여 사용합니다.
 
-### abhinand5/pi-setup 포팅 스킬 (11개)
+> **Shared Command Bodies**: 슬래시 명령어(`/`)로 호출하는 공유 실행 본문은
+> `~/.pi/agent/prompts/`의 Pi wrapper가 `../bodies/<name>.md` 를 참조합니다.
+> 자세한 내용은 `AGENTS.md`의 [Shared Architecture by Resource Type](../AGENTS.md#shared-architecture-by-resource-type) 참조.
+
+### abhinand5/pi-setup 포팅 스킬 (10개)
 
 | Skill | 설명 | 비고 |
 |-------|------|------|
 | `diagnose` | 디버깅 전용 루프 (재현→최소화→가설→계측→수정→회귀) | scripts/hitl-loop.template.sh 포함 |
 | `find-docs` | 웹/로컬 문서 검색 도우미 | |
-| `find-skills` | 사용자에게 적합한 스킬 발견/설치 안내 | |
 | `grill-me` | 계획/설계를 결정 트리로 스트레스 테스트 | |
 | `grill-with-docs` | 계획 검증 + CONTEXT.md/ADR 인라인 업데이트 | ADR-FORMAT.md, CONTEXT-FORMAT.md 포함 |
 | `handoff` | 대화 압축 → 다른 에이전트 handoff 문서 생성 | |

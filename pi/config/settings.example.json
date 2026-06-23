@@ -1,11 +1,8 @@
 {
-  "lastChangelogVersion": "0.79.3",
-  "theme": "nebula-pulse",
-  "compaction": {
-    "enabled": true
-  },
-  "defaultProvider": "YOUR_PROVIDER",
-  "defaultModel": "YOUR_MODEL",
+  "theme": "dracula",
+  "lastChangelogVersion": "0.79.9",
+  "defaultProvider": "openai-codex",
+  "defaultModel": "gpt-5.4",
   "defaultThinkingLevel": "medium",
   "hideThinkingBlock": false,
   "packages": [
@@ -19,7 +16,5 @@
     "npm:@juicesharp/rpiv-todo",
     "npm:pi-mcp-adapter"
   ],
-  "prompts": [
-    "/Users/jimmylee/IdeaProjects/e-build/my-agent-prompt/command"
-  ]
+  "showHardwareCursor": true
 }

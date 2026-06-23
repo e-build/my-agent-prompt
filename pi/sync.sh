@@ -7,18 +7,21 @@ set -euo pipefail
 # cliproxyapi-sync.ts is deliberately excluded — it is symlinked from pi/extensions/
 # so ci (cp -R) would replace the symlink with a copy.
 
-ROOT="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd 2>/dev/null || cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PI_DIR="$ROOT/pi"
 PI_HOME="${PI_HOME:-$HOME/.pi/agent}"
-COMMIT_MSG="${1:-"chore(pi): sync Pi setup $(date +%Y-%m-%d-%H%M)"}"
+COMMIT_MSG=""
 NO_PUSH=false
 
 for arg in "$@"; do
   case "$arg" in
     --no-push) NO_PUSH=true ;;
     --help) echo "Usage: sync.sh [commit message] [--no-push]"; exit 0 ;;
+    *) COMMIT_MSG="$arg" ;;
   esac
 done
+
+COMMIT_MSG="${COMMIT_MSG:-chore(pi): sync Pi setup $(date +%Y-%m-%d-%H%M)}"
 
 echo "Syncing ~/.pi/agent → $PI_DIR"
 
@@ -45,8 +48,17 @@ fi
 
 # --- Config (sanitized examples) ---
 if [[ -f "$PI_HOME/settings.json" ]]; then
-  cp "$PI_HOME/settings.json" "$PI_DIR/config/settings.example.json"
-  echo "  ✓ settings.example.json synced"
+  python3 - "$PI_HOME/settings.json" "$PI_DIR/config/settings.example.json" <<'PY'
+import json, sys
+src, dst = sys.argv[1], sys.argv[2]
+with open(src, 'r', encoding='utf-8') as f:
+    data = json.load(f)
+data.pop('prompts', None)
+with open(dst, 'w', encoding='utf-8') as f:
+    json.dump(data, f, ensure_ascii=False, indent=2)
+    f.write('\n')
+PY
+  echo "  ✓ settings.example.json synced (sanitized)"
 fi
 if [[ -f "$PI_HOME/mcp.json" ]]; then
   cp "$PI_HOME/mcp.json" "$PI_DIR/config/mcp.example.json"
