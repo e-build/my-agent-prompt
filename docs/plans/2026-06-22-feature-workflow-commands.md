@@ -13,7 +13,7 @@
 
 - kkiri의 기능개발 방법론(AGENTS.md 6단계 절차 + 8개 표준 템플릿 + 규약)을 **범용 재사용 가능한 command**로 패키징
 - 새 프로젝트 초기 설정 → 기능 추가/고도화 → 디자인 시스템 초기화까지 한 command로 처리
-- 설치는 `zz-workflow:init`, 기능 추가는 `zz-workflow:new`, 디자인 시스템은 `zz-workflow:design`
+- 설치는 `zz-workflow:init`, 기능 추가는 `zz-workflow:new`, 디자인 시스템은 `zz-workflow:design-system`
 - AGENTS.md는 설치되면 항상 켜져 있는 규칙, command는 필요시 명시적 호출
 
 ## 전체 아키텍처
@@ -26,7 +26,7 @@ Layer 1: AGENTS.md (always-on — zz-workflow:init이 설치)
 Layer 2: Commands (on-demand — 사용자가 명시적 호출)
   ├── zz-workflow:init           → AGENTS.md + 템플릿 + 규약을 대상 프로젝트에 설치
   ├── zz-workflow:new {feature}  → 새 기능 or 기존 기능 고도화 (버전 자동 결정)
-  └── zz-workflow:design         → 디자인 시스템 디렉토리 구조 초기화
+  └── zz-workflow:design-system → 디자인 시스템 디렉토리 구조 초기화
 
 Layer 3: Resource files (docs/feature-workflow/ — command가 참조)
   → 템플릿 파일, 규약 템플릿, AGENTS.md/PROGRESS.md/screen-definitions.md 스타터
@@ -79,7 +79,7 @@ Layer 3: Resource files (docs/feature-workflow/ — command가 참조)
 4. `{target}/PROGRESS.md` 매트릭스에 새 기능 행 추가
 5. `{target}/docs/screen-definitions.md`는 등록 안 함 (화면 ID는 3단계에서 결정)
 
-### 3. `zz-workflow:design`
+### 3. `zz-workflow:design-system`
 
 **기능**: 대상 프로젝트에 디자인 시스템 구조를 초기화한다. 빈 디렉토리 구조 + 스타터 템플릿을 생성.
 
@@ -104,7 +104,7 @@ my-agent-prompt/
 ├── command/
 │   ├── zz-workflow-init.md          # /zz-workflow:init
 │   ├── zz-workflow-new.md           # /zz-workflow:new
-│   └── zz-workflow-design.md        # /zz-workflow:design
+│   └── zz-workflow-design-system.md        # /zz-workflow:design-system
 ```
 
 ### 리소스 파일들 (command가 읽어서 복사/참조)
@@ -157,7 +157,7 @@ prompt/review/feature-doc-workflow.md  ← 업데이트 또는 삭제
 |---|------|------|
 | 1 | `command/zz-workflow-init.md` | init command 본문 |
 | 2 | `command/zz-workflow-new.md` | new command 본문 |
-| 3 | `command/zz-workflow-design.md` | design command 본문 |
+| 3 | `command/zz-workflow-design-system.md` | design-system command 본문 |
 | 4 | `docs/feature-workflow/AGENTS.md` | → project root |
 | 5 | `docs/feature-workflow/PROGRESS.md` | → project root |
 | 6 | `docs/feature-workflow/screen-definitions.md` | → project docs/ |
@@ -189,7 +189,7 @@ prompt/review/feature-doc-workflow.md  ← 업데이트 또는 삭제
 
 8. `command/zz-workflow-init.md` 작성
 9. `command/zz-workflow-new.md` 작성
-10. `command/zz-workflow-design.md` 작성
+10. `command/zz-workflow-design-system.md` 작성
 
 ### Phase 3: 정리
 
