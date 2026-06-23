@@ -1,6 +1,18 @@
 ---
 name: feature-doc-workflow
-description: Docs-first, stage-gated feature development workflow. Drives a feature through 6 stages — requirements → plans/policy → screens → API+error-codes → design → implementation — with mandatory agreement gates between stages, using an 8-file standard document set per feature version under docs/features/{feature}/v{version}/. Scaffolds the feature directory, maintains a root PROGRESS.md matrix, and keeps decisions/progress logs. Defaults to a REST envelope (result/data/error), cursor pagination, and UPPERCASE_SNAKE error codes — all overridable per project. Use when starting a new feature, scaffolding feature docs, writing an API spec with error codes, or tracking multi-stage feature progress. Triggers: "새 기능 문서", "feature 스캐폴드", "기능 작업 시작", "요구사항부터 구현까지", "API 명세 + 에러 코드 정의", "6단계 절차", "new feature docs".
+description: >
+  Docs-first, stage-gated feature development workflow. Drives a feature through
+  6 stages — requirements → plans/policy → screens → API+error-codes → design →
+  implementation — with mandatory agreement gates between stages, using an
+  8-file standard document set per feature version under
+  docs/features/{feature}/v{version}/. Scaffolds the feature directory, maintains
+  a root PROGRESS.md matrix, and keeps decisions/progress logs. Defaults to a
+  REST envelope (result/data/error), cursor pagination, and UPPERCASE_SNAKE
+  error codes — all overridable per project. Use when starting a new feature,
+  scaffolding feature docs, writing an API spec with error codes, or tracking
+  multi-stage feature progress. Triggers: '새 기능 문서', 'feature 스캐폴드',
+  '기능 작업 시작', '요구사항부터 구현까지', 'API 명세 + 에러 코드 정의',
+  '6단계 절차', 'new feature docs'.
 ---
 
 # Feature Doc Workflow
