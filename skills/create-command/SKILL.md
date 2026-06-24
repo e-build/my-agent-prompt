@@ -1,110 +1,111 @@
 ---
 name: create-command
 description: >-
-  Guides through creating a new OpenCode command with interactive interview,
-  $VARIABLE configuration, and validation. Use when user says "create opencode
-  command", "new opencode command", "build command for opencode", or wants to
-  create an OpenCode command markdown file.
-user-invocable: true
-disable-model-invocation: false
-allowed-tools: AskUserQuestion, Task, Read, Write, Edit, Glob, Grep
+  Guides through creating a new pi prompt template (slash command) with
+  interactive interview, $1/$ARGUMENTS configuration, and validation. Use
+  when user says "create pi command", "new slash command", "make a prompt
+  template", "build command for pi", or wants to create a pi prompt template
+  markdown file that runs as /name.
+allowed-tools: ask_user_question, read, write, edit, bash
 ---
 
-# Create OpenCode Command
+# Create pi Prompt Template (Slash Command)
 
-You are initiating the OpenCode command creation workflow. This process guides the user through an interactive interview to gather requirements, generates a properly formatted command markdown file, and validates the result.
+You are initiating the pi command (prompt template) creation workflow. This
+process guides the user through an interactive interview to gather requirements,
+generates a properly formatted prompt template markdown file, and validates the
+result.
+
+In pi, a **slash command** is a **prompt template**: a Markdown file in a
+`prompts/` directory whose filename (minus `.md`) becomes the `/name` command.
+The file content is the prompt; it is expanded in place when the user types
+`/name [args...]`.
 
 ## Critical Rules
 
-### AskUserQuestion is MANDATORY
+### ask_user_question is MANDATORY
 
-**IMPORTANT**: You MUST use the `AskUserQuestion` tool for ALL questions to the user. Never ask questions through regular text output.
+**IMPORTANT**: You MUST use the `ask_user_question` tool for ALL questions to the
+user. Never ask questions through regular text output.
+
+### Generate and validate inline
+
+OpenCode-based variants of this skill spawn separate generator and validator
+subagents. **Do not do that here.** Writing one Markdown file does not justify
+two subagents. Do the interview, write the file directly with `write`, validate
+it yourself, and present it. Keep it to a single pass.
 
 ---
 
-## Phase 1: Load References
+## Phase 1: Confirm the pi Mechanism
 
-Read the OpenCode platform overview and command guide:
+A pi "command" is a **prompt template**, not a TypeScript extension command.
+Read the reference once so you cite the current spec:
 
-1. Read `${CLAUDE_PLUGIN_ROOT}/references/platform-overview.md`
-2. Read `${CLAUDE_PLUGIN_ROOT}/references/command-guide.md`
+1. Read `${PI_DOCS}/prompt-templates.md` (resolved against the pi docs directory
+   shown in your environment, e.g.
+   `.../@earendil-works/pi-coding-agent/docs/prompt-templates.md`).
+2. Key facts to internalize (do not recite unless asked):
+   - Filename without `.md` = command name. `review.md` → `/review`.
+   - Frontmatter supports `description` and `argument-hint`. **That's it.** There
+     is no per-template `model` or `agent` override in pi prompt templates.
+     `model` is session-level (`/model`); agent delegation is done by instructing
+     the template body to call the `subagent` tool.
+   - Arguments are positional: `$1`, `$2`, ... ; `$@` / `$ARGUMENTS` for all
+     joined; `${1:-default}` and `${@:N}` / `${@:N:L}` slicing. There are no
+     named `$VARIABLE` prompts like OpenCode's — emulate naming through
+     `argument-hint` and comments in the body.
+   - Locations: project `.pi/prompts/*.md`, global `~/.pi/agent/prompts/*.md`,
+     packages, settings `prompts` array, or `--prompt-template`.
+
+If `${PI_DOCS}` is not resolvable in the environment, proceed from the facts
+above; they are the authoritative pi prompt-template spec.
 
 ---
 
 ## Phase 2: Interview
 
-Gather requirements through a structured interview.
+Gather requirements through a structured interview. Ask all four questions below
+in a single `ask_user_question` call where possible (pi allows up to 4 questions
+per invocation).
 
-### Round 1: Basics
-
-**Question 1 — Command Name:**
-- Header: "Command Name"
-- Question: "What should this command be named? It will be invoked as `/{name}`. Use kebab-case."
+### Question 1 — Command Name
+- Header: `Command Name`
+- Question: `What should this command be named? It will be invoked as /name. The markdown filename = the command name, kebab-case recommended.`
 - Options:
-  - "I'll type the name" — Let me provide a custom name
+  - `I'll type the name` — Let me provide a custom kebab-case name
 
-**Question 2 — Purpose:**
-- Header: "Purpose"
-- Question: "What does this command do?"
+### Question 2 — Purpose
+- Header: `Purpose`
+- Question: `What does this command do?`
 - Options:
-  - "Workflow shortcut" — Automates a frequently used multi-step process
-  - "Template task" — Structured prompt with variable inputs
-  - "Scripted operation" — Executes specific tool sequences
-  - "Custom" — I'll describe it
+  - `Workflow shortcut` — Automates a frequently used multi-step process
+  - `Template task` — Structured prompt with variable inputs
+  - `Custom` — I'll describe it
 
-**Question 3 — Description:**
-- Header: "Description"
-- Question: "Briefly describe what this command does (shown in the command list)."
+### Question 3 — Arguments
+- Header: `Arguments`
+- Question: `Does the command need user-provided arguments?`
 - Options:
-  - "I'll type a description" — Let me write a custom description
+  - `No arguments` — The command works with no input
+  - `Single free-text ($ARGUMENTS)` — One blob of text via $ARGUMENTS or $@
+  - `Positional args ($1, $2, ...)` — Multiple ordered arguments, some with defaults
 
-### Round 2: Variables & Model
+If `Positional args`:
 
-**Question 1 — Variables:**
-- Header: "Variables"
-- Question: "Does the command need user-provided input via $VARIABLE placeholders?"
+Ask a follow-up (single question):
+- Header: `Arg Spec`
+- Question: `List the arguments in order, with defaults for optional ones. Example: "<FILE> [FORMAT=markdown] [LIMIT=10]" becomes $1, ${2:-markdown}, ${3:-10}.`
 - Options:
-  - "Yes, I'll list them" — I need specific named variables
-  - "Just $ARGUMENTS" — A single free-text argument
-  - "No variables" — The command works without user input
-- multiSelect: false
+  - `I'll type the spec` — Let me write the argument spec
 
-If "Yes":
-
-**Question 2 — Variable Names:**
-- Header: "Var Names"
-- Question: "List the variable names (e.g., FILE_PATH, TARGET_BRANCH, OUTPUT_FORMAT). Each becomes a $VARIABLE prompt."
+### Question 4 — Location & Scope
+- Header: `Location`
+- Question: `Where should the template be created?`
 - Options:
-  - "I'll type them" — Let me list the variable names
-
-**Question 3 — Model Override:**
-- Header: "Model"
-- Question: "Should this command use a specific model? (Commands are the only extension type with per-invocation model override.)"
-- Options:
-  - "No override (Recommended)" — Use the session's current model
-  - "Opus" — Use anthropic/claude-opus-4-6 for complex reasoning
-  - "Sonnet" — Use anthropic/claude-sonnet-4-6 for balanced performance
-  - "Haiku" — Use anthropic/claude-haiku-4-5 for speed
-- multiSelect: false
-
-**Question 4 — Agent Routing:**
-- Header: "Agent"
-- Question: "Should this command be routed to a specific agent?"
-- Options:
-  - "No (Recommended)" — Use the current agent context
-  - "Yes" — Route to a specific named agent
-- multiSelect: false
-
-### Round 3: Location
-
-**Question 1 — Location:**
-- Header: "Location"
-- Question: "Where should the command be created?"
-- Options:
-  - "Project (.opencode/commands/)" — Available only in this project
-  - "Global (~/.config/opencode/commands/)" — Available in all projects
-  - "Custom path" — I'll specify the directory
-- multiSelect: false
+  - `Project (.pi/prompts/)` — Available only in this project (Recommended)
+  - `Global (~/.pi/agent/prompts/)` — Available in all projects
+  - `Custom path` — I'll specify the directory
 
 ### Interview Summary
 
@@ -113,70 +114,75 @@ Present a summary:
 ```
 ## Command Summary
 
-- **Name**: {name} (invoked as /{name})
-- **Description**: {description}
-- **Variables**: {list of $VARIABLE names or "none"}
-- **Model override**: {model or "none"}
-- **Agent**: {agent name or "none"}
-- **Location**: {path}
+- Name: {name} (invoked as /{name})
+- Description: {description}
+- Arguments: {spec, e.g. "$1 <FILE>, ${2:-markdown}" or "none"}
+- argument-hint: {derived from spec, or omitted}
+- Location: {path}/{name}.md
+- Model override: none (session-level via /model — not a template field)
+- Agent delegation: {none | instructed in body via subagent tool}
 ```
 
-Use `AskUserQuestion` to confirm:
-- Header: "Confirm"
-- Question: "Does this look correct? Ready to generate the command?"
+Use `ask_user_question` to confirm:
+- Header: `Confirm`
+- Question: `Does this look correct? Ready to generate the template?`
 - Options:
-  - "Yes, generate it"
-  - "Make changes"
+  - `Yes, generate it`
+  - `Make changes`
 
 ---
 
 ## Phase 3: Generate
 
-Spawn the generator agent:
+Write the file directly with `write`. Structure:
 
-```
-Task:
-  subagent_type: "agent-alchemy-opencode-tools:oc-generator"
-  prompt: |
-    Generate an OpenCode command with these specifications:
+````markdown
+---
+description: {one-line description, shown in autocomplete}
+argument-hint: {only if args exist, e.g. "<FILE> [FORMAT]"}
+---
+{prompt body}
 
-    Type: command
-    Name: {name}
-    Description: {description}
-    Variables: {list of $VARIABLE names}
-    Model override: {model or "none"}
-    Agent: {agent name or "none"}
-    Subtask: {true/false}
-    Purpose: {detailed purpose from interview}
-    Target path: {target directory}/commands/{name}.md
+<!-- Args: $1 = {meaning}, ${2:-default} = {meaning} -->
+````
 
-    NOTE: Commands support `agent` (which agent executes) and `subtask` (force subagent execution) frontmatter fields in addition to `model` and `description`.
-
-    Reference guide: ${CLAUDE_PLUGIN_ROOT}/references/command-guide.md
-    Template: ${CLAUDE_PLUGIN_ROOT}/references/templates/command-template.md
-
-    Interview notes:
-    {all gathered requirements}
-```
+Rules while writing:
+1. **Filename = command name.** `{name}.md`. No other indirection.
+2. **Frontmatter stays to `description` + optional `argument-hint`.** Do NOT
+   invent `model`, `agent`, or `subtask` fields — they are silently ignored by pi
+   and will mislead the user.
+3. **Use positional args** (`$1`, `${2:-default}`, `$@`). Document each arg's
+   meaning in an HTML comment at the top of the body so the user (and future
+   you) knows what `$3` means without re-reading the interview.
+4. **If the user wanted agent delegation or a fixed model**, encode it as
+   instructions in the body (e.g. "Run this via the `subagent` tool, agent: X")
+   or tell the user to set the model per-session with `/model`. State this
+   tradeoff in the presentation step.
+5. **Shortest working prompt wins.** No ceremony, no sections the user didn't
+   ask for.
 
 ---
 
 ## Phase 4: Validate
 
-Spawn the validator agent:
+Validate yourself (no subagent). Check against the pi prompt-template spec:
 
+- [ ] Filename is kebab-case, ends in `.md`, and matches the requested command name.
+- [ ] `description` present and <= 1024 chars.
+- [ ] `argument-hint` present only if args exist; uses `<required>` / `[optional]`.
+- [ ] Every `$N` / `${N:-default}` referenced in the body is covered by the spec.
+- [ ] No non-existent frontmatter fields (`model`, `agent`, `subtask`, etc.).
+- [ ] File is in a real prompts location (project `.pi/prompts/`, global
+      `~/.pi/agent/prompts/`, or a settings/package dir).
+
+Confirm the file exists and frontmatter parses:
+
+```bash
+ls -l {path}/{name}.md && head -5 {path}/{name}.md
 ```
-Task:
-  subagent_type: "agent-alchemy-opencode-tools:oc-validator"
-  prompt: |
-    Validate the following OpenCode artifact:
 
-    Type: command
-    Path: {path to generated file}
-    Reference guide: ${CLAUDE_PLUGIN_ROOT}/references/command-guide.md
-```
-
-If validation fails with errors, fix and re-validate.
+If anything fails, fix with `edit` and re-check. Do not declare success until the
+checks pass (verification-before-completion: evidence before assertion).
 
 ---
 
@@ -184,14 +190,32 @@ If validation fails with errors, fix and re-validate.
 
 Present the generated command:
 
-1. Read the generated file
-2. Show the file contents
-3. Explain key design decisions:
-   - $VARIABLE placeholder usage
-   - Model override rationale (if applicable)
-   - Why command vs skill was the right choice
-4. Show validation results
-5. Explain how to invoke: `/{name}` in the OpenCode TUI
-6. If variables are present, show what the user will be prompted for
+1. Show the file contents (`read`).
+2. Explain key decisions in at most three lines:
+   - How positional args map to the user's intent.
+   - If model/agent was requested: why it became body-level instructions or a
+     `/model` note rather than frontmatter.
+   - Why a prompt template (vs an extension `registerCommand` or a full skill)
+     was the right choice for this use case.
+3. Show the validation checklist result.
+4. Explain how to invoke: type `/{name}` in the pi editor; autocomplete shows the
+   description and `argument-hint`. Append args: `/{name} arg1 arg2`.
+5. If args exist, show a concrete worked example with sample values.
 
 **CRITICAL**: Complete ALL 5 phases before finishing.
+
+---
+
+## Scope Note: When a prompt template is NOT enough
+
+A prompt template only expands text — it cannot register new tools, intercept
+events, or run code. If the user needs any of:
+
+- a custom tool callable by the LLM,
+- lifecycle/event hooks,
+- programmatic argument autocompletion,
+- imperative logic at invocation time,
+
+then what they want is a **pi extension** with `pi.registerCommand()`, not a
+prompt template. Tell them so in one line and point at `${PI_DOCS}/extensions.md`
+rather than forcing a template to fit.
