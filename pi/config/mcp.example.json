@@ -1,9 +1,29 @@
 {
   "mcpServers": {
-    "pencil": {
-      "command": "/Applications/Pencil.app/Contents/Resources/app.asar.unpacked/out/mcp-server-darwin-arm64",
-      "args": ["--app", "desktop"],
-      "env": {}
+    "grep": {
+      "url": "https://mcp.grep.app"
+    },
+    "shopl-mysql-dev": {
+      "command": "npx",
+      "args": ["-y", "@benborla29/mcp-server-mysql"],
+      "env": {
+        "MYSQL_HOST": "192.168.31.221",
+        "MYSQL_PORT": "50006",
+        "MYSQL_USER": "jimmy",
+        "MYSQL_PASS": "plan0415!!",
+        "MYSQL_DB": "new_shopl",
+        "MYSQL_POOL_SIZE": "3",
+        "MYSQL_QUERY_TIMEOUT": "30000",
+        "MYSQL_CACHE_TTL": "60000",
+        "MYSQL_RATE_LIMIT": "100",
+        "MYSQL_MAX_QUERY_COMPLEXITY": "1000",
+        "ENABLE_LOGGING": "true",
+        "MYSQL_LOG_LEVEL": "info",
+        "MYSQL_METRICS_ENABLED": "true",
+        "ALLOW_INSERT_OPERATION": "false",
+        "ALLOW_UPDATE_OPERATION": "false",
+        "ALLOW_DELETE_OPERATION": "false"
+      }
     }
   }
 }

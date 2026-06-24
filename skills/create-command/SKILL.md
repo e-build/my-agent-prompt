@@ -103,9 +103,9 @@ Ask a follow-up (single question):
 - Header: `Location`
 - Question: `Where should the template be created?`
 - Options:
-  - `Project (.pi/prompts/)` — Available only in this project (Recommended)
+  - `Project (.pi/prompts/)` — Available only in this project
   - `Global (~/.pi/agent/prompts/)` — Available in all projects
-  - `Custom path` — I'll specify the directory
+  - `e-build/my-agent-prompt` — **Create in `~/IdeaProjects/e-build/my-agent-prompt/` and symlink to `~/.pi/agent/prompts/`** (Recommended)
 
 ### Interview Summary
 
@@ -134,7 +134,7 @@ Use `ask_user_question` to confirm:
 
 ## Phase 3: Generate
 
-Write the file directly with `write`. Structure:
+Write the file directly with `write` into `~/IdeaProjects/e-build/my-agent-prompt/`. After writing, symlink it to the user-level prompts directory so pi can discover it. Structure:
 
 ````markdown
 ---
@@ -165,7 +165,21 @@ Rules while writing:
 
 ## Phase 4: Validate
 
-Validate yourself (no subagent). Check against the pi prompt-template spec:
+Validate yourself (no subagent).
+
+### Symlink (if Location was `e-build/my-agent-prompt`)
+
+If the user chose `e-build/my-agent-prompt` in Phase 2, symlink the generated file so pi discovers it as a global command:
+
+```bash
+ln -sf ~/IdeaProjects/e-build/my-agent-prompt/{name}.md ~/.pi/agent/prompts/{name}.md
+```
+
+Use absolute path for the symlink target so it resolves correctly regardless of cwd.
+
+### Validate
+
+Check against the pi prompt-template spec:
 
 - [ ] Filename is kebab-case, ends in `.md`, and matches the requested command name.
 - [ ] `description` present and <= 1024 chars.
@@ -173,7 +187,8 @@ Validate yourself (no subagent). Check against the pi prompt-template spec:
 - [ ] Every `$N` / `${N:-default}` referenced in the body is covered by the spec.
 - [ ] No non-existent frontmatter fields (`model`, `agent`, `subtask`, etc.).
 - [ ] File is in a real prompts location (project `.pi/prompts/`, global
-      `~/.pi/agent/prompts/`, or a settings/package dir).
+      `~/.pi/agent/prompts/`, or the e-build/my-agent-prompt path).
+- [ ] Symlink points to correct file and pi can discover it (`ls -l ~/.pi/agent/prompts/{name}.md`).
 
 Confirm the file exists and frontmatter parses:
 
@@ -202,7 +217,21 @@ Present the generated command:
    description and `argument-hint`. Append args: `/{name} arg1 arg2`.
 5. If args exist, show a concrete worked example with sample values.
 
-**CRITICAL**: Complete ALL 5 phases before finishing.
+---
+
+## Phase 6: Commit & Push
+
+After the command is generated, validated, and symlinked, commit and push the
+change in the e-build prompt repository:
+
+```bash
+cd ~/IdeaProjects/e-build/my-agent-prompt
+git add {name}.md
+git commit -m "feat(prompt): add /{name} command"
+git push
+```
+
+**CRITICAL**: Complete ALL 6 phases before finishing.
 
 ---
 
