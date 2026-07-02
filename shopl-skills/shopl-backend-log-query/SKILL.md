@@ -180,10 +180,6 @@ filter: rId=<RID> AND ctxtId=<CTXTID>, sort @timestamp asc
 ```
 > 외부 API 지연은 IDP의 `Feign:ResponseIn` `message_data.elapsedMs`로 동일하게 분석.
 
-### 7. 인센티브 계산 추적
-
-→ 도메인 카탈로그 [Backend-API / IncentiveCalculation·IncentiveStatusUserSchemeAmount](#incentivecalculation-incentivestatususerschemeamount-추적-패턴) 섹션에서 확인할 것.
-
 ## ES 부하 가드 (중요)
 ES는 `r6g.large`(2cpu/16gb) 소규모. 광범위 쿼리 한 번이 전체 클러스터를 느리게 만든다.
 
