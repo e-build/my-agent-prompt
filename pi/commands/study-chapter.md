@@ -55,7 +55,7 @@ argument-hint: "[챕터명] [단계]"
 - 결과를 `test.md`에 기록한다.
 
 ### review (복습)
-- 복습은 `/study-review` 커맨드로 위임한다. 에이전트는 Verifier/Reinforcer/Curious Student/Scheduler 역할로 4단계(blank-recall → gap-fill → self-lecture → schedule)를 진행한다.
+- 복습은 `/study-review` 커맨드로 위임한다. 에이전트는 Verifier/Reinforcer/Curious Student/Anchorer/Scheduler 역할로 5단계(blank-recall → gap-fill → self-lecture → analogy-lock → schedule)를 진행한다.
 - `review/` 디렉토리가 없으면 생성한다.
 - 피드백은 본 학습 범위(concept/lab)로 한정. 벗어나면 `review/learning-gaps.md`에 분류.
 

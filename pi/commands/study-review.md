@@ -1,8 +1,8 @@
 ---
-description: 챕터 복습 세션 — Verifier/Reinforcer/Curious Student/Scheduler 역할로 4단계 진행
+description: 챕터 복습 세션 — Verifier/Reinforcer/Curious Student/Anchorer/Scheduler 역할로 5단계 진행
 argument-hint: "[챕터명] [단계]"
 ---
-<!-- Args: $1 = [챕터명] (optional, e.g. "01-인덱스-기초"), $2 = [단계] (optional, "blank-recall"|"gap-fill"|"self-lecture"|"schedule") -->
+<!-- Args: $1 = [챕터명] (optional, e.g. "01-인덱스-기초"), $2 = [단계] (optional, "blank-recall"|"gap-fill"|"self-lecture"|"analogy-lock"|"schedule") -->
 # 챕터 복습 세션
 
 복습은 **이미 배운 것(개념 학습 + 실습)을 굳히는 작업**이다.
@@ -12,7 +12,7 @@ argument-hint: "[챕터명] [단계]"
 
 - 인자 없음: 가장 복습 시점이 지난 챕터를 찾는다 (`schedule.md`의 다음 회고일 기준).
 - `$1` 지정 (`01` / `01-인덱스-기초`): 해당 챕터. 숫자만 오면 `ch-{숫자}-*` glob.
-- `$2` 지정: 해당 복습 단계로 바로 점프. 가능한 값: `blank-recall`, `gap-fill`, `self-lecture`, `schedule`.
+- `$2` 지정: 해당 복습 단계로 바로 점프. 가능한 값: `blank-recall`, `gap-fill`, `self-lecture`, `analogy-lock`, `schedule`.
 
 ## ⚠️ 스코프 가드 (가장 중요)
 
@@ -33,30 +33,49 @@ argument-hint: "[챕터명] [단계]"
 
 ### 1. blank-recall — Agent = 검증자 (Verifier)
 - 학습자가 챕터를 덮고 핵심 개념을 백지에 적는다. 에이전트가 대신 적지 않는다.
-- 에이전트는 `concept`/`lab` 원본과 대조해 **기대 목록(expected list)**을 제시한다.
-- 누락/오개념을 마킹한다. 이때 범위 밖이면 `learning-gaps.md`로 보낸다.
-- 결과를 `blank-recall.md`에 기록: 적은 것 vs 기대 목록 vs 차이.
+- 에이전트는 `concept`/`lab` 원본에서 **정확히 5개의 핵심 아이디어(load-bearing ideas)**만 뽑아 **기대 목록(expected list)**을 제시한다. 사실 전체가 아니라 개념을 버티는 5개다.
+  - 각 아이디어: 1문장 정의(12세 말투, 전문용어 금지) + "현실에서 왜 중요한가" + "진짜 이해했는지 확인할 질문 1개".
+- 모범 답안(기대 목록)은 **학습자가 먼저 다 쓴 뒤** 비교용으로 보여준다. 먼저 보여주면 베끼기/유창성 환각이 생긴다.
+- 학습자가 적은 것을 5개 아이디어별로 **STRONG / WEAK / WRONG**으로 분급한다:
+  - **STRONG** — 핵심을 잡고 정확. 다시 볼 필요 없음.
+  - **WEAK** — 절반은 맞고 핵심 누락/헷갈림.
+  - **WRONG** — 틀렸거나 오개념. 또는 아예 못 적음.
+- 범위 밖(본 학습에서 안 다룬 것)을 WEAK/WRONG으로 분급하면 안 된다 → `learning-gaps.md`로 보낸다.
+- 결과를 `blank-recall.md`에 기록: 5개 기대 아이디어 + 학습자 답 + STRONG/WEAK/WRONG 분급.
 
 ### 2. gap-fill — Agent = 보강자 (Reinforcer)
-- `blank-recall.md`의 **회상 누락(recall gap)만** 타겟. 전체 재독 금지.
-- 누락 항목별로 미니 설명 1개 + 연습문제 1~2개를 생성한다.
+- `blank-recall.md`에서 **WEAK / WRONG**으로 분급된 항목만 타겟. STRONG은 건너뛴다. 전체 재독 금지.
+- 각 항목별로: 미니 설명 1개(12세 말투)를 **이전과 다른 비유**로 제시 + 연습문제 1~2개. 같은 비유 반복은 효과가 없다.
 - 학습 누락(learning gap)은 여기서 다루지 않는다 → `learning-gaps.md` 유지.
-- 결과를 `gap-fill.md`에 기록.
+- 끝에 **"가장 먼저 다시 공부할 1개"**를 한 줄로 지정한다 — 전체가 아니라 딱 한 군데.
+- 결과를 `gap-fill.md`에 기록: WEAK/WRONG 항목별 정정 + 다음 우선순위 1개.
 
 ### 3. self-lecture — Agent = 호기심 많은 학생 (Curious Student) ★ 핵심
 - 학습자가 설명한다. 에이전트는 **초보 학생 역할**로 "왜요?", "그러면 이 경우엔 어떻게 되나요?" 위성 질문을 던진다.
+- **12세도 이해할 수 있을 만큼 단순한 말**로 설명하는지를 잣대로 삼는다. 전문용어가 튀어나오면 "그 단어 없이 설명해 줄래?" 되묻는다.
 - 손웨이빙(대충 넘기기), 오개념, 논리 비약을 잡아낸다.
 - 질문은 **본 학습 범위 내에서만**. 범위 밖을 묻지 않는다. (벗어나면 `learning-gaps.md`)
 - 막힌 지점이 진짜 빈틈 → `gap-fill.md`로 회귀 루프.
 - 대화 요약을 `self-lecture.md`에 기록: 어디서 막혔는지, 어떤 질문이 빈틈을 드러냈는지.
 
-### 4. schedule — Agent = 스케줄러 (Scheduler)
-- 분산 반복 일정을 `schedule.md`에 기록: 3일 / 1주 / 2주 뒤 회고.
+### 4. analogy-lock — Agent = 정착자 (Anchorer)
+- 빈틈이 모두 메워진 **최종 이해**를 비유로 고정한다. `gap-fill`/`self-lecture`가 끝난 뒤에 진행.
+- 5개 핵심 아이디어 각각에 비유 **2개**를 만든다:
+  - **비유 1 (일상생활)** — 요리·운전·운동·날씨·가족·돈 등
+  - **비유 2 (성인 경험)** — 직장·스마트폰·돈 관리·시간 관리 등
+- 각 비유마다:
+  - **어디서 작동하는가** (비유가 맞는 부분)
+  - **어디서 깨지는가** (비유가 틀리는 부분) ★ 핵심 — 한계를 모르면 잘못된 그림을 달고 다니게 된다.
+- 마지막에 아이디어별로 **1문장 요약**을 하나씩 만든다 — 내일 아침 다시 읽을 용도. 그 한 문장이 비유를, 비유가 전체 개념을 끌고 온다.
+- 결과를 `analogy-lock.md`에 기록: 5개 아이디어 × (비유 2 + 작동/붕괴 지점 + 1문장 요약).
+
+### 5. schedule — Agent = 스케줄러 (Scheduler)
+- `analogy-lock`으로 고정된 이해를 분산 반복으로 굳힌다. 일정을 `schedule.md`에 기록: 3일 / 1주 / 2주 뒤 회고.
 - **매 회고마다 새 질문(FRESH)을 생성**한다. 같은 문제를 반복하지 않는다 — 문제를 외우면 복습 효과가 사라진다.
 - 직전 회고 성과에 따라 간격을 조정: 약하면 간격을 줄이고, 강하면 늘린다.
 - 다음 회고일을 안내하고 종료한다.
 
 ## 종료 조건
 
-- 4단계 완료 → "이번 회고 완료, 다음 회고일: YYYY-MM-DD" 안내.
+- 5단계 완료 → "이번 회고 완료, 다음 회고일: YYYY-MM-DD" 안내.
 - `learning-gaps.md`에 항목이 생겼으면 → "**이건 복습이 아니라 본 학습 누락입니다. `/study-chapter {slug}`로 돌아가 해당 개념을 먼저 배우세요.**" 명시.
