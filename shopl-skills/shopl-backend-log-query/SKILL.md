@@ -246,7 +246,7 @@ es-query.sh query.json
 cat query.json | es-query.sh
 
 # 카운트만
-COUNT=true es-query.sh query.json
+COUNT=1 es-query.sh query.json   # COUNT=1 또는 COUNT=true
 ```
 `es-query.sh`는 결과를 `_source` 정제 + `stack_trace` 2000자 cap + 요약 포맷으로 출력하여 컨텍스트를 절약한다.
 실행 전 config.env에 ES 접속정보가 설정되어 있어야 한다.
