@@ -12,6 +12,7 @@
 | 사용자가 묻는 것 | service_type | message_type / 쿼리 |
 |---|---|---|
 | 운영 일반 / 근태 / 인센티브 | `Backend-API` | `AttendanceRecord:*`, `Incentive*`, `Authentication:*` |
+| 출퇴근 이력 / 근무지 | `Backend-API` | `AttendanceRecord:PunchIn/PunchOut` (`clientId`, `workplaceId`) |
 | IDP / 토큰 / 인증서버 | `IDP` | `OAuth2:*`, `Feign:*`, `Device:*`, `SecurityChain:*` |
 | 배치 / 스케줄러 | `Batch-New`, `BATCH` | `BatchJob:*`, `StagingToAttRecord:*`, `DomainEvent:*` |
 | 딥링크 리다이렉트 | `LINK` | `DeepLink:Redirect` |
@@ -301,6 +302,8 @@ CAP 적용까지 보려면 prefix를 `Incentive`로 확장: `{"prefix": {"messag
 | `HTTP:ResponseOut` | 응답 status + 소요시간. 느린 API 분석: `message_data.elapseMillis` desc |
 
 **상세 필드**: `RequestIn` = `uri`, `parameter`, `header` / `RequestBody`·`ResponseBody` = `body` / `ResponseOut` = `status`, `elapseMillis`
+
+> ⚠ `HTTP:RequestBody.body`는 엔드포인트·서비스·요청에 따라 `{}`일 수 있다. 대상 식별은 가능하면 도메인 구조화 로그(`AttendanceRecord:*`, `LocationCheck:*` 등)의 `message_data`를 우선 확인한다.
 
 ---
 

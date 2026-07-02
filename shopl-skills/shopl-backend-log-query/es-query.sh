@@ -84,6 +84,12 @@ if [ "$IS_COUNT" = "0" ]; then
   fi
 fi
 
+# --- count 모드 정리 ---
+# _count 엔드포인트는 sort/size/_source 등을 지원하지 않는다.
+if [ "$IS_COUNT" = "1" ]; then
+  QUERY=$(printf '%s' "$QUERY" | jq -c 'del(.sort, .size, ._source, .track_total_hits)')
+fi
+
 # --- 엔드포인트 ---
 if [ "$IS_COUNT" = "1" ]; then
   URL="${ES_ENDPOINT%/}/${ES_INDEX_PATTERN}/_count"
@@ -112,7 +118,7 @@ printf '%s' "$RESP" | jq --argjson cap "${TEXT_CAP:-2000}" '
   else
     "total: \(.hits.total.value)\(if (.hits.total.relation // "eq") == "gte" then "+" else "" end)  (took \(.took)ms, timed_out: \(.timed_out))",
     ( if .aggregations then
-        "aggregations: " + (.aggregations | tostring | .[0:3000])
+        "aggregations: " + (.aggregations | tostring)
       else empty end ),
     (.hits.hits[]._source
       | {
