@@ -41,7 +41,7 @@
 | `OAuth2:TokenLifecycle` | 토큰 발급/갱신/무효화 전 과정. 검색: `eventType`, `status`, `tokenType` |
 | `OAuth2:TokenLookupResult` | 토큰 조회 결과. 검색: `found`, `tokenType` |
 | `OAuth2:TokenRequestReceived` | 토큰 요청 진입 |
-| `OAuth2:TokenRequestCompleted` | 토큰 요청 완료. 지연 분석: `elapsedMs` |
+| `OAuth2:TokenRequestCompleted` | 토큰 요청 완료. 지연 분석: `elapsedMs`. **Shopl 계정 역추적 핵심**: `message_data.userId`/`accountId`로 실제 작업자 식별 (연결고리 rId, 보조 uId) |
 | `OAuth2:AuthorizationCodeGenerated` | 인가코드 발급 |
 | `OAuth2:OldAuthorizationDeletionCandidate` | 만료 인가 삭제 후보 |
 | `OAuth2:OldAuthorizationDeletionCompleted` | 만료 인가 삭제 완료 |
