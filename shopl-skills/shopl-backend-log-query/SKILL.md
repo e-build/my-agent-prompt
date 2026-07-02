@@ -1,0 +1,207 @@
+# Shopl Elasticsearch 로그 조회 스킬
+
+Shopl 백엔드 로그(Elasticsearch `shopl-backend-log*`)를 효율적으로 검색·분석한다.
+필드 매핑의 특수 제약과 구조화 로그 규칙, 추적 식별자 체계를 정적 지식으로 제공하여
+정확한 쿼리를 즉시 구성하고, 결과를 정제하여 컨텍스트를 절약한다.
+
+## 사용 시기 (Trigger)
+- ES 로그 조회/검색, Kibana 쿼리, 에러/배치/요청 추적, 인센티브 계산 로그 분석
+- "이슈 추적해줘", "에러 로그 찾아줘", "배치 잡 로그 봐줘", "출근/인센티브 로그 검색"
+- shopl-backend-log* 인덱스 기반의 모든 로그 분석
+
+## 접근 정보 (필수)
+- ES 직접 접근은 `es-query.sh` 래퍼를 통해서만 수행 (read-only)
+- 인증 정보는 평문 금지. `~/.config/es-skill/config.env`(권한 600)에 분리
+- config 템플릿: `config.env.example` 참고
+- 호출은 항상 **시간창 + size cap + 타임아웃** 포함
+
+## 빠른 탐색 — 필드 카탈로그
+인덱스 템플릿: `shopl-backend-logs-template` / 패턴 `shopl-backend-log*`
+`dynamic: false` — 정의되지 않은 필드는 색인/검색/집계 불가. 매핑에 없는 필드는 쿼리하지 말 것.
+
+### 식별자 (추적 체계)
+| 필드 | 타입 | 의미 | 쿼리 제약 |
+|------|------|------|-----------|
+| `rId` | keyword, **doc_values:false** | HTTP 요청 ID \| 배치 스케줄러 ID (최상위 추적 단위) | term 조회만 가능. **정렬·집계·스크립트 불가** |
+| `ctxtId` | keyword | 하나의 rId 내 @Async 스레드 구분자 (비동기 추적) | 정렬/집계 가능 |
+| `cId` | keyword | 클라이언트 ID | |
+| `uId` | keyword | 사용자 ID | |
+| `thread_name` | keyword | 실제 스레드명 | |
+
+> 정렬이 필요하면 `rId` 대신 `cId` 또는 `@timestamp` 사용. rId로 정렬 시도 금지.
+
+### 일반 필드
+| 필드 | 타입 | 비고 |
+|------|------|------|
+| `@timestamp` | date | **항상 range로 시간창 좁힐 것** |
+| `level` | keyword | `INFO`, `WARN`, `ERROR` |
+| `env` | keyword | `SHOPL`, `QA`, `CPS`, `SSS`, `UAT` |
+| `service_type` | keyword | `Backend-API`, `External-API`, `BATCH`, `DOWNLOAD`, `LINK`, `IDP` |
+| `requestURI` | keyword | |
+| `logger_name` | keyword | |
+| `log_group` | keyword | |
+
+### 구조화 로그 (핵심)
+| 필드 | 타입 | 설명 |
+|------|------|------|
+| `message` | text (`.keyword` 없음) | 로그 원본 JSON. 정확매칭=`match_phrase`, 부분=`match`. **wildcard/prefix 금지** |
+| `message_type` | keyword | `{domainName}:{ClassName}`. 예) `HTTP:RequestIn`, `BatchJob:JobFailed` |
+| `message_data` | flattened | 구조화 데이터. **json path**로 검색. 예) `message_data.workplaceId`. keyword 취급(term/term**s** 가능, full-text 불가) |
+| `stack_trace` | text (`.keyword` 없음) | 예외 스택. match_phrase 사용, 출력 시 길이 cap |
+
+### 배치 전용
+| 필드 | 타입 |
+|------|------|
+| `bJobName`, `bStepName` | keyword |
+| `bJobExecutionId`, `bJobInstanceId`, `bStepExecutionId` | long |
+
+### 도메인 카탈로그
+17개 domainName + 60여 message_type. "출근/인센티브/배치 로그 찾아줘" 같은 자연어를 정확한 `message_type`으로 매핑하려면
+**`domain-catalog.md`를 반드시 참조**할 것. 자주 쓰는 type:
+- `HTTP:RequestIn` / `HTTP:ResponseOut` / `HTTP:ResponseBody` — API 추적 뼈대
+- `BatchJob:JobStart` / `BatchJob:JobEnd` / `BatchJob:JobFailed` — 배치 라이프사이클
+- `AttendanceRecord:PunchIn` / `AttendanceRecord:PunchOut`
+- `IncentiveCalculation:CalculationStarted/Completed/Error`
+- `Authentication:AuthenticationFailed`
+- `AuthAccountSync:SyncStarted/Failed*/BatchSync*`
+
+## Recipe (추적 패턴)
+`es-query.sh`에 넘길 Query DSL 형태. Kibana에서는 KQL로 변환 가능.
+
+### 1. HTTP 요청 추적 (rId 기준)
+한 요청의 RequestIn → ResponseBody(오류시) → ResponseOut 흐름을 시간순 복원.
+```json
+{
+  "query": {"bool": {"filter": [
+    {"range": {"@timestamp": {"gte": "now-1h", "lte": "now"}}},
+    {"term": {"rId": "<RID>"}}
+  ]}},
+  "sort": [{"@timestamp": "asc"}],
+  "size": 100,
+  "_source": ["@timestamp","level","message_type","message_data","requestURI","logger_name","stack_trace"]
+}
+```
+
+### 2. 에러 분석
+예외가 여러 방식으로 로깅되므로 단일 조건으로는 누락 발생. **`level:ERROR` OR `stack_trace 존재`** 두 조건을 합쳐 검색.
+```json
+{
+  "query": {"bool": {
+    "filter": [
+      {"range": {"@timestamp": {"gte": "now-15m"}}},
+      {"term": {"env": "SHOPL"}}
+    ],
+    "should": [
+      {"term": {"level": "ERROR"}},
+      {"exists": {"field": "stack_trace"}}
+    ],
+    "minimum_should_match": 1
+  }},
+  "sort": [{"@timestamp": "desc"}],
+  "size": 50
+}
+```
+> Kibana KQL: `level:ERROR or stack_trace:*`
+
+이후 특정 rId로 Recipe 1 재실행하여 선행 로그까지 확장. `Authentication:AuthenticationFailed`도 동시 확인.
+
+### 3. 배치 잡 추적
+rId=스케줄러ID. `BatchJob:*` 메시지 + `bJobExecutionId`로 좁히기.
+```json
+{
+  "query": {"bool": {"filter": [
+    {"range": {"@timestamp": {"gte": "now-2h"}}},
+    {"term": {"service_type": "BATCH"}},
+    {"term": {"bJobExecutionId": 12345}}
+  ]}},
+  "sort": [{"@timestamp": "asc"}],
+  "size": 200
+}
+```
+실패 분석 시 `message_type: BatchJob:JobFailed`의 `message_data.failureExceptions`/`failedSteps` 확인.
+
+### 4. 비동기 스레드 추적
+rId + ctxtId로 @Async 분기 추적.
+```
+filter: rId=<RID> AND ctxtId=<CTXTID>, sort @timestamp asc
+```
+
+### 5. 구조화 로그 검색 (message_type + message_data)
+도메인 + 데이터 조건. 도메인 카탈로그에서 정확한 type/필드명 확인 필수.
+```json
+{
+  "query": {"bool": {"filter": [
+    {"range": {"@timestamp": {"gte": "now-1h"}}},
+    {"prefix": {"message_type": "AttendanceRecord:"}},
+    {"term": {"message_data.workplaceId": "16EE8F075E488720"}}
+  ]}},
+  "sort": [{"@timestamp": "asc"}]
+}
+```
+
+### 6. 인센티브 계산 추적
+`IncentiveCalculation` → `IncentiveStatusUserSchemeAmount`(CAP 적용) 연계. schemeId/message_data.schemeId로 묶어 추적.
+
+## ES 부하 가드 (중요)
+ES는 `r6g.large`(2cpu/16gb) 소규모. 광범위 쿼리 한 번이 전체 클러스터를 느리게 만든다.
+
+### range 규칙
+- **`@timestamp` range는 기본 필수** — `es-query.sh`가 range 누락 시 자동 거부한다.
+- **예외: `term.rId` 단일 검색** — rId는 term 샤드 룩업이라 매우 빠르므로 range 생략 허용. range 가드도 통과.
+
+### 쿼리 작성 전 사용자에게 기간 확인
+쿼리를 짜기 전에 **반드시 사용자에게 조회 기간을 확인**한다. 사용자가 기간을 명시하지 않았으면 아래 프리셋 중 하나를 제안할 것.
+
+### 기간 프리셋
+| 프리셋 | gte 값 | 용도 |
+|-------|--------|------|
+| 1시간 (기본) | `now-1h` | 빠른 확인, 최근 에러 |
+| 1일 | `now-1d` | 하루치 조사, 일별 배치 |
+| 3일 | `now-3d` | 주말 건너뛴 조사 |
+| 2주 | `now-14d` | 장기 추세/반복 이슈 (집계 권장) |
+
+> 2주 초과는 원칙 금지. 필요하면 날짜 인덱스 명시(`shopl-backend-logs-2026.07.*`) + 집계 우선.
+
+### 시나리오별 권장 범위
+| 시나리오 | 권장 | 비고 |
+|---------|------|------|
+| 단일 rId 추적 | range 불필요 (예외) | term.rId 하나로 충분, 매우 빠름 |
+| 기본 / 빠른 확인 | 1h | 가장 안전 |
+| 에러 조사 | 1h → rId로 좁힌 후 확장 | level/stack_trace로 잡고 rId로 전환 |
+| 배치 잡 추적 | 1d 이내, 실행 시점 ±2h | `bJobExecutionId`로 먼저 좁힐 것 |
+| 구조화 로그 (message_type 지정) | 1h ~ 1d | message_type 조건 없으면 1h 이내 유지 |
+
+### 부하 완화 팁
+- 범위가 크면 먼저 `_count`(`COUNT=1`)로 건수 확인 후 `_search`
+- raw 히트가 많이 나올 것 같으면 집계(`terms`/`date_histogram`)로 요약 먼저
+- `size` 기본 50, 최대 200. 넘기면 집계로 전환
+- 업무 시간 피크(평일 09~19시) 대량 집계 자제
+
+## 안티패턴 가드 (리뷰 체크리스트)
+쿼리 작성 후 반드시 점검:
+- [ ] **`@timestamp` range 포함?** → 필수. 단 `term.rId` 단일 검색은 예외(빠름). 누락 시 `es-query.sh` 거부. 범위는 기간 프리셋(1h/1d/3d/2w) 참조
+- [ ] **`rId`로 정렬/집계?** → doc_values:false. `@timestamp`/`cId`로 대체
+- [ ] **`message`/`stack_trace`에 wildcard/prefix?** → text 필드. `match_phrase` 사용
+- [ ] **`message_data` 서브필드 full-text?** → flattened은 keyword 취급. `term`/`terms` 사용
+- [ ] **`env`/`service_type` 오타?** → 열거값만 허용 (위 카탈로그 참조)
+- [ ] **에러를 `level:ERROR`만으로?** → 누락 발생. `level:ERROR` OR `stack_trace:*` 로 검색
+- [ ] **flattened/keyword가 아닌 필드 집계?** → text 필드 집계 불가
+- [ ] **매핑에 없는 필드?** → dynamic:false. 확인 후 쿼리
+
+## 실행 & 출력
+```bash
+# 쿼리 JSON 파일로 실행
+es-query.sh query.json
+
+# stdin
+cat query.json | es-query.sh
+
+# 카운트만
+COUNT=true es-query.sh query.json
+```
+`es-query.sh`는 결과를 `_source` 정제 + `stack_trace` 2000자 cap + 요약 포맷으로 출력하여 컨텍스트를 절약한다.
+실행 전 config.env에 ES 접속정보가 설정되어 있어야 한다.
+
+## 시간대 주의
+`@timestamp`는 UTC일 가능성. KST 변환이 필요하면 쿼리 시 +9h 보정하거나 출력에서 확인.
+인덱스는 일별 rollover(`.ds-shopl-backend-logs-YYYY.MM.DD-NNNNNN`), 패턴 `shopl-backend-log*`로 전체 검색.
