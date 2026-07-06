@@ -129,7 +129,7 @@ Claude Code / Codex도 같은 수준의 비교 축에서 관리하는 저장소*
 | `agents/doc-manager.md` | `~/.config/opencode/agents/doc-manager.md` | |
 | `agents/skill-creator.md` | `~/.config/opencode/agents/skill-creator.md` | |
 | `opencode/commands/*.md` (19개) | `~/.config/opencode/commands/` | thin wrapper, `!\`cat bodies/<name>.md\`` 로 본문 주입 |
-| `skills/{create-command,diagnose,docs-readability,find-docs,grill-me,grill-with-docs,handoff,karpathy-guidelines,kotlin-spring-gradle-backend-architecture,mcp-code-search,shopl-dev-auth-token,shopl-dev-jira-task-flow,shopl-dev-requirements-from-scrap,shopl-dev-verify-feature,shopl-skills,shopl-work-jira-briefing,shopl-work-jira-direct,teach,write-a-skill}/` | `~/.config/opencode/skills/{skill}/` | OpenCode에서 재사용하는 Agent Skills (19개) |
+| `skills/{create-command,diagnose,docs-readability,find-docs,grill-me,grill-with-docs,handoff,karpathy-guidelines,kotlin-spring-gradle-backend-architecture,mcp-code-search,shopl-dev-auth-token,shopl-dev-jira-task-flow,shopl-dev-backend-breakdown-from-scrap,shopl-dev-verify-feature,shopl-skills,shopl-work-jira-briefing,shopl-work-jira-direct,teach,write-a-skill}/` | `~/.config/opencode/skills/{skill}/` | OpenCode에서 재사용하는 Agent Skills (19개) |
 | `opencode-plugins/opencode-autoresearch/` | `~/.config/opencode/{commands,agents,skills,plugins}/` | `install-local.sh` 실행 |
 | `opencode-plugins/forge-plugin/dist/index.js` | `~/.config/opencode/plugins/forge-plugin.js` | 빌드 후 심링크 |
 | `opencode-plugins/cliproxyapi-sync/cliproxyapi-sync.ts` | `~/.config/opencode/plugins/cliproxyapi-sync.ts` | 설정은 `~/.config/opencode/cliproxyapi-sync-config.jsonc` |
@@ -156,7 +156,7 @@ Claude Code / Codex도 같은 수준의 비교 축에서 관리하는 저장소*
 |-------------|-------------|------|
 | `pi/commands/*.md` (19개) | `~/.pi/agent/prompts/` | 저장소에서는 `commands/`로 관리하지만 Pi는 `prompts/`로 로드 |
 | `bodies/{docs-execute,docs-help,docs-make-book,docs-quiz,docs-review,docs-status,flip-action-plan,flip-think,ladder-compare,ladder-debug-me,ladder-explain,ladder-find-gaps,ladder-quiz-me,ladder-roadmap,ladder-show-code,ladder-summarize,zz-workflow-design-system,zz-workflow-init,zz-workflow-new,doc-manager}.md` | (공유 본문 — 로컬 심링크 없음) | Pi `pi/commands/*.md` wrapper가 `bodies/`를 참조 |
-| `skills/{create-command,diagnose,docs-readability,find-docs,grill-me,grill-with-docs,handoff,karpathy-guidelines,kotlin-spring-gradle-backend-architecture,mcp-code-search,shopl-dev-auth-token,shopl-dev-jira-task-flow,shopl-dev-requirements-from-scrap,shopl-dev-verify-feature,shopl-skills,shopl-work-jira-briefing,shopl-work-jira-direct,teach,write-a-skill}/` | `~/.pi/agent/skills/{skill}/` | Pi에서 관리하는 Agent Skills (19개) |
+| `skills/{create-command,diagnose,docs-readability,find-docs,grill-me,grill-with-docs,handoff,karpathy-guidelines,kotlin-spring-gradle-backend-architecture,mcp-code-search,shopl-dev-auth-token,shopl-dev-jira-task-flow,shopl-dev-backend-breakdown-from-scrap,shopl-dev-verify-feature,shopl-skills,shopl-work-jira-briefing,shopl-work-jira-direct,teach,write-a-skill}/` | `~/.pi/agent/skills/{skill}/` | Pi에서 관리하는 Agent Skills (19개) |
 | `pi/extensions/filechanges/` | `~/.pi/agent/extensions/filechanges/` | 심링크 필요 |
 | `pi/extensions/cliproxyapi-sync.ts` | `~/.pi/agent/extensions/cliproxyapi-sync.ts` | `bash pi/install.sh --restore`로 설치 |
 

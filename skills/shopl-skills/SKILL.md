@@ -14,7 +14,7 @@ Shopl 프로젝트 업무에 특화된 스킬 모음. 모든 스킬은 원본이
 | `shopl-dev-auth-token` | dev | Shopl 인증서버 토큰 발급 절차 | API curl 검증 시 SESSION 쿠키 필요할 때 |
 | `shopl-dev-jira-task-flow` | dev | Jira 하위작업 순차 실행 워크플로우 | Jira 매핑된 작업 계획→승인→실행→검증→Jira 동기화 |
 | `shopl-dev-verify-feature` | dev | 기능 검증 문서 작성 | 기능 구현 완료 후 검증 문서(시나리오/SQL/절차) 작성 |
-| `shopl-dev-requirements-from-scrap` | dev | Scrap 기획서 → 백엔드 요구사항 추출 | 기획서/Figma/샘플 Excel 대조, 구현 gap 분석 |
+| `shopl-dev-backend-breakdown-from-scrap` | dev | Scrap 기획서 → 백엔드 구현 분해 | 기획서/Figma/샘플 Excel 대조, 구현 gap 분석 |
 | `shopl-work-jira-briefing` | work | Jira 이슈 요약/브리핑 | Jira 티켓 리스트 확인, 할당 이슈 현황 파악 |
 | `shopl-work-jira-direct` | work | Jira REST API 직접 호출 | Jira 이슈 세부 정보 조회, 하위 작업 확인 |
 
