@@ -3,6 +3,14 @@
 # SKILL.md 의 recipe/안티패턴을 준수하는 Query DSL 을 전달할 것.
 set -euo pipefail
 
+# --- preflight: 필수 의존성 (윈도우는 WSL2 권장, SKILL.md 의존성 섹션 참조) ---
+for b in curl jq; do
+  command -v "$b" >/dev/null 2>&1 || {
+    echo "ERROR: '$b' 필요 (bash + curl + jq 필수). 윈도우는 WSL2 권장 — 상세는 SKILL.md 의존성 섹션." >&2
+    exit 1
+  }
+done
+
 # --- config ---
 CONFIG="${ES_CONFIG:-$HOME/.config/es-skill/config.env}"
 [ -f "$CONFIG" ] || { echo "ERROR: config 없음: $CONFIG (config.env.example 참조)" >&2; exit 1; }
