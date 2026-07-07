@@ -14,11 +14,11 @@ argument-hint: "[report|apply]"
 그 과정에서 드러난 스킬의 빈 곳·틀린 곳·비효율을 수확해 최적화안을 도출한다.
 
 ## 스킬 위치 (canonical)
-- `shopl-skills/shopl-backend-log-query/SKILL.md` — 필드 카탈로그, Recipe 1~10, ES 한계, 부하 가드
-- `shopl-skills/shopl-backend-log-query/domain-catalog.md` — service_type → 도메인 → message_type 카탈로그
-- `shopl-skills/shopl-backend-log-query/es-query.sh` — 조회 래퍼 (range 가드, _source 자동삽입, aggregation, size cap)
+- `skills/shopl/shopl-backend-log-query/SKILL.md` — 필드 카탈로그, Recipe 1~10, ES 한계, 부하 가드
+- `skills/shopl/shopl-backend-log-query/domain-catalog.md` — service_type → 도메인 → message_type 카탈로그
+- `skills/shopl/shopl-backend-log-query/es-query.sh` — 조회 래퍼 (range 가드, _source 자동삽입, aggregation, size cap)
 
-> 심링크: `~/.pi/agent/skills/shopl-backend-log-query` → 위 경로. 실제 작업/커밋은 위 경로에서.
+> 심링크: `~/.pi/agent/skills/shopl-backend-log-query` → `skills/shopl/shopl-backend-log-query/`. 실제 작업/커밋은 skills/shopl/ 경로에서.
 
 ## 단계
 
@@ -87,7 +87,7 @@ argument-hint: "[report|apply]"
 ## 모드
 - 인자 없음 / `report` (기본): 보고만. 파일 수정 금지.
 - `apply`: 보고 후, 승인된 안을 실제 파일에 반영하고 커밋·푸시.
-  - shopl-skills/ 만 커밋 (다른 워킹트리 변경은 남김)
+  - skills/shopl/ 만 커밋 (다른 워킹트리 변경은 남김)
   - 커밋 메시지: `refactor(skill): <요약>`
 
 ## 주의

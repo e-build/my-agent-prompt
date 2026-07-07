@@ -70,7 +70,7 @@ Claude Code / Codex도 같은 수준의 비교 축에서 관리하는 저장소*
 |-----------|---------|
 | `agents/` | 공통 에이전트 정의. 주로 OpenCode subagent 자원으로 사용하지만, 다른 도구용 역할 정의의 참고 원문으로도 사용 가능 |
 | `bodies/` | **공유 명령어 본문**. 사용자가 `/` 로 호출하는 docs/ladder/flip/zz-workflow 계열 실행 본문. 스킬과 달리 시스템 프롬프트에 노출되지 않음 |
-| `skills/` | **Agent Skills**. 에이전트가 자율적으로 로드하는 능력 (진단, 검색, 가이드라인 등). 필요 시 시스템 프롬프트에 노출 |
+| `skills/` | **Agent Skills** (카테고리별 구성). 에이전트가 자율적으로 로드하는 능력 (진단, 검색, 가이드라인 등). `skills/{shopl,super,tool,workflow}/` 4개 카테고리로 분류 |
 | `opencode/commands/` | OpenCode 전용 command wrapper |
 | `pi/commands/` | Pi 전용 command wrapper |
 | `opencode-plugins/` | OpenCode plugin 패키지 및 배포 자원 |
@@ -129,7 +129,7 @@ Claude Code / Codex도 같은 수준의 비교 축에서 관리하는 저장소*
 | `agents/doc-manager.md` | `~/.config/opencode/agents/doc-manager.md` | |
 | `agents/skill-creator.md` | `~/.config/opencode/agents/skill-creator.md` | |
 | `opencode/commands/*.md` (19개) | `~/.config/opencode/commands/` | thin wrapper, `!\`cat bodies/<name>.md\`` 로 본문 주입 |
-| `skills/{create-command,diagnose,docs-readability,find-docs,grill-me,grill-with-docs,handoff,karpathy-guidelines,kotlin-spring-gradle-backend-architecture,mcp-code-search,shopl-dev-auth-token,shopl-dev-jira-task-flow,shopl-dev-backend-breakdown-from-scrap,shopl-dev-verify-feature,shopl-skills,shopl-work-jira-briefing,shopl-work-jira-direct,teach,write-a-skill}/` | `~/.config/opencode/skills/{skill}/` | OpenCode에서 재사용하는 Agent Skills (19개) |
+| `skills/shopl/*/` (8개), `skills/super/*/` (4개), `skills/tool/*/` (7개), `skills/workflow/*/` (5개) | `~/.config/opencode/skills/{skill}/` | OpenCode에서 재사용하는 Agent Skills (24개, 카테고리별 구성) |
 | `opencode-plugins/opencode-autoresearch/` | `~/.config/opencode/{commands,agents,skills,plugins}/` | `install-local.sh` 실행 |
 | `opencode-plugins/forge-plugin/dist/index.js` | `~/.config/opencode/plugins/forge-plugin.js` | 빌드 후 심링크 |
 | `opencode-plugins/cliproxyapi-sync/cliproxyapi-sync.ts` | `~/.config/opencode/plugins/cliproxyapi-sync.ts` | 설정은 `~/.config/opencode/cliproxyapi-sync-config.jsonc` |
@@ -156,7 +156,7 @@ Claude Code / Codex도 같은 수준의 비교 축에서 관리하는 저장소*
 |-------------|-------------|------|
 | `pi/commands/*.md` (19개) | `~/.pi/agent/prompts/` | 저장소에서는 `commands/`로 관리하지만 Pi는 `prompts/`로 로드 |
 | `bodies/{docs-execute,docs-help,docs-make-book,docs-quiz,docs-review,docs-status,flip-action-plan,flip-think,ladder-compare,ladder-debug-me,ladder-explain,ladder-find-gaps,ladder-quiz-me,ladder-roadmap,ladder-show-code,ladder-summarize,zz-workflow-design-system,zz-workflow-init,zz-workflow-new,doc-manager}.md` | (공유 본문 — 로컬 심링크 없음) | Pi `pi/commands/*.md` wrapper가 `bodies/`를 참조 |
-| `skills/{create-command,diagnose,docs-readability,find-docs,grill-me,grill-with-docs,handoff,karpathy-guidelines,kotlin-spring-gradle-backend-architecture,mcp-code-search,shopl-dev-auth-token,shopl-dev-jira-task-flow,shopl-dev-backend-breakdown-from-scrap,shopl-dev-verify-feature,shopl-skills,shopl-work-jira-briefing,shopl-work-jira-direct,teach,write-a-skill}/` | `~/.pi/agent/skills/{skill}/` | Pi에서 관리하는 Agent Skills (19개) |
+| `skills/shopl/*/` (8개), `skills/super/*/` (4개), `skills/tool/*/` (7개), `skills/workflow/*/` (5개) | `~/.pi/agent/skills/{skill}/` | Pi에서 관리하는 Agent Skills (24개, 카테고리별 구성) |
 | `pi/extensions/filechanges/` | `~/.pi/agent/extensions/filechanges/` | 심링크 필요 |
 | `pi/extensions/cliproxyapi-sync.ts` | `~/.pi/agent/extensions/cliproxyapi-sync.ts` | `bash pi/install.sh --restore`로 설치 |
 
@@ -233,10 +233,10 @@ Codex는 OpenCode / Pi처럼 command wrapper 디렉토리를 중심으로 쓰기
 ### Agent Skills (`skills/`)
 에이전트가 **자율적으로 판단하여 로드**하는 능력. 시스템 프롬프트에 skills 목록으로 노출됨.
 
-- `skills/<name>/SKILL.md` = **단일 진실 공급원** (Agent Skills spec 준수)
+- `skills/<category>/<name>/SKILL.md` = **단일 진실 공급원** (Agent Skills spec 준수). `shopl/`, `super/`, `tool/`, `workflow/` 4개 카테고리로 분류
 - `opencode/commands/<name>.md` = OpenCode wrapper (필요 시만)
 - `pi/commands/<name>.md` = Pi wrapper (필요 시만)
-- Claude Code / Codex는 `skills/<name>/SKILL.md` 를 직접 참조
+- Claude Code / Codex는 `skills/<category>/<name>/SKILL.md` 를 직접 참조
 
 ### Shared Command Bodies (`bodies/`)
 사용자가 **`/` 슬래시 명령어로 직접 호출**하는 공유 실행 본문. 시스템 프롬프트에 노출되지 않음.
@@ -250,7 +250,7 @@ Codex는 OpenCode / Pi처럼 command wrapper 디렉토리를 중심으로 쓰기
 - wrapper에는 **도구별 frontmatter와 진입점만 둠**
 - 실행 로직 본문은 가능하면 `bodies/` 또는 `skills/`로 이동
 - 새 Agent Skills 추가 시:
-  1. `skills/`에 공통 본문 작성
+  1. `skills/<category>/`에 공통 본문 작성 (적합한 카테고리: `shopl/`, `super/`, `tool/`, `workflow/`)
   2. 필요 시 OpenCode / Pi wrapper 생성
 - 새 Command Body 추가 시:
   1. `bodies/`에 공통 본문 작성
@@ -289,11 +289,11 @@ for f in "$REPO/pi/commands/"*.md; do
 done
 
 # -------------------------------------------------------------------
-# 4. Shared skills → OpenCode / Pi
+# 4. Shared skills → OpenCode / Pi (카테고리별 구조에서 개별 스킬 추출)
 # -------------------------------------------------------------------
-for d in "$REPO/skills/"*/; do
-  ln -s "$d" $OC/skills/$(basename "$d")
-  ln -s "$d" $PIP/skills/$(basename "$d")
+for d in $(find "$REPO/skills" -name SKILL.md -exec dirname {} \;); do
+  ln -sfn "$d" $OC/skills/$(basename "$d")
+  ln -sfn "$d" $PIP/skills/$(basename "$d")
 done
 
 # -------------------------------------------------------------------
