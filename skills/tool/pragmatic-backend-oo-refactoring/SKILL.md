@@ -1,6 +1,6 @@
 ---
 name: pragmatic-backend-oo-refactoring
-description: Use when refactoring backend business logic in Java/Spring, Kotlin/Spring, Node.js/NestJS, or similar server code and the task mentions object calisthenics, guard clauses, primitive obsession, value objects, getter/setter abuse, tell-don’t-ask, large services, JPA entities, or pragmatic domain modeling.
+description: Use when refactoring or reviewing backend business logic in Java/Spring, Kotlin/Spring, Node.js/NestJS, or similar server code, especially if the user wants a practical take on object calisthenics or the code shows deep if/else nesting, large services, primitive obsession, value object or first-class collection questions, getter/setter or JPA entity concerns, tell-don’t-ask issues, or domain logic leaking across layers.
 ---
 
 # Pragmatic Backend OO Refactoring

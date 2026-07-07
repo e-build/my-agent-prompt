@@ -1,0 +1,23 @@
+{
+  "skill_name": "pragmatic-backend-oo-refactoring",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Spring 주문 승인 서비스 메서드가 if 문 5겹이고, 중간중간 order.getStatus(), member.getGrade(), coupon.getType()를 꺼내서 서비스에서 다 판단하고 있어요. 객체지향 생활체조식으로 리팩토링하고 싶은데, 실무적으로 과하지 않게 어디까지 바꾸면 좋을지 제안해줘.",
+      "expected_output": "Application/Service 레이어로 분류하고, guard clause·메서드 추출·행동 위임을 우선 제안하며, 전략 패턴은 분기 증가 신호가 있을 때만 권장해야 한다.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "NestJS 주문 도메인에서 price, discountAmount, paidAmount가 전부 number이고, 서비스마다 합계 계산이 조금씩 달라요. OrderLine[]도 여기저기서 map/reduce 하고 있는데 Money나 OrderLines 같은 값 객체/일급 컬렉션을 지금 도입하는 게 맞는지 판단해줘. TypeORM 쓰고 있어서 매핑 마찰도 걱정돼.",
+      "expected_output": "Domain Core와 Framework Boundary를 구분하고, Money/OrderLines 도입 조건과 더 가벼운 대안, 그리고 TypeORM 매핑 비용까지 함께 비교해야 한다.",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "JPA 엔티티에 Lombok getter/setter가 너무 많아서 팀에서 객체지향적이지 않다고 불만이 나와요. 그런데 실제로는 서비스에서 엔티티 getter로 값을 다 꺼내와 계산하고 있습니다. 어떤 setter는 없애고 어떤 getter는 그냥 둬도 되는지, 엔티티를 어디까지 도메인 모델처럼 다뤄야 하는지 실무 기준으로 정리해줘.",
+      "expected_output": "Framework Boundary인 JPA Entity의 제약을 인정하면서도, 무의미한 setter 제거·행동 메서드 도입·getter 남용 지점 식별을 중심으로 답해야 한다.",
+      "files": []
+    }
+  ]
+}
