@@ -1,6 +1,6 @@
 ---
 name: shopl-skills
-description: Shopl 프로젝트 전용 스킬 인덱스. 신규 스킬은 아래 4개 분류 중 하나에 따라 프리픽스를 자동 결정한다. Use when: Shopl Jira 작업, Shopl API 검증 문서 작성, Shopl 개발/업무/트러블슈팅 스킬 확인.
+description: "Shopl 프로젝트 전용 스킬 인덱스. 신규 스킬은 아래 4개 분류 중 하나에 따라 프리픽스를 자동 결정한다. Use when: Shopl Jira 작업, Shopl API 검증 문서 작성, Shopl 개발/업무/트러블슈팅 스킬 확인."
 ---
 
 # Shopl 전용 스킬
