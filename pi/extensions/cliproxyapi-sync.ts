@@ -13,6 +13,7 @@ type CliproxyapiConfig = {
   apiKey: string;
   managementKey?: string;
   reasoningVariants?: Record<string, ReasoningLevel[]>;
+  lmStudioBaseURL?: string;
 };
 
 type ProxyModel = {
@@ -85,6 +86,7 @@ type CodexModelsResponse = { models?: CodexModelEntry[] };
 const DEFAULT_CONFIG: CliproxyapiConfig = {
   baseURL: "http://localhost:8317/v1",
   apiKey: "dummy",
+  lmStudioBaseURL: "http://127.0.0.1:1234",
 };
 
 const DEFAULT_CONFIG_PATH = join(homedir(), ".config/opencode/cliproxyapi-sync-config.jsonc");
@@ -97,8 +99,9 @@ export default async function cliproxyapiSync(pi: ExtensionAPI) {
     const config = await loadConfig();
     const models = await fetchModels(config);
     const codexContextBySlug = await fetchCodexContextWindows(config);
+    const lmStudioContextByModel = await fetchLmStudioContextWindows(config);
     const metadataByOwner = await fetchModelsDevMetadataByOwner(models);
-    const providers = buildProviderConfigs(config, models, metadataByOwner, codexContextBySlug);
+    const providers = buildProviderConfigs(config, models, metadataByOwner, codexContextBySlug, lmStudioContextByModel);
 
     for (const [providerName, providerConfig] of Object.entries(providers)) {
       pi.registerProvider(providerName, providerConfig);
@@ -117,6 +120,7 @@ export function buildProviderConfigs(
   models: ProxyModel[],
   metadataByOwner: ModelMetadataByOwner = {},
   codexContextBySlug: Map<string, number> = new Map(),
+  lmStudioContextByModel: Map<string, number> = new Map(),
 ): Record<string, ProviderConfig> {
   const providers: Record<string, ProviderConfig> = {};
   const seenModelIdsByProvider: Record<string, Set<string>> = {};
@@ -161,6 +165,7 @@ export function buildProviderConfigs(
         normalizedId,
         rawId,
         codexContextBySlug,
+        lmStudioContextByModel,
       });
       providers[providerName].models.push({
         id: modelId,
@@ -248,6 +253,34 @@ async function fetchCodexContextWindows(config: CliproxyapiConfig): Promise<Map<
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     console.warn(`[cliproxyapi-sync] codex context_window sync skipped: ${message}`);
+    return new Map();
+  }
+}
+
+async function fetchLmStudioContextWindows(config: CliproxyapiConfig): Promise<Map<string, number>> {
+  const baseURL = config.lmStudioBaseURL ?? DEFAULT_CONFIG.lmStudioBaseURL ?? "http://127.0.0.1:1234";
+  try {
+    const url = `${normalizeBaseUrl(baseURL)}/api/v0/models`;
+    const response = await fetch(url);
+    if (!response.ok) {
+      throw new Error(`LM Studio models request failed: HTTP ${response.status}`);
+    }
+
+    const payload = (await response.json()) as { data?: Array<{ id?: unknown; loaded_context_length?: unknown }> };
+    if (!Array.isArray(payload.data)) {
+      throw new Error("LM Studio models response does not contain a data array");
+    }
+
+    const map = new Map<string, number>();
+    for (const entry of payload.data) {
+      const id = typeof entry.id === "string" ? entry.id : undefined;
+      const contextWindow = asPositiveInteger(entry.loaded_context_length);
+      if (id && contextWindow) map.set(id, contextWindow);
+    }
+    return map;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.warn(`[cliproxyapi-sync] LM Studio context sync skipped: ${message}`);
     return new Map();
   }
 }
@@ -399,9 +432,12 @@ function resolveContextWindow(args: {
   normalizedId: string;
   rawId: string;
   codexContextBySlug: Map<string, number>;
+  lmStudioContextByModel: Map<string, number>;
 }): number {
   const strippedModelId = stripReasoningSuffix(args.modelId);
   return (
+    asPositiveInteger(args.lmStudioContextByModel.get(args.rawId)) ??
+    asPositiveInteger(args.lmStudioContextByModel.get(strippedModelId)) ??
     asPositiveInteger(args.codexContextBySlug.get(strippedModelId)) ??
     asPositiveInteger(args.codexContextBySlug.get(args.normalizedId)) ??
     asPositiveInteger(args.codexContextBySlug.get(args.rawId)) ??
