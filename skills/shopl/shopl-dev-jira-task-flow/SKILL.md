@@ -281,6 +281,21 @@ Do not treat these as approval:
 
 If not approved, revise/explain the plan and keep the task in `승인 대기`.
 
+## Commit Convention
+
+When a workflow has a parent/epic ticket, git commits use the **parent ticket number**, not the individual subtask ticket numbers.
+
+Rules:
+
+- Resolve the workflow parent ticket from the `Workflow Source` block (`Jira parent` field) of the tracking index.
+- Commit message prefix = parent ticket. Example: `SH-19400 근무지별 출퇴근 근무지 현황 집계 로직 구현`.
+- Subtask ticket numbers (e.g. `SH-21682`) are used for **Jira tracking and status synchronization only**. Never put them in the commit message unless the project explicitly requires per-subtask commits.
+- Follow the project's own commit format (e.g. Shopl: `{티켓} {한글 작업 내용}`, no conventional-commit prefix, no AI tool names). Do not override project convention.
+- If the workflow has **no parent** (standalone task list), fall back to the task's own ticket key.
+- Record the parent ticket in the index `Workflow Source` so every executor resolves the same prefix.
+
+The parent ticket in commits keeps the history grouped under one story/epic, while subtask tickets stay clean for Jira lifecycle tracking.
+
 ## Per-Task Procedure
 
 For each task:
@@ -329,7 +344,7 @@ For each task:
       1. per-task detail file updated,
       2. index row updated,
       3. Jira status synchronized or blocker recorded,
-      4. commit created if the task produced code/doc changes and the user requested commit-per-step.
+      4. commit created if the task produced code/doc changes and the user requested commit-per-step — using the **parent ticket** as the commit prefix (see Commit Convention), not the subtask ticket.
     - Propose the next incomplete task only after the checklist is complete.
 
 ## Jira Status Synchronization
