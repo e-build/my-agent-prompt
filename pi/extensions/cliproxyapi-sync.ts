@@ -27,6 +27,7 @@ type ProviderConfig = {
   api: "openai-completions";
   compat: {
     supportsDeveloperRole: false;
+    supportsReasoningEffort: true;
     maxTokensField: "max_tokens";
   };
   models: ProviderModelConfig[];
@@ -45,6 +46,7 @@ type ProviderModelConfig = {
   };
   contextWindow: number;
   maxTokens: number;
+  thinkingLevelMap?: ThinkingLevelMap;
 };
 
 type ManagedModelModality = "text" | "audio" | "image" | "video" | "pdf";
@@ -79,9 +81,22 @@ type CodexModelEntry = {
   slug?: unknown;
   context_window?: unknown;
   max_context_window?: unknown;
+  supported_reasoning_levels?: unknown;
 };
 
 type CodexModelsResponse = { models?: CodexModelEntry[] };
+
+type CodexModelInfo = {
+  contextWindow?: number;
+  reasoningLevels?: string[];
+};
+
+// pi thinking levels (off/minimal/low/medium/high/xhigh) mapped to provider effort values.
+// ponytail: provider tiers low<medium<high<xhigh<max collapse onto pi's 6 levels; pi has no
+// slot above xhigh, so provider "max" (gpt-5.6 family) surfaces as pi `xhigh`.
+type ThinkingLevelMap = Partial<
+  Record<"off" | "minimal" | "low" | "medium" | "high" | "xhigh", string | null>
+>;
 
 const DEFAULT_CONFIG: CliproxyapiConfig = {
   baseURL: "http://localhost:8317/v1",
@@ -98,17 +113,23 @@ export default async function cliproxyapiSync(pi: ExtensionAPI) {
   try {
     const config = await loadConfig();
     const models = await fetchModels(config);
-    const codexContextBySlug = await fetchCodexContextWindows(config);
+    const codexInfoBySlug = await fetchCodexContextWindows(config);
     const lmStudioContextByModel = await fetchLmStudioContextWindows(config);
     const metadataByOwner = await fetchModelsDevMetadataByOwner(models);
-    const providers = buildProviderConfigs(config, models, metadataByOwner, codexContextBySlug, lmStudioContextByModel);
+    const providers = buildProviderConfigs(config, models, metadataByOwner, codexInfoBySlug, lmStudioContextByModel);
 
     for (const [providerName, providerConfig] of Object.entries(providers)) {
       pi.registerProvider(providerName, providerConfig);
     }
 
     const modelCount = Object.values(providers).reduce((sum, provider) => sum + provider.models.length, 0);
-    console.log(`[cliproxyapi-sync] registered ${modelCount} prefixed models across ${Object.keys(providers).length} providers`);
+    const reasoningCount = Object.values(providers).reduce(
+      (sum, provider) => sum + provider.models.filter((model) => model.reasoning).length,
+      0,
+    );
+    console.log(
+      `[cliproxyapi-sync] registered ${modelCount} models (${reasoningCount} reasoning) across ${Object.keys(providers).length} providers`,
+    );
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     console.warn(`[cliproxyapi-sync] disabled: ${message}`);
@@ -119,7 +140,7 @@ export function buildProviderConfigs(
   config: CliproxyapiConfig,
   models: ProxyModel[],
   metadataByOwner: ModelMetadataByOwner = {},
-  codexContextBySlug: Map<string, number> = new Map(),
+  codexInfoBySlug: Map<string, CodexModelInfo> = new Map(),
   lmStudioContextByModel: Map<string, number> = new Map(),
 ): Record<string, ProviderConfig> {
   const providers: Record<string, ProviderConfig> = {};
@@ -144,6 +165,7 @@ export function buildProviderConfigs(
       api: "openai-completions",
       compat: {
         supportsDeveloperRole: false,
+        supportsReasoningEffort: true,
         maxTokensField: "max_tokens",
       },
       models: [],
@@ -164,17 +186,25 @@ export function buildProviderConfigs(
         modelId,
         normalizedId,
         rawId,
-        codexContextBySlug,
+        codexInfoBySlug,
         lmStudioContextByModel,
       });
+      const reasoningLevels = resolveReasoningLevels({
+        modelId,
+        normalizedId,
+        rawId,
+        codexInfoBySlug,
+      });
+      const thinkingLevelMap = buildThinkingLevelMap(reasoningLevels);
       providers[providerName].models.push({
         id: modelId,
         name: modelId,
-        reasoning: isReasoningModel(visibleRawId),
+        reasoning: reasoningLevels.length > 0 || isReasoningModel(visibleRawId),
         input: supportsImageInput(owner, normalizedId, metadata) ? ["text", "image"] : ["text"],
         cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
         contextWindow: resolvedContextWindow,
         maxTokens: 16384,
+        ...(thinkingLevelMap ? { thinkingLevelMap } : {}),
       });
     }
   }
@@ -225,7 +255,7 @@ async function fetchModels(config: CliproxyapiConfig): Promise<ProxyModel[]> {
   });
 }
 
-async function fetchCodexContextWindows(config: CliproxyapiConfig): Promise<Map<string, number>> {
+async function fetchCodexContextWindows(config: CliproxyapiConfig): Promise<Map<string, CodexModelInfo>> {
   try {
     const url = `${normalizeBaseUrl(config.baseURL)}/models?client_version=1`;
     const response = await fetch(url, {
@@ -243,11 +273,16 @@ async function fetchCodexContextWindows(config: CliproxyapiConfig): Promise<Map<
       throw new Error("codex models response does not contain a models array");
     }
 
-    const map = new Map<string, number>();
+    const map = new Map<string, CodexModelInfo>();
     for (const entry of payload.models) {
       const slug = typeof entry.slug === "string" ? entry.slug : undefined;
+      if (!slug) continue;
       const contextWindow = asPositiveInteger(entry.context_window);
-      if (slug && contextWindow) map.set(slug, contextWindow);
+      const reasoningLevels = extractReasoningLevels(entry.supported_reasoning_levels);
+      const info: CodexModelInfo = {};
+      if (contextWindow) info.contextWindow = contextWindow;
+      if (reasoningLevels.length > 0) info.reasoningLevels = reasoningLevels;
+      if (Object.keys(info).length > 0) map.set(slug, info);
     }
     return map;
   } catch (error) {
@@ -431,18 +466,63 @@ function resolveContextWindow(args: {
   modelId: string;
   normalizedId: string;
   rawId: string;
-  codexContextBySlug: Map<string, number>;
+  codexInfoBySlug: Map<string, CodexModelInfo>;
   lmStudioContextByModel: Map<string, number>;
 }): number {
   const strippedModelId = stripReasoningSuffix(args.modelId);
+  const codexWindow = (key: string) => args.codexInfoBySlug.get(key)?.contextWindow;
   return (
     asPositiveInteger(args.lmStudioContextByModel.get(args.rawId)) ??
     asPositiveInteger(args.lmStudioContextByModel.get(strippedModelId)) ??
-    asPositiveInteger(args.codexContextBySlug.get(strippedModelId)) ??
-    asPositiveInteger(args.codexContextBySlug.get(args.normalizedId)) ??
-    asPositiveInteger(args.codexContextBySlug.get(args.rawId)) ??
+    asPositiveInteger(codexWindow(strippedModelId)) ??
+    asPositiveInteger(codexWindow(args.normalizedId)) ??
+    asPositiveInteger(codexWindow(args.rawId)) ??
     DEFAULT_CONTEXT_WINDOW
   );
+}
+
+function resolveReasoningLevels(args: {
+  modelId: string;
+  normalizedId: string;
+  rawId: string;
+  codexInfoBySlug: Map<string, CodexModelInfo>;
+}): string[] {
+  const strippedModelId = stripReasoningSuffix(args.modelId);
+  return (
+    args.codexInfoBySlug.get(strippedModelId)?.reasoningLevels ??
+    args.codexInfoBySlug.get(args.normalizedId)?.reasoningLevels ??
+    args.codexInfoBySlug.get(args.rawId)?.reasoningLevels ??
+    []
+  );
+}
+
+// Provider advertises tiers low<medium<high<xhigh<max. pi exposes 6 levels; map each pi level
+// to its provider twin, and collapse the provider's top tier (max, else xhigh) onto pi `xhigh`.
+function buildThinkingLevelMap(levels: string[]): ThinkingLevelMap | undefined {
+  if (levels.length === 0) return undefined;
+  const supported = new Set(levels);
+  return {
+    off: null,
+    minimal: null,
+    low: supported.has("low") ? "low" : null,
+    medium: supported.has("medium") ? "medium" : null,
+    high: supported.has("high") ? "high" : null,
+    xhigh: supported.has("max") ? "max" : supported.has("xhigh") ? "xhigh" : null,
+  };
+}
+
+function extractReasoningLevels(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  const levels: string[] = [];
+  for (const item of value) {
+    if (item && typeof item === "object" && "effort" in item) {
+      const effort = (item as { effort?: unknown }).effort;
+      if (typeof effort === "string" && effort) levels.push(effort);
+    } else if (typeof item === "string" && item) {
+      levels.push(item);
+    }
+  }
+  return levels;
 }
 
 function asPositiveInteger(value: unknown): number | undefined {
