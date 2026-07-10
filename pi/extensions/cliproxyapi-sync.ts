@@ -21,15 +21,17 @@ type ProxyModel = {
   owned_by?: string;
 };
 
+type ProviderCompat = {
+  supportsDeveloperRole: false;
+  supportsReasoningEffort: true;
+  maxTokensField: "max_tokens";
+};
+
 type ProviderConfig = {
   baseUrl: string;
   apiKey: string;
   api: "openai-completions";
-  compat: {
-    supportsDeveloperRole: false;
-    supportsReasoningEffort: true;
-    maxTokensField: "max_tokens";
-  };
+  compat: ProviderCompat;
   models: ProviderModelConfig[];
 };
 
@@ -46,6 +48,8 @@ type ProviderModelConfig = {
   };
   contextWindow: number;
   maxTokens: number;
+  // pi-ai getCompat() reads model-level compat only; provider-level compat is ignored at request time.
+  compat: ProviderCompat;
   thinkingLevelMap?: ThinkingLevelMap;
 };
 
@@ -97,6 +101,15 @@ type CodexModelInfo = {
 type ThinkingLevelMap = Partial<
   Record<"off" | "minimal" | "low" | "medium" | "high" | "xhigh", string | null>
 >;
+
+// ponytail: shared literal. pi-ai's getCompat(model) only reads model.compat, not provider.compat,
+// so every model must carry this or detectCompat() defaults supportsDeveloperRole to true for our
+// localhost proxy and emits a `developer` system role that the proxy rejects.
+const MODEL_COMPAT: ProviderCompat = {
+  supportsDeveloperRole: false,
+  supportsReasoningEffort: true,
+  maxTokensField: "max_tokens",
+};
 
 const DEFAULT_CONFIG: CliproxyapiConfig = {
   baseURL: "http://localhost:8317/v1",
@@ -163,11 +176,7 @@ export function buildProviderConfigs(
       baseUrl,
       apiKey: config.apiKey,
       api: "openai-completions",
-      compat: {
-        supportsDeveloperRole: false,
-        supportsReasoningEffort: true,
-        maxTokensField: "max_tokens",
-      },
+      compat: MODEL_COMPAT,
       models: [],
     };
     seenModelIdsByProvider[providerName] ??= new Set<string>();
@@ -204,6 +213,7 @@ export function buildProviderConfigs(
         cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
         contextWindow: resolvedContextWindow,
         maxTokens: 16384,
+        compat: MODEL_COMPAT,
         ...(thinkingLevelMap ? { thinkingLevelMap } : {}),
       });
     }
