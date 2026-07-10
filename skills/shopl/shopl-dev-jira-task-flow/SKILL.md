@@ -5,99 +5,158 @@ description: Use when executing a sequence of company/work Jira-linked tasks fro
 
 # Jira Task Workflow
 
-Run a Jira-linked task sequence with a strict review gate. By default, use this skill only for company/work Jira workflows. For non-company or personal projects, do not auto-activate this skill unless the user explicitly asks to use `jira-task-workflow`.
+사용자 승인 게이트가 있는 Jira 연동 작업 시퀀스를 실행한다. 기본적으로 회사/업무 Jira 워크플로우에만 이 스킬을 사용한다. 개인 프로젝트나 비-업무 프로젝트에서는 사용자가 명시적으로 `jira-task-workflow` 사용을 요청하지 않는 한 자동 활성화하지 않는다.
 
-## Purpose
+## 용도
 
-Use this skill when work must proceed item-by-item and each item needs:
+작업을 하나씩 순차 진행해야 하고 각 작업이 아래 항목을 필요로 할 때 사용한다.
 
-1. task identification
-2. Jira ticket lookup
-3. planning
-4. user review/approval
-5. execution
-6. verification/review
-7. tracking document update
-8. Jira status synchronization
+1. 작업 식별
+2. Jira 티켓 조회
+3. 계획 수립
+4. 사용자 검토/승인
+5. 실행
+6. 검증/리뷰
+7. 추적 문서 갱신
+8. Jira 상태 동기화
 
-Do not use this skill for a single ad-hoc Jira lookup; use `jira-direct` instead.
+단발성 Jira 조회에는 이 스킬을 사용하지 말고 `jira-direct`를 사용한다.
 
-## Activation Scope Guard
+## 활성화 범위
 
-Default activation scope: **company/work Jira task workflows only**.
+기본 활성화 범위: **회사/업무 Jira 작업 워크플로우 전용**.
 
-Use this skill automatically only when at least one of the following is true:
+다음 중 하나라도 해당하면 자동으로 이 스킬을 사용한다.
 
-- The user refers to company/work Jira issues, company project work, or a known work project key such as `SH`.
-- The current workspace/repository is a company work repository and the request involves Jira-linked implementation tasks.
-- The user asks to execute Jira subtasks from a company planning document or backend requirements document.
-- The user explicitly says to use `jira-task-workflow`.
+- 사용자가 회사/업무 Jira 이슈, 회사 프로젝트 작업, 또는 `SH` 같은 알려진 업무 프로젝트 키를 언급한 경우.
+- 현재 워크스페이스/저장소가 회사 업무 저장소이고 요청이 Jira 연동 구현 작업을 포함하는 경우.
+- 사용자가 회사 기획 문서나 백엔드 요구사항 문서에서 Jira 하위작업 실행을 요청한 경우.
+- 사용자가 명시적으로 `jira-task-workflow` 사용을 말한 경우.
 
-Do **not** auto-use this skill for personal projects, open-source projects, or unrelated Jira instances. In those cases, use normal planning or ask whether the user wants this workflow.
+개인 프로젝트, 오픈소스 프로젝트, 또는 무관한 Jira 인스턴스에는 **자동 사용하지 않는다**. 그런 경우 일반 계획 수립을 하거나 사용자에게 이 워크플로우를 원하는지 물어본다.
 
-## Related Skills
+## 관련 스킬
 
-- `jira-direct`: use for Jira REST API reads/writes and helper scripts.
-- Project-specific implementation/testing skills still apply after the user approves execution.
+- `jira-direct`: Jira REST API 읽기/쓰기 및 헬퍼 스크립트용.
+- 프로젝트별 구현/테스트 스킬은 사용자가 실행을 승인한 이후에도 적용된다.
 
-## Source Priority
+## 소스 우선순위
 
-Resolve the workflow source in this order:
+아래 순서로 워크플로우 소스를 결정한다.
 
-1. **Document Jira mapping table**
-   - Prefer a markdown table with columns equivalent to: `번호`, `하위작업`, `Jira 티켓`.
-   - Example heading: `Jira 티켓 매핑`.
-2. **Jira parent issue subtasks**
-   - Use the parent issue's subtasks/children.
-   - Sort by `[01]`, `[02]` prefix if present; otherwise sort by issue key ascending unless the user provides another order.
-3. **User-provided task list**
-   - If Jira keys are missing, ask whether to link existing Jira tickets, create new Jira tickets, or proceed without Jira linkage.
+1. **문서 내 Jira 매핑 테이블**
+   - `번호`, `하위작업`, `Jira 티켓`에 해당하는 열이 있는 마크다운 테이블을 우선 사용.
+   - 예시 헤딩: `Jira 티켓 매핑`.
+2. **Jira 상위 이슈의 하위작업**
+   - 상위 이슈의 하위작업/자식 이슈를 사용.
+   - `[01]`, `[02]` 접두사가 있으면 그 순서로 정렬. 없으면 사용자가 다른 순서를 지정하지 않는 한 이슈 키 오름차순.
+3. **사용자 제공 작업 목록**
+   - Jira 키가 없으면 기존 Jira 티켓에 연결할지, 새 Jira 티켓을 생성할지, Jira 연동 없이 진행할지 물어본다.
 
-## Tracking Document Policy
+## 백엔드 분해 문서 연계
 
-Use an index document plus per-task detail files. This avoids a single oversized workflow document.
+`shopl-dev-backend-breakdown-from-scrap` 스킬의 산출물을 입력 소스로 받은 경우, 아래 규칙을 적용한다.
 
-- The index document is the canonical task index and status summary.
-- Per-task detail files are the canonical execution log for each task.
-- Default index path when source is a document:
+### 소스 식별
+
+- 소스 문서 내 `## 15. 구현 하위작업` 섹션을 기본 소스로 사용한다.
+- 해당 섹션의 `### 큰 분류 N. <작업명>` 각 항목이 **Jira 티켓 1개**가 된다.
+- `큰 분류` 앞에 `공통 컴포넌트 매핑표`가 있으면 함께 읽어서 연관 관계를 파악한다.
+
+### 큰 분류 → Jira 티켓 변환 규칙
+
+1. **큰 분류 1개 = Jira 티켓 1개 = 로컬 상세 md 1개**.
+2. 큰 분류의 번호(`N`)와 제목(`<작업명>`)은 Jira 티켓 제목과 로컬 md 파일명에 그대로 보존한다.
+3. 큰 분류의 순서는 Task Index의 `번호` 순서가 된다.
+4. 소스 문서에 Jira 티켓이 이미 매핑되어 있으면 그대로 사용한다.
+5. 매핑이 없으면 Jira 티켓을 신규 생성하거나 사용자에게 생성 여부를 확인한다.
+
+### 작은 분류 → Jira 티켓 내 세부 작업
+
+1. 큰 분류 안의 `- 작은 분류` 각 항목은 **해당 Jira 티켓의 세부 작업**이다.
+2. 로컬 상세 md 파일(`## Plan` 섹션)에 작은 분류 목록을 체크리스트로 기록한다.
+3. 작은 분류의 접두사 태그(`[골격]`, `[공통/대상자]`, `[API]`, `[Excel]` 등)는 보존하여 작업 성격을 구분한다.
+4. Jira 티켓 Description에는 큰 분류 제목만 기재한다. 세부 작업은 유동적이므로 Jira에 기록하지 않고 로컬 md가 정본이다.
+
+### 로컬 상세 md 구성
+
+- 큰 분류별로 상세 md를 생성한다.
+- 파일명: `<번호>-<큰분류-간략명>.md` (예: `01-주간-요약-시트-생성-API.md`). Jira 키가 확정되면 `<번호>-<ISSUE_KEY>.md`로 갱신한다.
+- 추적 문서 정책의 기본 템플릿(Plan/User Review/Execution Result/Verification Result/Open Issues)을 그대로 사용하되, `## Plan` 앞에 아래 섹션을 추가한다:
+
+```markdown
+## 세부 작업 체크리스트
+
+- [ ] <작은 분류 1>
+- [ ] <작은 분류 2>
+- ...
+
+## 공통 컴포넌트 관계
+
+- 생성: `<목록 or 없음>`
+- 재사용: `<목록 or 없음>`
+```
+
+### 공통 컴포넌트 매핑표 반영
+
+- 소스 문서의 `공통 컴포넌트 매핑표`가 있으면, 각 큰 분류 상세 md의 `공통 컴포넌트 관계` 섹션에 반영한다.
+- `구현 위치`에 해당하는 큰 분류는 `이 작업이 생성하는 공통 컴포넌트`로 기록한다.
+- `재사용하는 API 작업`에 해당하는 큰 분류는 `이 작업이 재사용하는 공통 컴포넌트`로 기록하고, 소스 위치(최초 생성한 큰 분류 번호/제목)를 명시한다.
+- Task Index에도 필요 시 `구현 공통 / 재사용 공통`을 간략히 표기할 수 있다.
+
+### Jira 티켓 Description 형식
+
+```text
+<큰 분류 제목>
+```
+
+## 추적 문서 정책
+
+인덱스 문서 하나와 작업별 상세 파일들로 구성한다. 하나의 비대한 워크플로우 문서를 피하기 위함이다.
+
+- 인덱스 문서는 정식 작업 인덱스이자 상태 요약이다.
+- 작업별 상세 파일은 각 작업의 정식 실행 로그이다.
+- 소스가 문서인 경우 기본 인덱스 경로:
   - `<source-document-directory>/jira-task-workflow.md`
-- Default detail directory when source is a document:
+- 소스가 문서인 경우 기본 상세 디렉토리:
   - `<source-document-directory>/jira-task-workflow/`
-- Default index path when source is only a Jira parent:
+- 소스가 Jira 상위 이슈뿐인 경우 기본 인덱스 경로:
   - `docs/jira-task-workflow/<PARENT_KEY>.md`
-- Default detail directory when source is only a Jira parent:
+- 소스가 Jira 상위 이슈뿐인 경우 기본 상세 디렉토리:
   - `docs/jira-task-workflow/<PARENT_KEY>/`
-- Detail file naming convention:
-  - `<NN>-<ISSUE_KEY>.md`, e.g. `01-SH-20437.md`
-  - If no Jira key exists, use `<NN>-no-jira.md`.
-- Do not use Jira comments as the primary execution log.
-- Jira is used for issue identity, assignee/status lookup, and status synchronization.
-- If the user asks to attach/connect/link planning materials to a task, first add local markdown links in the task detail file.
-- Do not upload files to Jira unless the user explicitly asks for Jira attachments.
+- 상세 파일 명명 규칙 (일반):
+  - `<NN>-<ISSUE_KEY>.md`, 예: `01-SH-20437.md`
+  - Jira 키가 없으면 `<NN>-no-jira.md`.
+- 상세 파일 명명 규칙 (백엔드 분해 문서 연계 시):
+  - `<번호>-<큰분류-간략명>.md` (예: `01-주간-요약-시트-생성-API.md`). Jira 키 확정 시 `<번호>-<ISSUE_KEY>.md`로 갱신.
+- Jira 댓글을 주 실행 로그로 사용하지 않는다.
+- Jira는 이슈 식별, 담당자/상태 조회, 상태 동기화 용도로만 사용한다.
+- 사용자가 작업에 기획 자료를 첨부/연결/링크하라고 요청하면 먼저 작업 상세 파일에 로컬 마크다운 링크를 추가한다.
+- 사용자가 명시적으로 Jira 첨부파일을 요청하지 않는 한 Jira에 파일을 업로드하지 않는다.
 
-### Tracking Document Initial Template
+### 추적 문서 초기 템플릿
 
-Create the tracking document if it does not exist:
+추적 문서가 없으면 생성한다:
 
 ```markdown
 # Jira Task Workflow
 
 ## Workflow Source
 
-- Source document: `<path or none>`
-- Jira parent: `<parent key or none>`
-- Mode: `<document-mapping | jira-parent | user-list>`
-- Created at: `<YYYY-MM-DD>`
+- 소스 문서: `<path or none>`
+- Jira 상위: `<parent key or none>`
+- 모드: `<document-mapping | jira-parent | user-list | backend-breakdown>`
+- 생성일: `<YYYY-MM-DD>`
 
 ## Workflow Rules
 
-- This document is the canonical task index and status summary for Jira-linked tasks.
-- Each task's detailed plan/execution/verification log lives in a linked per-task detail file.
-- Tasks are executed in Task Index order unless the user specifies a task number or Jira key.
-- Each task must follow: plan → user review → execution → verification/review.
-- Do not execute implementation changes before explicit user approval.
-- Do not use Jira comments as the primary execution log.
-- Synchronize Jira status at every required workflow point. Never leave tracking status and Jira lifecycle status inconsistent without recording why.
+- 이 문서는 Jira 연동 작업의 정식 작업 인덱스이자 상태 요약이다.
+- 각 작업의 상세 계획/실행/검증 로그는 링크된 작업별 상세 파일에 존재한다.
+- 작업은 Task Index 순서대로 실행한다. 사용자가 작업 번호나 Jira 키를 지정하면 그에 따른다.
+- 각 작업은 반드시 계획 → 사용자 검토 → 실행 → 검증/리뷰 순서를 따른다.
+- 사용자의 명시적 승인 전에는 구현 변경을 실행하지 않는다.
+- Jira 댓글을 주 실행 로그로 사용하지 않는다.
+- 모든 필수 워크플로우 지점에서 Jira 상태를 동기화한다. 추적 상태와 Jira 라이프사이클 상태가 불일치하면 그 사유를 기록하지 않고 방치하지 않는다.
 
 ## Task Index
 
@@ -106,24 +165,24 @@ Create the tracking document if it does not exist:
 
 ## Task Detail Files
 
-- Create one detail file per task in the detail directory.
-- Link each detail file from the `상세 기록` column in Task Index.
-- Keep the index concise: status, latest note, and link only.
-- Do not append all task logs into this index document.
+- 상세 디렉토리에 작업별로 상세 파일을 하나씩 생성한다.
+- 각 상세 파일을 Task Index의 `상세 기록` 열에서 링크한다.
+- 인덱스는 상태, 최근 메모, 링크만으로 간결하게 유지한다.
+- 모든 작업 로그를 이 인덱스 문서에 덧붙이지 않는다.
 
-Example detail file path:
+예시 상세 파일 경로:
 
 - `jira-task-workflow/01-SH-20437.md`
 ```
 
-For every task, create a detail file:
+각 작업마다 상세 파일을 생성한다:
 
 ```markdown
 # <번호>. <작업명>
 
 - Jira: `<ISSUE_KEY or none>`
-- Status: `대기`
-- Source: `<source document section / Jira parent / user list>`
+- 상태: `대기`
+- 소스: `<소스 문서 섹션 / Jira 상위 / 사용자 목록>`
 
 ## Plan
 
@@ -146,13 +205,13 @@ For every task, create a detail file:
 없음.
 ```
 
-Task detail markdown heading rule:
+작업 상세 마크다운 헤딩 규칙:
 
-- Use `##` for major sections such as `Plan`, `User Review`, `Execution Result`, `Verification Result`, `Open Issues`.
-- Inside those sections, prefer `####` for subtopics such as linked materials, current structure, goal, implementation approach, verification plan, target files, or open questions.
-- Prefer a two-level heading structure of `##` and `####` for readability; avoid unnecessary `###` unless the user explicitly wants a different format.
+- `Plan`, `User Review`, `Execution Result`, `Verification Result`, `Open Issues` 같은 주요 섹션은 `##`를 사용한다.
+- 그 안에서는 연결 자료, 현재 구조, 목표, 구현 접근법, 검증 계획, 대상 파일, 미해결 질문 같은 하위 주제에 `####`를 사용한다.
+- 가독성을 위해 `##`와 `####`의 2단계 헤딩 구조를 선호한다. 사용자가 다른 형식을 명시적으로 원하지 않는 한 불필요한 `###`는 피한다.
 
-For flow-analysis, architecture-discovery, or process-tracing tasks, include a Mermaid diagram in `Execution Result`:
+흐름 분석, 아키텍처 탐색, 프로세스 추적 성격의 작업은 `Execution Result`에 Mermaid 다이어그램을 포함한다:
 
 ````markdown
 ### Mermaid 흐름도
@@ -165,98 +224,98 @@ flowchart TD
 ```
 ````
 
-Use Mermaid when it helps the next implementation task understand call order, responsibility boundaries, or data flow.
+다음 구현 작업이 호출 순서, 책임 경계, 데이터 흐름을 이해하는 데 도움이 될 때 Mermaid를 사용한다.
 
-If the tracking document already exists, do not overwrite it. Compare the source and tracking document for:
+추적 문서가 이미 존재하면 덮어쓰지 않는다. 소스와 추적 문서를 비교하여 아래 항목을 확인한다:
 
-- task number mismatch
-- task title mismatch
-- Jira key mismatch
-- source-only tasks
-- tracking-only tasks
+- 작업 번호 불일치
+- 작업 제목 불일치
+- Jira 키 불일치
+- 소스에만 있는 작업
+- 추적 문서에만 있는 작업
 
-Report mismatches and ask for approval before synchronizing the tracking document.
+불일치를 보고하고 사용자 승인을 받은 후 추적 문서를 동기화한다.
 
-## Workflow Status Model
+## 워크플로우 상태 모델
 
-Tracking document statuses:
+추적 문서 상태:
 
-| Status | Meaning |
+| 상태 | 의미 |
 |--------|---------|
-| 대기 | Not started |
-| 계획 작성 | Plan is being written or has been written |
-| 승인 대기 | Waiting for user review/approval |
-| 진행 중 | Approved and execution is in progress |
-| 검증 중 | Execution complete; verification/review in progress |
-| 완료 | Verification complete |
-| 차단됨 | Blocked by missing info/decision/dependency |
-| 재작업 필요 | Verification or user review requires changes |
-| 보류 | Intentionally deferred |
-| 취소 | Removed from scope |
+| 대기 | 시작 전 |
+| 계획 작성 | 계획 작성 중 또는 작성 완료 |
+| 승인 대기 | 사용자 검토/승인 대기 중 |
+| 진행 중 | 승인됨, 실행 중 |
+| 검증 중 | 실행 완료, 검증/리뷰 진행 중 |
+| 완료 | 검증 완료 |
+| 차단됨 | 정보/결정/의존성 부족으로 차단 |
+| 재작업 필요 | 검증 또는 사용자 검토 결과 수정 필요 |
+| 보류 | 의도적으로 연기 |
+| 취소 | 범위에서 제외 |
 
-Tracking status is the workflow execution status. Jira status is the ticket lifecycle status. Do not assume they are identical.
+추적 상태는 워크플로우 실행 상태다. Jira 상태는 티켓 라이프사이클 상태다. 둘이 동일하다고 가정하지 않는다.
 
-### Mandatory Status Synchronization Matrix
+### 필수 상태 동기화 매트릭스
 
-When changing a tracking status, immediately evaluate and perform the matching Jira transition if possible:
+추적 상태를 변경할 때, 즉시 해당하는 Jira 전환을 평가하고 수행한다:
 
-| Tracking status | Required Jira action |
+| 추적 상태 | 필수 Jira 액션 |
 |-----------------|----------------------|
-| `승인 대기` | Usually no Jira transition. Keep Jira as To-do unless the user explicitly requests otherwise. |
-| `진행 중` | Transition Jira to `진행 중` / `In Progress` before or immediately after starting execution. |
-| `검증 중` | Jira may remain `진행 중`; do not move to done yet unless verification is complete and completion is approved. |
-| `완료` | Transition Jira to `Close` / `Done` / `완료`. If no transition exists, report available transitions and keep a blocker note. |
-| `취소` | Transition Jira to `Hold`, `Canceled`, or the closest available non-active status. |
-| `보류` / `차단됨` | Transition Jira to `Hold` / `Blocked` if available. |
-| `재작업 필요` | Keep or move Jira to `진행 중` / `In Progress` if work must continue. |
+| `승인 대기` | 보통 Jira 전환 없음. 사용자가 명시적으로 요청하지 않는 한 Jira는 To-do 유지. |
+| `진행 중` | 실행 시작 전이나 시작 직후에 Jira를 `진행 중` / `In Progress`로 전환. |
+| `검증 중` | Jira는 `진행 중` 유지 가능. 검증이 완료되고 완료 승인이 나기 전까지 done으로 이동하지 않음. |
+| `완료` | Jira를 `Close` / `Done` / `완료`로 전환. 가능한 전환이 없으면 사용 가능한 전환 목록을 보여주고 차단 메모를 남김. |
+| `취소` | Jira를 `Hold`, `Canceled` 또는 가장 가까운 비활성 상태로 전환. |
+| `보류` / `차단됨` | 가능하면 Jira를 `Hold` / `Blocked`로 전환. |
+| `재작업 필요` | 작업을 계속해야 하면 Jira를 `진행 중` / `In Progress`로 유지하거나 이동. |
 
-A task is not truly finished until both are true:
+다음 두 조건이 모두 충족되어야 작업이 진정으로 완료된 것이다:
 
-1. tracking document status/result is updated, and
-2. Jira status has been synchronized or an explicit synchronization blocker is recorded.
+1. 추적 문서 상태/결과가 갱신됨, 그리고
+2. Jira 상태가 동기화되었거나 명시적 동기화 차단 사유가 기록됨.
 
-## Task Selection Rules
+## 작업 선택 규칙
 
-- “다음 작업” means the lowest-numbered task that is not `완료` or `취소`.
-- “1번 작업” means task number 1.
-- “3번부터 진행” means task number 3 becomes the current task.
-- “SH-20439 진행” means the task mapped to that Jira key.
-- “마지막까지 진행” does **not** mean automatic batch execution. Repeat the approval-gated loop for each task.
-- If the user wants to skip a task, ask whether to mark it `보류` or `취소`.
-- If the user wants to redo a task, mark it `재작업 필요` or move it back to `진행 중` after confirmation.
+- "다음 작업"이란 `완료`나 `취소`가 아닌 가장 낮은 번호의 작업.
+- "1번 작업"이란 작업 번호 1.
+- "3번부터 진행"이란 작업 번호 3이 현재 작업이 됨.
+- "SH-20439 진행"이란 해당 Jira 키에 매핑된 작업.
+- "마지막까지 진행"은 일괄 자동 실행을 의미하지 않는다. 작업마다 승인 게이트 루프를 반복한다.
+- 사용자가 작업을 건너뛰려 하면 `보류`로 할지 `취소`로 할지 물어본다.
+- 사용자가 작업을 다시 하려 하면 확인 후 `재작업 필요`로 표시하거나 `진행 중`으로 되돌린다.
 
-## Approval Gate
+## 승인 게이트
 
-Each task must have an explicit approval gate.
+각 작업에는 명시적 승인 게이트가 필요하다.
 
-### Allowed before approval
+### 승인 전 허용되는 작업
 
-Before user approval, you may:
+사용자 승인 전에 할 수 있는 것:
 
-- read requirements/tracking docs
-- read Jira tickets
-- search/read code
-- inspect related files
-- analyze impact
-- write the plan into the tracking document
-- set tracking status to `계획 작성` or `승인 대기`
+- 요구사항/추적 문서 읽기
+- Jira 티켓 읽기
+- 코드 검색/읽기
+- 관련 파일 조사
+- 영향도 분석
+- 추적 문서에 계획 작성
+- 추적 상태를 `계획 작성` 또는 `승인 대기`로 설정
 
-### Forbidden before approval
+### 승인 전 금지되는 작업
 
-Before explicit approval, do not:
+명시적 승인 전에 하지 말아야 할 것:
 
-- edit implementation code
-- edit configuration or migrations
-- change Jira status
-- add Jira comments
-- mark work complete
-- run commands that cause persistent side effects
+- 구현 코드 수정
+- 설정이나 마이그레이션 수정
+- Jira 상태 변경
+- Jira 댓글 추가
+- 작업 완료 표시
+- 영구적 부작용이 있는 명령 실행
 
-Tracking document updates for plan/status are the only allowed write before approval.
+승인 전에는 계획/상태에 대한 추적 문서 갱신만 허용된다.
 
-### Phrases considered approval
+### 승인으로 간주하는 표현
 
-Treat these as approval to execute the planned task:
+다음 표현을 계획된 작업 실행 승인으로 간주한다:
 
 - `승인`
 - `진행`
@@ -269,7 +328,7 @@ Treat these as approval to execute the planned task:
 - `이대로 진행`
 - `계획대로 진행`
 
-Do not treat these as approval:
+다음 표현은 승인으로 간주하지 않는다:
 
 - `검토해줘`
 - `더 자세히`
@@ -279,109 +338,63 @@ Do not treat these as approval:
 - `질문`
 - `잠깐`
 
-If not approved, revise/explain the plan and keep the task in `승인 대기`.
+승인되지 않으면 계획을 수정/설명하고 작업을 `승인 대기`로 유지한다.
 
-## Commit Convention
+## 커밋 규칙
 
-When a workflow has a parent/epic ticket, git commits use the **parent ticket number**, not the individual subtask ticket numbers.
+워크플로우에 상위/에픽 티켓이 있는 경우 git 커밋에는 개별 하위작업 티켓 번호가 아닌 **상위 티켓 번호**를 사용한다.
 
-Rules:
+규칙:
 
-- Resolve the workflow parent ticket from the `Workflow Source` block (`Jira parent` field) of the tracking index.
-- Commit message prefix = parent ticket. Example: `SH-19400 근무지별 출퇴근 근무지 현황 집계 로직 구현`.
-- Subtask ticket numbers (e.g. `SH-21682`) are used for **Jira tracking and status synchronization only**. Never put them in the commit message unless the project explicitly requires per-subtask commits.
-- Follow the project's own commit format (e.g. Shopl: `{티켓} {한글 작업 내용}`, no conventional-commit prefix, no AI tool names). Do not override project convention.
-- If the workflow has **no parent** (standalone task list), fall back to the task's own ticket key.
-- Record the parent ticket in the index `Workflow Source` so every executor resolves the same prefix.
+- 추적 인덱스의 `Workflow Source` 블록 (`Jira parent` 필드)에서 워크플로우 상위 티켓을 확인한다.
+- 커밋 메시지 접두사 = 상위 티켓. 예: `SH-19400 근무지별 출퇴근 근무지 현황 집계 로직 구현`.
+- 하위작업 티켓 번호(예: `SH-21682`)는 **Jira 추적 및 상태 동기화 전용**으로만 사용한다. 프로젝트가 명시적으로 하위작업별 커밋을 요구하지 않는 한 커밋 메시지에 넣지 않는다.
+- 프로젝트 고유의 커밋 형식을 따른다(예: Shopl: `{티켓} {한글 작업 내용}`, conventional-commit 접두사 없음, AI 도구 이름 없음). 프로젝트 규칙을 덮어쓰지 않는다.
+- 워크플로우에 **상위 티켓이 없으면**(독립 작업 목록) 작업 자체의 티켓 키로 폴백한다.
+- 모든 실행자가 동일한 접두사를 사용하도록 인덱스 `Workflow Source`에 상위 티켓을 기록한다.
 
-The parent ticket in commits keeps the history grouped under one story/epic, while subtask tickets stay clean for Jira lifecycle tracking.
+커밋에 상위 티켓을 사용하면 히스토리가 하나의 스토리/에픽 아래로 묶이고, 하위작업 티켓은 Jira 라이프사이클 추적용으로 깔끔하게 유지된다.
 
-## Per-Task Procedure
+## 작업별 절차
 
-For each task:
+각 작업마다:
 
-1. **Identify**
-   - Find task number, title, Jira issue key, source reference.
-2. **Inspect Jira**
-   - Check issue status, assignee, parent, available transitions if status sync may be needed.
-3. **Investigate**
-   - Read relevant docs/code.
-   - Follow project-specific rules and AGENTS instructions.
-4. **Plan**
-   - Write a concise plan including:
-     - objective
-     - scope
-     - affected files/modules
-     - implementation approach
-     - verification method
-     - risks/open questions
-   - When recording the plan in the task detail file, structure it with `## Plan` and `####` subheadings for readability.
-5. **Record Plan**
-   - Update the per-task detail file.
-   - Update the index row status/latest note/link.
-   - Set tracking status to `승인 대기`.
-6. **Wait for Approval**
-   - Stop and ask the user to review.
-7. **Execute after Approval**
-   - Set tracking status to `진행 중`.
-   - Transition Jira to in-progress status if configured and possible.
-   - Perform the planned work.
-8. **Verify**
-   - Set tracking status to `검증 중`.
-   - Run allowed verification for the project.
-   - Respect project-specific forbidden commands.
-9. **Record Result**
-   - Update execution result, verification result, and open issues in the per-task detail file.
-   - Keep task detail headings consistent: major result sections with `##`, subtopics with `####`.
-   - Update the index row with the latest status/note/link.
-   - If related requirements/screenshots need to be attached to the task record, add markdown links to local source files in the detail file first.
-10. **Complete**
-    - Set tracking status to `완료` only after verification is acceptable.
-    - Transition Jira to done/close when the user explicitly approves completion, asks to commit and move on, or asks to proceed to the next task after a completed implementation.
-    - If completion approval is ambiguous, ask before closing Jira; do not silently leave Jira in `진행 중`.
-11. **Next Task**
-    - Before proposing the next incomplete task, run the completion checklist:
-      1. per-task detail file updated,
-      2. index row updated,
-      3. Jira status synchronized or blocker recorded,
-      4. commit created if the task produced code/doc changes and the user requested commit-per-step — using the **parent ticket** as the commit prefix (see Commit Convention), not the subtask ticket.
-    - Propose the next incomplete task only after the checklist is complete.
+1. **식별** — 작업 번호, 제목, Jira 키, 소스 참조 확인.
+2. **Jira 확인** — 이슈 상태, 담당자, 상위, 사용 가능한 전환 확인.
+3. **조사** — 관련 문서/코드 읽기. 프로젝트 규칙·AGENTS 지침 준수.
+4. **계획** — 목표·범위·영향 파일·구현 접근법·검증 방법·리스크 포함 간결한 계획 작성. (헤딩 규칙은 추적 문서 정책 참조)
+5. **계획 기록** — 상세 파일·인덱스 행 갱신. 추적 상태 `승인 대기`.
+6. **승인 대기** — 사용자 검토 요청 후 대기. (승인 게이트 참조)
+7. **실행** — 추적 상태 `진행 중`. Jira 전환은 동기화 매트릭스 따름.
+8. **검증** — 추적 상태 `검증 중`. 프로젝트 허용 검증 실행, 금지 명령 준수.
+9. **결과 기록** — 상세 파일·인덱스 행 갱신.
+10. **완료** — 검증 OK 시 추적 상태 `완료`. Jira 전환은 동기화 매트릭스 따름.
+11. **다음 작업** — 완료 체크리스트(1. 상세 파일 갱신, 2. 인덱스 행 갱신, 3. Jira 동기화 또는 차단 사유 기록, 4. 커밋 — 상위 티켓 접두사, 커밋 규칙 참조) 확인 후 다음 미완료 작업 제안.
 
-## Jira Status Synchronization
+## Jira 상태 동기화
 
-Use Jira status synchronization only; do not add Jira comments by default.
+상태→Jira 매핑은 워크플로우 상태 모델의 동기화 매트릭스를 따른다. Jira 댓글은 기본 추가하지 않는다.
 
-Default target status candidates:
+운영 규칙:
 
-- Start execution: `진행 중`, `In Progress`
-- Complete after user approval / commit-and-next approval: `Close`, `Done`, `완료`
-- Canceled/deferred: `Hold`, `Canceled`, `Cancelled`, `취소`, `보류`
-- Blocked: `Hold`, `Blocked`, `보류`
+1. Jira 상태 변경 전마다 현재 이슈의 사용 가능한 전환을 질의한다.
+2. 전환 대상 이름이나 id로 대상 상태를 매칭한다.
+3. 매칭되는 전환이 없으면 사용 가능한 전환 목록을 보여주고 동기화 차단 사유를 작업 상세 파일에 기록한다.
+4. Jira 상태 전환을 강제하거나 추측하지 않는다.
 
-Hard rules:
+### 재개/재조정 절차
 
-1. Query available transitions for the current issue before every Jira status change.
-2. Match the target status by transition target name or id.
-3. If no transition matches, show available transitions and record the sync blocker in the task detail file.
-4. Do not force or guess a Jira status transition.
-5. Do not transition Jira to done/close before work is verified.
-6. If the user says a completed step should be committed and moved on, treat that as completion approval and close/done the Jira issue if a valid transition exists.
-7. If tracking says `완료` but Jira is still `진행 중`, fix Jira immediately before moving to the next task.
-8. If tracking says `취소` but Jira is still `To-do` or `진행 중`, move Jira to `Hold`/cancel-like status immediately if available.
+Jira 작업 워크플로우를 재개할 때나 다음 작업을 선택하기 전에:
 
-### Resume/Reconciliation Procedure
+1. 워크플로우 인덱스를 읽고 `진행 중`, `검증 중`, `완료`, `취소`, `보류`, `차단됨` 상태인 모든 작업을 식별한다.
+2. 현재 작업과 최근 완료/취소된 작업의 Jira 상태를 질의한다.
+3. 계속 진행하기 전에 불일치를 조정한다:
+   - 추적 `완료` + Jira `진행 중`/`To-do` → Jira를 done/close로 전환하거나 차단 사유 기록.
+   - 추적 `취소`/`보류` + Jira 활성 → Jira를 hold/취소 유사 상태로 전환하거나 차단 사유 기록.
+   - 추적 `진행 중`이지만 구현이 이미 커밋/검증됨 → 추적 결과 갱신 후 승인 시 Jira close.
+4. 동기화 결과를 사용자에게 간략히 보고한다.
 
-When resuming a Jira task workflow or before selecting the next task:
-
-1. Read the workflow index and identify all tasks with status `진행 중`, `검증 중`, `완료`, `취소`, `보류`, or `차단됨`.
-2. Query Jira status for the current task and any recently completed/canceled tasks.
-3. Reconcile mismatches before continuing:
-   - tracking `완료` + Jira `진행 중`/`To-do` → transition Jira to done/close or record blocker.
-   - tracking `취소`/`보류` + Jira active → transition Jira to hold/cancel-like status or record blocker.
-   - tracking `진행 중` but implementation already committed/verified → update tracking result, then close Jira if approved.
-4. Report the synchronization result briefly to the user.
-
-## User Input Examples
+## 사용자 입력 예시
 
 - `backend-requirements.md의 Jira 티켓 매핑 순서대로 진행하자`
 - `SH-18440 하위작업을 1번부터 마지막까지 진행하자`
@@ -390,9 +403,9 @@ When resuming a Jira task workflow or before selecting the next task:
 - `SH-20439 작업 계획 수립해줘`
 - `각 작업은 계획 먼저 세우고 내가 승인하면 실행해줘`
 
-## Output Style
+## 출력 스타일
 
-- Respond concisely.
-- Clearly state current task number, title, and Jira key.
-- When asking for approval, include exactly what will be changed and how it will be verified.
-- If blocked, state the blocker and what decision/info is needed.
+- 간결하게 응답한다.
+- 현재 작업 번호, 제목, Jira 키를 명확히 밝힌다.
+- 승인 요청 시 무엇을 어떻게 변경하고 어떻게 검증할지 포함한다.
+- 차단 시 무엇이 차단인지와 어떤 결정/정보가 필요한지 밝힌다.
