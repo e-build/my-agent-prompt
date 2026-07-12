@@ -1,5 +1,5 @@
 ---
-name: kotlin-spring-gradle-backend-architecture
+name: refactor-layered-arch
 description: "Java/Kotlin Gradle 백엔드 프로젝트에서 Kotlin/Spring Boot 멀티모듈 구조와 Domain-First app 내부 아키텍처를 설계, 구현, 리뷰, 리팩터링할 때 사용. Trigger: Gradle 멀티모듈, Spring Boot backend architecture, app/core/infra/support, domain-first package, api/application/domain/infrastructure layer, JPA Entity 분리, 모듈 의존성 검토."
 ---
 
