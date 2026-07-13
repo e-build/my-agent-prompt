@@ -125,8 +125,8 @@ description: Execute a sequence of tracker-linked tasks from a document, parent 
 ### 로컬 상세 md 구성
 
 - 큰 분류별로 상세 md를 생성한다. 이 파일은 **컨테이너/인덱스** 역할만 한다 (Orientation + Unit Index + 큰 분류 검증 요약). 작은 분류 실행 로그는 담지 않는다.
-- 파일명: `<번호>-<큰분류-간략명>.md` (예: `01-주간-요약-시트-생성-API.md`). 티켓 키가 확정되면 `<번호>-<티켓키>.md`로 갱신한다.
-- 큰 분류 파일과 같은 이름의 디렉토리를 옆에 둔다 (`<번호>-<티켓키>/`). 그 안에 작은 분류별 unit 파일을 생성한다.
+- 디렉토리: `<번호>-<큰분류-간략명>/` (예: `01-주간-요약-시트-생성-API/`). 티켓 키가 확정되면 `<번호>-<티켓키>/`로 갱신한다.
+- 큰 분류 인덱스 파일은 이 디렉토리 안에 `index.md`로 둔다. 작은 분류별 unit 파일도 같은 디렉토리 안에 나란히 생성한다.
 - 큰 분류 파일에는 아래 섹션을 둔다:
 
 ```markdown
@@ -134,8 +134,8 @@ description: Execute a sequence of tracker-linked tasks from a document, parent 
 
 | 순번 | 작은 분류 | 상태 | 상세 파일 | 커밋 |
 |------|-----------|------|-----------|------|
-| 1 | <작은 분류 1> | 대기 | [상세](./<큰분류키>/01-<slug>.md) | - |
-| 2 | <작은 분류 2> | 대기 | [상세](./<큰분류키>/02-<slug>.md) | - |
+| 1 | <작은 분류 1> | 대기 | [상세](./01-<slug>.md) | - |
+| 2 | <작은 분류 2> | 대기 | [상세](./02-<slug>.md) | - |
 
 ## 공통 컴포넌트 관계
 
@@ -197,13 +197,13 @@ description: Execute a sequence of tracker-linked tasks from a document, parent 
     - `docs/task-workflow/<PARENT_KEY>.md`
 - 소스가 트래커 상위 이슈뿐인 경우 기본 상세 디렉토리:
     - `docs/task-workflow/<PARENT_KEY>/`
-- 상세 파일 명명 규칙 (일반):
-    - `<NN>-<TICKET_KEY>.md`, 예: `01-SH-20437.md`
-    - 티켓 키가 없으면 `<NN>-no-key.md`. (`local` 모드에서는 `<NN>.md`)
-- 상세 파일 명명 규칙 (백엔드 분해 문서 연계 시):
-    - `<번호>-<큰분류-간략명>.md` (예: `01-주간-요약-시트-생성-API.md`). 티켓 키 확정 시 `<번호>-<티켓키>.md`로 갱신.
-- 큰 분류 파일은 컨테이너/인덱스 역할만 한다. 본문에 작은 분류 실행 로그를 담지 않는다.
-- 작은 분류 unit 파일은 큰 분류 파일과 같은 이름의 디렉토리(`task-workflow/<큰분류키>/`) 안에 둔다.
+- 큰 분류 디렉토리 명명 규칙 (일반):
+    - `<NN>-<TICKET_KEY>/`, 예: `01-SH-20437/`. 그 안의 큰 분류 인덱스는 `index.md`.
+    - 티켓 키가 없으면 `<NN>-no-key/`. (`local` 모드에서는 `<NN>/`)
+- 큰 분류 디렉토리 명명 규칙 (백엔드 분해 문서 연계 시):
+    - `<번호>-<큰분류-간략명>/` (예: `01-주간-요약-시트-생성-API/`). 티켓 키 확정 시 `<번호>-<티켓키>/`로 갱신. 그 안의 큰 분류 인덱스는 `index.md`.
+- 큰 분류 인덱스(`index.md`)는 컨테이너/인덱스 역할만 한다. 본문에 작은 분류 실행 로그를 담지 않는다.
+- 작은 분류 unit 파일은 같은 큰 분류 디렉토리(`task-workflow/<큰분류키>/`) 안에 `index.md`와 나란히 둔다.
 - unit 파일 명명 규칙:
     - `<NN>-<짧은-slug>.md` (예: `01-공통-reader.md`, `02-공통-raw-source.md`, `05-api.md`).
     - 순번은 2자리 숫자. 태그의 `/`는 `-`로 변환. 한글/영문 혼용 허용. 긴 설명은 생략.
@@ -253,7 +253,7 @@ description: Execute a sequence of tracker-linked tasks from a document, parent 
 
 예시 상세 파일 경로:
 
-- `task-workflow/01-SH-20437.md`
+- `task-workflow/01-SH-20437/index.md`
 ```
 
 각 작업마다 상세 파일을 생성한다:
@@ -277,7 +277,7 @@ description: Execute a sequence of tracker-linked tasks from a document, parent 
 
 | 순번 | 작은 분류 | 상태 | 상세 파일 | 커밋 |
 |------|-----------|------|-----------|------|
-| 1 | <작은 분류 1> | 대기 | [상세](./<큰분류키>/01-<slug>.md) | - |
+| 1 | <작은 분류 1> | 대기 | [상세](./01-<slug>.md) | - |
 
 ## 큰 분류 검증 결과
 

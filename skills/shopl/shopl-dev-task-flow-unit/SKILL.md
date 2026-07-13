@@ -23,7 +23,7 @@ description: Execute one implementation unit (작은 분류 / 실행 단위) wit
 | 정보 | 설명 | 예시 |
 |------|------|------|
 | unit 파일 경로 (`unitFilePath`) | **정본**. 이 스킬이 읽고 쓰는 unit 파일의 전체 경로 | `docs/task-workflow/01-SH-21819/02-공통-raw-source.md` |
-| 큰 분류 파일 경로 | Unit Index를 갱신할 큰 분류 파일의 전체 경로 | `docs/task-workflow/01-SH-21819.md` |
+| 큰 분류 파일 경로 | Unit Index를 갱신할 큰 분류 인덱스 파일의 전체 경로 | `docs/task-workflow/01-SH-21819/index.md` |
 | 큰 분류 작업 키 | 현재 큰 분류의 작업 키 | `SH-21682` |
 | 상위/에픽 키 | 커밋 접두사로 쓸 상위 키 | `SH-19400` |
 | 실행 단위 식별자 | 번호 + 이름 + 태그 | `2. 결제 API 구현 [API]` |
