@@ -1,6 +1,6 @@
 ---
 name: shopl-dev-task-flow-unit
-description: Execute one implementation unit (작은 분류 / 실행 단위) within a task-flow workflow. Owns one unit file (unitFilePath) as the single source of truth: detailed planning → approval gate → implementation → diff review gate → commit → unit file update, then returns structured completion events to the parent task-flow skill.
+description: Execute one implementation unit (작은 분류 / 실행 단위) within a task-flow workflow. Owns one unit file (unitFilePath) as the single source of truth, handling detailed planning, approval gate, implementation, diff review gate, commit and unit file update, then returns structured completion events to the parent task-flow skill.
 ---
 
 # Task Flow Implementation Unit
