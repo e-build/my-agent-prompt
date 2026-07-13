@@ -1,11 +1,11 @@
 ---
 name: shopl-dev-task-flow-unit
-description: Execute one implementation unit (작은 분류 / 실행 단위) within a task-flow workflow. Handles the full lifecycle: detailed planning → approval gate → implementation → diff review gate → commit → checklist update, then returns structured completion events to the parent task-flow skill.
+description: Execute one implementation unit (작은 분류 / 실행 단위) within a task-flow workflow. Owns one unit file (unitFilePath) as the single source of truth: detailed planning → approval gate → implementation → diff review gate → commit → unit file update, then returns structured completion events to the parent task-flow skill.
 ---
 
 # Task Flow Implementation Unit
 
-하나의 실행 단위(작은 분류)를 완료하는 절차. 부모 스킬(`shopl-dev-task-flow`)의 작은 분류 루프에서 각 단위마다 호출한다. 독립 실행도 가능하지만, 보통 작업 흐름 컨텍스트(트래커 모드, 커밋 접두사, 추적 문서 경로)가 필요하므로 부모 스킬을 통해 실행하는 것이 기본이다.
+하나의 실행 단위(작은 분류)를 완료하는 절차. 부모 스킬(`shopl-dev-task-flow`)의 작은 분류 루프에서 각 단위마다 호출한다. 이 스킬은 호출 시 받은 **unit 파일(`unitFilePath`)**을 정본으로 삼아, 그 파일 안에서 계획/승인/구현/diff/검증/커밋을 전부 기록한다. 큰 분류 파일에는 긴 로그를 쓰지 않는다. 독립 실행도 가능하지만, 보통 작업 흐름 컨텍스트(트래커 모드, 커밋 접두사, unit 파일 경로)가 필요하므로 부모 스킬을 통해 실행하는 것이 기본이다.
 
 ## 용도
 
@@ -22,15 +22,16 @@ description: Execute one implementation unit (작은 분류 / 실행 단위) wit
 
 | 정보 | 설명 | 예시 |
 |------|------|------|
+| unit 파일 경로 (`unitFilePath`) | **정본**. 이 스킬이 읽고 쓰는 unit 파일의 전체 경로 | `docs/task-workflow/01-SH-21819/02-공통-raw-source.md` |
+| 큰 분류 파일 경로 | Unit Index를 갱신할 큰 분류 파일의 전체 경로 | `docs/task-workflow/01-SH-21819.md` |
 | 큰 분류 작업 키 | 현재 큰 분류의 작업 키 | `SH-21682` |
 | 상위/에픽 키 | 커밋 접두사로 쓸 상위 키 | `SH-19400` |
 | 실행 단위 식별자 | 번호 + 이름 + 태그 | `2. 결제 API 구현 [API]` |
 | 실행 단위 순번 | 큰 분류 내 몇 번째 작은 분류인지 | `1` |
 | 첫 실행 단위 여부 | 부모가 트래커 전환 판단에 쓰는 값 | `true` |
+| Unit Index 행 | 갱신할 Unit Index 행 식별자(순번 또는 slug) | `2` |
 | 목표 | 이 단위가 달성할 것 | 주문 결제 검증 로직 구현 |
 | 대상 파일 | 수정/생성할 파일 경로 목록 | `src/main/kotlin/.../Order.java` |
-| 추적 문서 경로 | 상세 md 파일의 전체 경로 | `docs/task-workflow/01-SH-20437.md` |
-| 체크리스트 항목 | 어떤 작은 분류를 완료 처리할지 | `[API] 결제 검증 로직 구현` |
 | 트래커 모드 | `jira` / `linear` / `local` | `jira` |
 | 커밋 접두사 | 커밋 메시지에 붙일 티켓 키 | `SH-19400` |
 | 검증 힌트 | 실행 후 어떤 검증을 우선 볼지 | `OrderService 관련 테스트, gradle test --tests ...` |
@@ -49,31 +50,58 @@ description: Execute one implementation unit (작은 분류 / 실행 단위) wit
 - 검증 방법
 - 리스크
 
-추적 문서의 `## Plan` 섹션 아래에 `#### <작은 분류명>` 서브섹션으로 기록한다:
+**unit 파일(`unitFilePath`)의 `## Plan` 섹션에 기록한다.** 큰 분류 파일에는 쓰지 않는다.
 
-```
-#### <작은 분류명>
+unit 파일 템플릿:
+
+```markdown
+# <큰분류번호>-<unit순번>. <작은 분류 원문 제목>
+
+- 큰 분류: `<큰분류키>`
+- 작업 키: `<티켓키>`
+- 트래커 모드: `<jira | linear | local>`
 - 상태: `계획 작성`
+- 커밋 접두사: `<상위키>`
+- 원문 작은 분류: `<작은 분류 원문 제목>`
+
+## Unit Goal
+
+## Plan
+
 - 목표:
 - 대상 파일:
 - 구현 접근:
 - 검증 방법:
 - 리스크:
+
+## User Review
+
+## Execution Result
+
+## Diff Review
+
+## Verification Result
+
+## Commit
+
+- 커밋: `none`
+
+## Open Issues
 ```
 
-상태를 `계획 작성`으로 갱신한다.
+unit 파일 헤더의 `상태:`를 `계획 작성`으로 설정한다. (작은 분류 전용 상태 모델은 아래 `작은 분류 상태 모델` 참조.)
 
 ### 2. 상세 승인 대기
 
 작성한 계획을 사용자에게 제시하고 승인을 기다린다. 승인 전에는 어떤 구현 변경도 하지 않는다.
 
-추적 상태를 `승인 대기`로 설정한다. 트래커(`jira` 모드)는 그대로 둔다(아직 시작 전).
+unit 파일 헤더의 `상태:`를 `승인 대기`로 설정한다. 트래커(`jira` 모드)는 그대로 둔다(아직 시작 전).
 
 승인 표현 표는 아래 `승인 게이트` 참조.
 
 ### 3. 실행 시작
 
-승인 시 추적 상태를 `진행 중`으로 변경한다.
+승인 시 unit 파일 헤더의 `상태:`를 `진행 중`으로 변경한다.
 
 이 스킬은 트래커 상태를 직접 전환하지 않는다. 대신 부모 스킬이 판단할 수 있도록 다음 사실을 결과에 포함한다:
 
@@ -89,7 +117,7 @@ description: Execute one implementation unit (작은 분류 / 실행 단위) wit
 
 ### 5. Diff 검토
 
-구현 완료 후 diff를 생성하여 사용자에게 제시한다. 추적 상태를 `diff 검토 중`으로 설정한다.
+구현 완료 후 diff를 생성하여 사용자에게 제시한다. unit 파일 헤더의 `상태:`를 `diff 검토 중`으로 설정한다.
 
 #### 승인 표현 (diff 통과)
 
@@ -107,7 +135,7 @@ description: Execute one implementation unit (작은 분류 / 실행 단위) wit
 - `수정해줘` / `고쳐`
 - `다르게 해` / `방향이 틀렸어`
 
-거절 시 step 4로 돌아가 해당 단위만 수정 후 diff를 다시 제시한다. 다음 실행 단위로 넘어가지 않는다.
+거절 시 unit 파일 헤더의 `상태:`를 `diff 거절`로 설정하고 step 4로 돌아가 해당 단위만 수정 후 diff를 다시 제시한다. 다음 실행 단위로 넘어가지 않는다.
 
 #### 금지 사항
 
@@ -126,16 +154,20 @@ diff 승인 시 해당 실행 단위만 커밋한다.
 - 프로젝트 고유의 커밋 형식을 따른다(예: `SH-19400 주문 결제 API 구현`).
 - AI 도구 이름/저작권 문구를 커밋 메시지에 포함하지 않는다.
 
-### 7. 체크리스트 갱신
+### 7. unit 파일 갱신 + 큰 분류 요약
 
 커밋 직전 최종 점검:
 
-- Plan 섹션의 `상태:` 라벨과 체크리스트 `[x]`/`[ ]`가 일치하는가
-- 체크리스트에 테스트 항목이 `[ ]`로 남아 있지 않은가 (테스트 미완료 시 다음 작은 분류로 넘어가지 않음)
-- 이동/삭제 파일이 있다면 `git status --short`로 D 또는 R 상태가 stage되었는가
 - `git status --short` 결과가 예상과 일치하는가 (무엇이 추가/변경/삭제됐는지 확인)
+- 이동/삭제 파일이 있다면 D 또는 R 상태가 stage되었는가
+- 테스트 항목이 남아 있지 않은가 (테스트 미완료 시 다음 작은 분류로 넘어가지 않음)
 
-체크리스트에서 해당 작은 분류를 체크(완료)로 표시하고, 실행 결과를 상세 파일(Execution Result, Verification Result)에 기록한 후 부모/호출자로 제어를 반환한다.
+unit 파일에 결과를 기록한다:
+
+- `## Execution Result` / `## Verification Result` / `## Diff Review` / `## Commit`(커밋 해시) / `## Open Issues` 채우기
+- unit 파일 헤더 `상태:`를 `완료`(또는 `차단`)로 설정
+
+**큰 분류 파일에는 긴 로그를 쓰지 않는다.** 부모가 Unit Index 행(상태/커밋 해시)만 갱신하도록 결과를 반환한다.
 
 ## 반환 계약 (Return Contract)
 
@@ -143,6 +175,7 @@ diff 승인 시 해당 실행 단위만 커밋한다.
 
 | 반환값 | 의미 |
 |------|------|
+| `unitFilePath` | 처리한 unit 파일 경로 |
 | `unitStatus` | `completed` / `rework-needed` / `blocked` |
 | `startedExecution` | 실제 구현이 시작되었는지 |
 | `isFirstUnit` | 현재 단위가 첫 실행 단위였는지 |
@@ -156,13 +189,36 @@ diff 승인 시 해당 실행 단위만 커밋한다.
 
 다음 조건이 모두 충족되어야 부모 스킬로 제어를 되돌린다:
 
-1. 체크리스트 항목이 체크(완료)됨.
+1. unit 파일(`unitFilePath`)의 Plan/User Review/Execution/Diff/Verification/Commit이 전부 기록됨.
 2. diff 승인 후 커밋 완료.
-3. 실행 결과가 추적 문서에 기록됨.
-4. 반환 계약의 핵심 값(`unitStatus`, `changedFiles`, `commitHash`, `needsTrackerSync`)이 정리됨.
+3. unit 파일 헤더 `상태:`가 `완료`(또는 `차단`)로 설정됨.
+4. 반환 계약의 핵심 값(`unitFilePath`, `unitStatus`, `changedFiles`, `commitHash`, `needsTrackerSync`)이 정리됨.
+
+## 작은 분류 상태 모델
+
+작은 분류(unit)는 큰 분류 상태와 별개의 전용 상태를 쓴다. 트래커와 동기화하지 않고 로컬 진행 제어 전용이다. unit 파일 헤더 `상태:`와 큰 분류 파일의 Unit Index에만 기록된다.
+
+| 상태 | 의미 |
+|------|------|
+| `대기` | unit 시작 전 |
+| `계획 작성` | unit 파일에 Plan 작성 중 |
+| `승인 대기` | 사용자 승인 대기 |
+| `진행 중` | 승인 후 구현 중 |
+| `diff 검토 중` | 구현 완료, diff 제시 후 판단 대기 |
+| `diff 거절` | diff 수정 필요, 같은 unit에서 재작업 |
+| `검증 중` | diff 승인/커밋 후 unit 검증 중 |
+| `완료` | unit 완료, 큰 분류 파일 Unit Index에 요약 반영됨 |
+| `차단` | 이 unit 진행에 필요한 결정/정보 부족 |
+
+규칙:
+
+- 작은 분류 상태는 트래커(Jira/Linear)와 동기화하지 않는다. 트래커 상태는 큰 분류/티켓 단위에서만 관리한다.
+- `diff 거절`은 큰 분류 상태를 바꾸지 않는다. 같은 unit 내에서만 전이한다.
+- unit이 `차단`일 때만 부모가 큰 분류 차단 여부를 전파할지 판단한다.
 
 ## 비고
 
-- 이 스킬은 상태 플래핑(잦은 상태 변경)을 피한다. `계획 작성` → `승인 대기` → `진행 중` → `diff 검토 중` → 필요 시 재순환 → 완료까지 한 단위 내에서만 전이한다.
+- 이 스킬은 상태 플래핑(잦은 상태 변경)을 피한다. `계획 작성` → `승인 대기` → `진행 중` → `diff 검토 중` → 필요 시 재순환 → `완료`까지 한 unit 파일 내에서만 전이한다.
 - 큰 분류 전체의 방향은 부모 스킬(`shopl-dev-task-flow`)의 `Orientation`에서 결정한다. 이 스킬은 Orientation을 건드리지 않는다.
 - 트래커 상태 전환은 부모 스킬 전담이다. 이 스킬은 상태 전환을 실행하지 않고, 전환 판단에 필요한 결과만 반환한다.
+- 정본은 unit 파일(`unitFilePath`) 하나다. 큰 분류 파일에는 긴 실행 로그를 쓰지 않는다.
