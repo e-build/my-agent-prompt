@@ -142,19 +142,6 @@ Every document must satisfy ALL of the following:
 - [ ] **Examples**: At least one concrete example per abstract explanation
 - [ ] **No stale references**: No hardcoded dates, versions, or line numbers
 
-### /docs-review Rubric
-
-When reviewing, evaluate on these 4 axes and score each 1-5:
-
-| Axis | 1 (Poor) | 5 (Excellent) |
-|------|----------|---------------|
-| **Structure** | No TOC, inconsistent headings, no logical flow | Clear TOC, proper heading hierarchy, natural reading order |
-| **Content** | Inaccurate, incomplete, or duplicates existing docs | Accurate, complete, unique value-add |
-| **Readability** | Long sentences, unexplained jargon, wall of text | Short sentences, terms explained, good use of whitespace/diagrams |
-| **Maintainability** | Hardcoded paths/versions, tightly coupled to implementation details | Abstract references, resilient to code changes |
-
-Provide: scores, specific issues with line references, and concrete fix suggestions.
-
 ---
 
 ## Prohibited Patterns
@@ -186,18 +173,10 @@ Provide: scores, specific issues with line references, and concrete fix suggesti
 
 | Command | Purpose |
 |---------|---------|
-| `/docs-execute` | Execute documentation for a topic/feature |
-| `/docs-review` | Critical review of existing documentation |
-| `/docs-make-book` | Compile all docs into a comprehensive reference book |
-| `/docs-status` | Documentation status dashboard |
-| `/docs-extract-learning` | Extract general concepts from code |
-| `/docs-brainstorm-design` | Brainstorm design document structure |
-| `/docs-help` | Command help |
+| `/me-breakdown-to-two-way` | Break down an unknown codebase area into structured analysis (learning + design) |
 
 ## Workflow Guide
-- **New feature documentation**: brainstorm → execute → extract → review → status
-- **Improving existing docs**: status → review → execute → review
-- **Full audit**: status → extract → review → make-book
+- `me-breakdown-to-two-way` — analyze and document a codebase area
 
 ## Detailed Rules Reference
 See `~/.config/opencode/refs/docs-rules.md` for detailed documentation rules.
