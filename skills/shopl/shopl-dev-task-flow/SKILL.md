@@ -201,7 +201,10 @@ description: Execute a sequence of tracker-linked tasks from a document, parent 
 | Trace ID | 정책/조건 | API Draft | Unit | Test Case | Commit | 상태 |
 |----------|-----------|-----------|------|-----------|--------|------|
 
-- 최초 Trace ID/정책-화면 연결은 분해 문서의 Traceability Matrix에서 가져온다. 이 표는 구현 진행에 따라 unit/test case/commit으로 채운다.
+- **초기화**: Orientation 진입 시 분해 문서의 Traceability Matrix에서 **이 큰 분류에 해당하는 Trace ID만** 추출해 초기 행을 만든다(상태 `미할당`).
+- **갱신**: 각 unit이 완료되면 부모가 unit 반환값(`coveredTraceIds`/`coveredTestCaseIds`/`commitHash`)으로 이 표의 `Unit`/`Test Case`/`Commit`/`상태`를 채운다.
+- **상태 전이**: `미할당` → `할당됨`(Orientation에서 unit 배정) → `구현됨`(commit 연결) → `검증완료`(큰 분류 검증 통과).
+- 이 표는 큰 분류 검증 게이트의 입력이다. 미해결 Trace ID가 남으면 완료 불가(아래 `작업별 절차` 7단계).
 
 ## Planning Changes (이 큰 분류에 영향 준 변경)
 
@@ -209,6 +212,9 @@ description: Execute a sequence of tracker-linked tasks from a document, parent 
 |-------|------|-----------|-----------|
 
 - 이 큰 분류에 영향을 주는 기획 변경/구두 합의는 여기에 연결한다. 원본 변경 원장은 최상위 `planning-change-log.md`(아래 `Planning Change Log 관리` 참조).
+- **갱신**: 각 unit이 완료되면 부모가 unit 반환값(`appliedPCIds`)으로 이 표의 `반영 상태`를 갱신한다. `반영 완료`는 원장의 `구현 반영 완료`로도 동기화.
+- **반영 상태**: `반영 대기` / `반영 완료` / `보류(사유 기록)`.
+- 이 표는 큰 분류 검증 게이트의 입력이다. `반영 대기` PC-ID가 남으면 완료 불가.
 ```
 
 ### 공통 컴포넌트 매핑표 반영
@@ -344,7 +350,15 @@ description: Execute a sequence of tracker-linked tasks from a document, parent 
 
 ## 큰 분류 검증 결과
 
-대기.
+### Coverage Checklist
+
+- [ ] 관련 Trace ID가 전부 unit에 할당됨 (Traceability `미할당` 0건)
+- [ ] 관련 Trace ID가 전부 test case + commit에 연결됨 (Traceability `검증완료` 100%)
+- [ ] 이 큰 분류에 영향 준 PC-ID가 전부 반영됨 (Planning Changes `반영 대기` 0건)
+- [ ] Test Case Review에서 정의한 테스트가 전부 통과함
+- [ ] 이 큰 분류 범위의 미확약/보류 항목 잔여 없음 (명시 보류는 허용, 사유 기록)
+
+> 모든 항목이 `[x]`여야 `완료`. 하나라도 미달이면 `재작업 필요` + 미달 항목을 `Open Issues`로 이동.
 
 ## Open Issues
 
@@ -476,8 +490,8 @@ flowchart TD
 
 ### 부모/자식 책임 분리
 
-- **부모(이 스킬)**: `planning-change-log.md` 원장 유지, PC-ID 발급/상태 갱신, 큰 분류 `index.md`의 `Planning Changes` 표로 라우팅.
-- **자식(`shopl-dev-task-flow-unit`)**: 자기 unit에 적용한 PC-ID만 unit 파일에 기록하고 반영 결과를 부모에 반환. 원장 갱신은 부모가 수행.
+- **부모(이 스킬)**: `planning-change-log.md` 원장 유지, PC-ID 발급/상태 갱신. 큰 분류 `index.md`의 **Traceability/Planning Changes 표**를 자식 반환값으로 집계. 큰 분류 검증 시 Coverage Checklist 평가.
+- **자식(`shopl-dev-task-flow-unit`)**: 자기 unit이 닫는 범위(`coveredTraceIds`/`coveredTestCaseIds`/`appliedPCIds`)를 Coverage Links로 선언·반환. 원장/표 갱신은 부모가 수행.
 
 ## 큰 분류 내부 Short Leash 흐름
 
@@ -533,17 +547,17 @@ sequenceDiagram
 1. **식별** — 작업 번호, 제목, 작업 키, 소스 참조 확인.
 2. **트래커 확인** — 티켓 상태, 담당자, 상위, 사용 가능한 전환 확인. (`local` 모드는 건너뜀)
 3. **조사** — 관련 문서/코드 읽기. 프로젝트 규칙·AGENTS 지침 준수.
-4. **Orientation + 작은 분류 생성** — 큰 분류 전체의 얇은 방향을 정리한다. 난이도/공수 점수는 초기화에서 이미 산정되었으므로 확인만(재산정 X). **이 단계에서 코드/현황/API Draft/정책 조건/공통 컴포넌트 매핑표를 읽고 작은 분류를 생성**하여 큰 분류 `index.md`의 Unit Index에 기록한다(작은 분류 생성 원칙·실행 순서·테스트-기능 인접 정렬 — `작은 분류 정렬 및 테스트 원칙` 참조). 공통 컴포넌트/데이터 모델 결정, 주요 리스크도 기록한다. 큰 분류 전체 상세 계획(각 unit의 Plan)은 작성하지 않는다.
+4. **Orientation + 작은 분류 생성 + Traceability 초기화** — 큰 분류 전체의 얇은 방향을 정리한다. 난이도/공수 점수는 초기화에서 이미 산정되었으므로 확인만(재산정 X). **이 단계에서 코드/현황/API Draft/정책 조건/공통 컴포넌트 매핑표를 읽고 작은 분류를 생성**하여 큰 분류 `index.md`의 Unit Index에 기록한다(작은 분류 생성 원칙·실행 순서·테스트-기능 인접 정렬 — `작은 분류 정렬 및 테스트 원칙` 참조). **분해 문서의 Traceability Matrix에서 이 큰 분류의 Trace ID를 추출해 `index.md`의 Traceability 표를 초기화(상태 `미할당`)하고, 작은 분류에 Trace ID를 배정한다(배정 항목 `할당됨`).** 공통 컴포넌트/데이터 모델 결정, 주요 리스크도 기록한다. 큰 분류 전체 상세 계획(각 unit의 Plan)은 작성하지 않는다.
 5. **방향 확인** — 사용자에게 Orientation 검토를 요청한다. 방향 확인은 전체 구현 승인이 아니다.
 6. **작은 분류 루프** — 실행 단위(백엔드 분해 연계 시 `작은 분류`, 그 외에는 계획에서 분해한 단계)별로:
    1. unit 파일이 없으면 생성한다 (`task-workflow/<큰분류키>/<NN>-<slug>.md`).
    2. `unitFilePath`를 포함해 `shopl-dev-task-flow-unit` 스킬을 호출하여 실행한다.
    3. 자식 스킬은 완료 시 `첫 실행 단위 시작`, `커밋 완료`, `검증 메모`, `open issues` 같은 이벤트/결과를 부모에게 반환한다.
-   4. 부모는 큰 분류 파일의 **Unit Index 행만** 갱신한다 (상태/커밋 해시). 긴 실행 로그는 쓰지 않는다.
+   4. 부모는 **Unit Index 행(상태/커밋 해시)**과 **Traceability/Planning Changes 표**를 자식 반환값(`coveredTraceIds`/`coveredTestCaseIds`/`appliedPCIds`/`commitHash`)으로 갱신한다. 긴 실행 로그는 쓰지 않는다.
    5. 첫 실행 단위 시작 이벤트면 트래커 상태 동기화를 판단한 뒤 다음 단위로 넘어간다.
-7. **검증** — 모든 실행 단위가 승인·커밋된 뒤 추적 상태 `검증 중`. 프로젝트 허용 검증 실행, 금지 명령 준수.
-8. **결과 기록** — 상세 파일·인덱스 행 갱신.
-9. **완료** — 검증 OK 시 추적 상태 `완료`. 트래커 전환은 동기화 매트릭스 따름.
+7. **검증 (Coverage 게이트)** — 모든 실행 단위가 승인·커밋된 뒤 추적 상태 `검증 중`. 큰 분류 `index.md`의 `Coverage Checklist`를 평가한다(프로젝트 허용 검증 실행, 금지 명령 준수).
+8. **결과 기록** — `큰 분류 검증 결과`에 Checklist 결과 기록. 인덱스 행 갱신.
+9. **완료** — Checklist 전 항목 `[x]`일 때만 추적 상태 `완료`. 미달 항목이면 `재작업 필요`로 유지하고 `Open Issues`에 적재. 트래커 전환은 동기화 매트릭스 따름.
 10. **다음 작업** — 완료 체크리스트(1. 상세 파일 갱신, 2. 인덱스 행 갱신, 3. 트래커 동기화 또는 차단 사유 기록, 4. 작은 분류별 커밋 — 상위 티켓 접두사, 커밋 규칙 참조) 확인 후 다음 미완료 작업 제안.
 
 ### 승인 게이트
