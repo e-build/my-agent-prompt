@@ -353,10 +353,10 @@ description: Execute a sequence of tracker-linked tasks from a document, parent 
 ### Coverage Checklist
 
 - [ ] 관련 Trace ID가 전부 unit에 할당됨 (Traceability `미할당` 0건)
-- [ ] 관련 Trace ID가 전부 test case + commit에 연결됨 (Traceability `검증완료` 100%)
+- [ ] 관련 Trace ID가 전부 test case + commit에 연결됨 (Traceability `구현됨` 100%; 검증 통과 후 `검증완료`로 전환)
 - [ ] 이 큰 분류에 영향 준 PC-ID가 전부 반영됨 (Planning Changes `반영 대기` 0건)
 - [ ] Test Case Review에서 정의한 테스트가 전부 통과함
-- [ ] 이 큰 분류 범위의 미확약/보류 항목 잔여 없음 (명시 보류는 허용, 사유 기록)
+- [ ] 이 큰 분류 범위의 미확인/보류 항목 잔여 없음 (명시 보류는 허용, 사유 기록)
 
 > 모든 항목이 `[x]`여야 `완료`. 하나라도 미달이면 `재작업 필요` + 미달 항목을 `Open Issues`로 이동.
 
@@ -525,7 +525,7 @@ sequenceDiagram
             C->>G: 해당 작은 분류 커밋
             C->>D: unit 파일에 결과 기록
             C-->>A: 완료 이벤트 반환
-            A->>D: Unit Index 행만 갱신(상태/커밋)
+            A->>D: Unit Index + Traceability/Planning Changes 갱신
             opt 첫 실행 단위 시작 이벤트
                 A->>T: (jira) In Progress 전환
             end

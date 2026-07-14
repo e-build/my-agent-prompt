@@ -117,7 +117,7 @@ breakdown Traceability Matrix (정책→화면→Gap→큰 분류)
 ### Coverage Checklist
 
 - [ ] 관련 Trace ID가 전부 unit에 할당됨 (Traceability `미할당` 0건)
-- [ ] 관련 Trace ID가 전부 test case + commit에 연결됨 (Traceability `검증완료` 100%)
+- [ ] 관련 Trace ID가 전부 test case + commit에 연결됨 (Traceability `구현됨` 100%; 검증 통과 후 `검증완료`로 전환)
 - [ ] 이 큰 분류에 영향 준 PC-ID가 전부 반영됨 (Planning Changes `반영 대기` 0건)
 - [ ] Test Case Review에서 정의한 테스트가 전부 통과함
 - [ ] 이 큰 분류 범위의 미확인/보류 항목 잔여 없음 (명시 보류는 허용, 사유 기록)
@@ -399,7 +399,7 @@ unit 파일의 `## Coverage Links`에 이 unit이 닫는 범위를 선언한다.
 | 결함 상황 | 게이트에서 잡히는가? |
 |---|---|
 | TR-003가 어느 unit에도 배정 안 됨 | Checklist 1번: Traceability `미할당` 1건 → 완료 불가 |
-| TR-002는 구현됐지만 test case 연결 누락 | Checklist 2번: `검증완료` 아님 → 완료 불가 |
+| TR-002는 구현됐지만 test case 연결 누락 | Checklist 2번: `구현됨` 도달 불가 → 완료 불가 |
 | PC-002 반영됐으나 Planning Changes 표 `반영 대기`로 방치 | Checklist 3번: `반영 대기` 1건 → 완료 불가 |
 | Test Case Review의 TC-04가 커밋에 연결 안 됨 | Checklist 4번 → 완료 불가 |
 | unit이 Coverage Links를 안 씀 | TU-6 완료 조건 위반 → unit 자체가 완료 불가(부모 도달 전 차단) |
