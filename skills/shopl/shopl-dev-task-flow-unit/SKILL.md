@@ -74,6 +74,13 @@ unit 파일 템플릿:
 - 검증 방법:
 - 리스크:
 
+## Test Case Review
+
+| ID | 정책/요구사항 | 조건 | 입력 | 기대 결과 | 테스트 레벨 |
+|----|---------------|------|------|-----------|-------------|
+
+> 테스트 케이스가 필요 없는 unit(골격/단순 DTO/조사/문서)은 "테스트 케이스 없음: <사유>"로 기록.
+
 ## User Review
 
 ## Execution Result
@@ -86,18 +93,53 @@ unit 파일 템플릿:
 
 - 커밋: `none`
 
+## Planning Changes
+
+- 적용한 PC-ID: `<목록 or 없음>` (원본 원장은 부모 스킬의 `planning-change-log.md`)
+
 ## Open Issues
 ```
 
 unit 파일 헤더의 `상태:`를 `계획 작성`으로 설정한다. (작은 분류 전용 상태 모델은 아래 `작은 분류 상태 모델` 참조.)
 
-### 2. 상세 승인 대기
+#### 표준 스킬 계획 검토 (승인 제시 직전)
 
-작성한 계획을 사용자에게 제시하고 승인을 기다린다. 승인 전에는 어떤 구현 변경도 하지 않는다.
+계획 초안을 사용자에게 제시하기 전에, 이 단위의 **설계 결정과 관련된** 팀 표준 프로젝트 스킬만 호출해 계획이 표준에 부합하는지 자기 검증한다. 모두 호출하지 않는다. 위반은 Plan 섹션을 고쳐서 반영한다. 코드를 아직 쓰기 전 단계이므로 수정 비용이 가장 싸다.
+
+| 계획 항목 | 호출할 스킬 |
+|----------|------------|
+| 레이어/패키지 구조 | `backend-layer-rule` |
+| JPA 엔티티/영속성 설계 | `backend-jpa-entity` |
+| API/컨트롤러 설계 | `backend-api-patterns` |
+| 예외/에러 전략 | `backend-error-handling` |
+
+코드 스타일·테스트 전략은 코드가 없는 이 단계에서는 호출하지 않고 step 4로 미룬다.
+
+#### Test Case Review 작성 (조건부 필수)
+
+Plan과 함께 unit 파일의 `## Test Case Review`에 테스트 케이스 표를 작성한다. **테스트 케이스가 의미 있는 unit은 이 단계가 필수**이며, 이 표에 대한 사용자 승인이 있어야만 구현으로 넘어간다(step 2에서 Plan과 함께 승인).
+
+필수 대상: API 엔드포인트 / 비즈니스 로직 / 권한 분기 / 정책 분기 / 계산 로직을 다루는 unit.
+
+필요 없는 unit(골격 생성 / 단순 DTO 조립 / 조사 / 문서 정리)은 "테스트 케이스 없음: <사유>"로 기록한다.
+
+작성 기준(`shopl-dev-task-flow`의 `테스트 케이스 정의 원칙`과 정책서·API Draft에서 추출):
+
+- 기획서·정책서의 분기/경계값/예외/권한 거부/enum 가능값을 누락 없이 식별.
+- Facade 계층은 happy path 통합 테스트, 도메인/서비스 내부 분기는 단위 테스트로 커버.
+- 표 형식: `ID / 정책·요구사항 / 조건 / 입력 / 기대 결과 / 테스트 레벨`.
+
+### 2. 상세 승인 대기 (Plan + Test Case Review)
+
+작성한 계획과 테스트 케이스 표를 함께 사용자에게 제시하고 승인을 기다린다. 승인 전에는 어떤 구현 변경도 하지 않는다.
 
 unit 파일 헤더의 `상태:`를 `승인 대기`로 설정한다. 트래커(`jira` 모드)는 그대로 둔다(아직 시작 전).
 
-승인 표현 표는 아래 `승인 게이트` 참조.
+**Test Case Review가 필수인 unit**은 아래 확인 문구를 포함해 제시한다:
+
+> 위 테스트 케이스로 구현 전 검증 기준을 확정해도 될까요? 승인되면 테스트 코드를 먼저 작성하고, 실패 확인 후 구현으로 넘어갑니다.
+
+승인 표현 표는 아래 `승인 게이트` 참조. 승인은 Plan과 Test Case Review를 모두 포함한다. 테스트 케이스 수정 요청이 오면 Plan이 아니어도 Test Case Review를 고치고 재승인받는다.
 
 ### 3. 실행 시작
 
@@ -117,16 +159,13 @@ unit 파일 헤더의 `상태:`를 `승인 대기`로 설정한다. 트래커(`j
 
 #### 표준 스킬 자기 검증 (구현 직후)
 
-구현을 마친 뒤 diff를 사용자에게 제시하기 전에, 이 단위가 **건드린 영역과 관련된** 팀 표준 프로젝트 스킬만 호출해 자기 검증한다. 모두 호출하지 않는다. 위반 항목은 그 자리에서 수정한 뒤 diff를 제시한다.
+구현을 마친 뒤 diff를 사용자에게 제시하기 전에, **실제 코드를 봐야 판별되는** 팀 표준 프로젝트 스킬만 호출해 자기 검증한다. 설계형 스킬은 step 1에서 이미 검토했으므로 여기서는 부르지 않는다. 위반 항목은 그 자리에서 수정한 뒤 diff를 제시한다.
 
-| 변경 영역 | 호출할 스킬 |
+| 검증 대상 | 호출할 스킬 |
 |-----------|------------|
-| 레이어/패키지 구조 | `backend-layer-rule` |
-| JPA 엔티티/영속성 | `backend-jpa-entity` |
-| API/컨트롤러 | `backend-api-patterns` |
-| 예외/에러 처리 | `backend-error-handling` |
 | (모든 코드 변경의 기본) | `backend-code-style` |
 | 테스트 코드/검증 | `backend-testing` |
+| 예외 매핑 디테일 (구현 결과물) | `backend-error-handling` |
 
 ### 5. Diff 검토
 
@@ -197,15 +236,17 @@ unit 파일에 결과를 기록한다:
 | `verificationMemo` | 어떤 검증을 했고 결과가 어땠는지 |
 | `openIssues` | 부모가 다음 액션을 잡아야 할 남은 이슈 |
 | `needsTrackerSync` | 부모가 트래커 상태 재평가를 해야 하는지 |
+| `appliedPCIds` | 이 unit에 적용한 Planning Change PC-ID 목록 (없으면 빈 목록). 부모가 `planning-change-log.md` 상태 갱신에 사용 |
 
 ## 작업 완료 조건
 
 다음 조건이 모두 충족되어야 부모 스킬로 제어를 되돌린다:
 
-1. unit 파일(`unitFilePath`)의 Plan/User Review/Execution/Diff/Verification/Commit이 전부 기록됨.
+1. unit 파일(`unitFilePath`)의 Plan/Test Case Review/User Review/Execution/Diff/Verification/Commit이 전부 기록됨. (테스트 케이스가 의미 있는 unit은 Test Case Review가 사용자 승인된 상태여야 함.)
 2. diff 승인 후 커밋 완료.
 3. unit 파일 헤더 `상태:`가 `완료`(또는 `차단`)로 설정됨.
 4. 반환 계약의 핵심 값(`unitFilePath`, `unitStatus`, `changedFiles`, `commitHash`, `needsTrackerSync`)이 정리됨.
+5. 적용한 PC-ID가 있으면 부모에게 전달(`planning-change-log.md` 갱신은 부모가 수행).
 
 ## 작은 분류 상태 모델
 
