@@ -358,6 +358,20 @@ description: Execute a sequence of tracker-linked tasks from a document, parent 
 - [ ] Test Case Review에서 정의한 테스트가 전부 통과함
 - [ ] 이 큰 분류 범위의 미확인/보류 항목 잔여 없음 (명시 보류는 허용, 사유 기록)
 
+### 문서/트래커 일관성 감사 (완료 전 필수)
+
+Coverage Checklist 통과 후, `완료` 상태로 전환하기 전에 아래 항목을 **실제 파일/Jira를 읽어** 확인한다 (기억이나 추정이 아닌 grep/read/curl 검증):
+
+- [ ] 최상위 `task-workflow.md`의 해당 Task Index 행 `상태`가 `완료`로 갱신됨, `최근 메모`에 완료 요약 반영됨
+- [ ] 큰 분류 `index.md` 상단 `상태:`가 `완료`로 설정됨 (승인 대기/진행 중 등으로 남아 있지 않음)
+- [ ] 큰 분류 `index.md`의 Unit Index 모든 행 `상태`가 `완료`, `커밋` 해시 채워짐
+- [ ] `planning-change-log.md`에서 이 큰 분류에 연결된 PC-ID `반영 상태`가 전부 `구현 반영 완료`(또는 명시 보류)로 갱신됨
+- [ ] 미사용/중복/빈 초안 unit 파일이 디렉토리에 잔재하지 않음
+- [ ] (`jira` 모드) 티켓 상태가 완료 계열(Done/Close)로 전환됨 또는 차단 사유가 기록됨
+- [ ] (TODO 도구를 사용한 경우) 큰 분류 관련 TODO 항목이 전부 완료 상태임
+
+하나라도 미달이면 `완료`로 전환하지 않고 미달 항목을 `Open Issues`로 이동한다.
+
 > 모든 항목이 `[x]`여야 `완료`. 하나라도 미달이면 `재작업 필요` + 미달 항목을 `Open Issues`로 이동.
 
 ## Open Issues

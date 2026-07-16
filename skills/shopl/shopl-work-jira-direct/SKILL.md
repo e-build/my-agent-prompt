@@ -15,6 +15,15 @@ Load credentials from the user's shell environment:
 - `JIRA_EMAIL`
 - `JIRA_API_TOKEN`
 
+### Env variable resolution rules
+
+환경 변수명은 사용자 환경마다 다를 수 있다. 아래 규칙으로 안전하게 탐색한다:
+
+1. **토큰 후보를 순서대로 탐색** — `JIRA_API_TOKEN` → `JIRA_TOKEN` → `ATLASSIAN_API_TOKEN`. 첫 번째로 존재하는 값을 사용한다.
+2. **토큰 값을 출력하지 않는다** — 디버깅 시에도 `echo $JIRA_API_TOKEN` 등으로 값을 화면에 찍지 않는다. 존재 여부만 `[ -n "$JIRA_API_TOKEN" ] && echo set || echo unset` 로 확인한다.
+3. **호출 실패 시 파일 출력 + HTTP code 먼저 확인** — curl 응답을 곧바로 화면에 흘리지 않고 `curl -s -o /tmp/jira-resp.json -w "%{http_code}"` 패턴으로 HTTP code를 먼저 확인한 뒤, 필요시 `/tmp/jira-resp.json` 을 파싱한다. 인증 실패(401/403)면 env 변수 누락/오류를 의심한다.
+4. **스크립트 사용 시 스크립트 내부에서 env를 읽도록 한다** — 이 스킬의 node 스크립트들은 내부적으로 env를 읽는다. curl을 직접 쓸 때만 위 규칙을 적용한다.
+
 ## Rules
 
 - Prefer these scripts over MCP tools for Jira access.

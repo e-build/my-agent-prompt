@@ -88,6 +88,9 @@ api -> application -> domain -> infrastructure
 - 다른 도메인의 동일 레이어 직접 참조 금지
 - Controller가 Domain Service/Repository 직접 호출 금지
 - Domain Model이 DTO/Command/View에 의존 금지
+- **application 계층(Facade, Command)이 api 계층의 Request/Response DTO에 직접 의존 금지** — Command는 domain model 타입만 참조한다. API DTO → Command 변환은 api 계층의 Mapper에서 끝낸다.
+- **domain layer가 api/application 계층의 DTO/enum에 의존 금지** — domain service는 framework Web DTO, Swagger/Jackson request enum을 참조하지 않는다.
+- **FQN(정규화된 이름, `com.example...ClassName`) 남용 금지** — 임시 회피가 아닌 이상 import 문으로 정리한다. 긴 FQN이 반복되면 설계 신호(계층 의존 위반 또는 네이밍 충돌)로 간주하고 근본 원인을 해결한다.
 
 ### 3. 레이어별 책임
 
@@ -113,6 +116,63 @@ api -> application -> domain -> infrastructure
 - JPA Entity: `infra-jpa/`
 - EntityMapper: `infra-jpa/`
 - Domain Model은 JPA annotation, Spring persistence 기술에 의존하지 않음
+
+### 6. DTO/Enum 계층 분리 및 Mapper 변환
+
+API 계층의 Request/Response DTO( Jackson 역직렬화, Swagger 문서화 전용)와 domain model(순수 비즈니스 타입)은 분리한다.
+
+**기본 원칙:**
+
+- API request enum은 api 계층 전용. domain enum은 별도 존재.
+- Facade/Command는 domain enum만 참조.
+- API DTO → domain model 변환은 api 계층의 Mapper가 담당.
+- 변환은 보통 `EnumType.valueOf(other.name)` 패턴 (상수명 동일 가정).
+
+**이름 충돌 해결 — nested API enum 패턴:**
+
+API enum과 domain enum이 같은 이름을 써야 할 때(예: 둘 다 `SortType`), API enum을 부모 Request 내부 nested enum으로 둔다:
+
+```kotlin
+// API 계층
+data class TableRequest(
+    val pageRequest: PageRequest<SortType>?,
+) {
+    enum class SortType { NAME, CODE, COUNT }  // nested
+}
+
+// Domain 계층
+enum class TableSortType { NAME, CODE, COUNT }  // top-level
+```
+
+이렇게 하면 `TableRequest.SortType`(API) vs `TableSortType`(domain)로 스코프가 좁혀져 Mapper에서 import 충돌이 없다.
+
+**FQN(정규화된 이름)은 임시 회피용:**
+
+- 계층 의존 위반 또는 이름 충돌을 FQN으로 덮지 않는다.
+- FQN이 반복되면 근본 원인(domain이 api DTO 참조 등)을 해결한다.
+- 최종 코드에는 import 문만 남기고 타입명만 쓴다.
+
+### 7. Facade 헬퍼 추출 기준
+
+Facade는 유즈케이스 오케스트레이션(Reader/Service 호출 순서 조립)만 담당한다. 순수 로직이 Facade에 쌓이면 별도 서비스로 추출한다.
+
+**추출 대상 (Facade에 두지 않는 것):**
+
+- 순수 후처리 로직: filter / sort / paginate / merge / transform / map
+- 이 로직들이 DB/Repository/외부 의존 없이 입력→출력만 처리하면 **domain service**로 추출.
+- Reader/Repository 의존이 포함되면 **application service**로 추출.
+
+**추출 신호:**
+
+- Facade private 함수가 3개 이상
+- Facade가 특정 컬렉션 후처리(filter/sort/pagination)를 인라인으로 갖음
+- 같은 헬퍼 로직이 여러 Facade 메서드에서 중복
+
+**이점:**
+
+- Facade는 파이프라인 조립만 남아 읽기 쉬워짐
+- 추출된 domain service는 순수 단위 테스트로 검증 가능 (DB 불필요)
+- 블록 간 재사용 가능 (예: 동일한 sort/pagination 로직)
 
 ## 작업 절차
 

@@ -97,6 +97,17 @@ Write one minimal test showing what should happen.
 - Real code (no mocks unless unavoidable)
 - Shows desired API — demonstrates how code should be called
 
+#### Time-Dependent Behavior Testing
+
+동작이 현재 날짜/시간에 의존하는 경우(past / today / future 분기), 테스트 fixture를 명시적으로 분리한다:
+
+- **현재 상태 동작** (예: "출근 중" 카운트, "진행 중" 플래그)은 `today` fixture로만 테스트한다. 과거 날짜 fixture에 현재 상태 기대값을 두지 않는다.
+- **과거 날짜 정책** (예: 완료/이력만 의미, 진행 중=0)은 별도 `past` fixture로 기대값을 검증한다.
+- **미래 날짜 정책** (예: 예정/계획만 의미, 진행 상태=0)은 별도 `future` fixture로 검증한다.
+- `today` 는 `LocalDate.now(zoneId)` 기반이어야 하며, 하드코딩된 과거 날짜를 `today` 로 가정하지 않는다 (코드가 작성된 날짜와 실행 날짜가 달라지면 테스트가 깨짐).
+
+위반 사례: 과거 날짜 fixture에 `workingCount=1` 을 기대 → 정책상 과거는 working=0이므로 실패. 이 경우 fixture가 아니라 기대값이 잘못된 것이다.
+
 **Good:**
 ```typescript
 test('retries failed operations 3 times', async () => {
