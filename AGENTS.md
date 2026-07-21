@@ -154,10 +154,11 @@ Claude Code / Codex도 같은 수준의 비교 축에서 관리하는 저장소*
 
 | 저장소 경로 | Pi 대상 경로 | 비고 |
 |-------------|-------------|------|
-| `pi/commands/*.md` (19개) | `~/.pi/agent/prompts/` | 저장소에서는 `commands/`로 관리하지만 Pi는 `prompts/`로 로드 |
+| `pi/commands/*.md` (16개) | `~/.pi/agent/prompts/` | 저장소에서는 `commands/`로 관리하지만 Pi는 `prompts/`로 로드 |
 | `bodies/{me-breakdown-to-two-way,me-flip-action-plan,me-flip-think,me-ladder-compare,me-ladder-debug-me,me-ladder-explain,me-ladder-find-gaps,me-ladder-quiz-me,me-ladder-roadmap,me-ladder-show-code,me-ladder-summarize,zz-workflow-design-system,zz-workflow-init,zz-workflow-new,doc-manager}.md` | (공유 본문 — 로컬 심링크 없음) | Pi `pi/commands/*.md` wrapper가 `bodies/`를 참조 |
 | `skills/shopl/*/` (8개), `skills/super/*/` (4개), `skills/tool/*/` (5개), `skills/dev/*/` (7개) | `~/.pi/agent/skills/{skill}/` | Pi에서 관리하는 Agent Skills (24개, 카테고리별 구성) |
 | `pi/extensions/filechanges/` | `~/.pi/agent/extensions/filechanges/` | 심링크 필요 |
+| `pi/extensions/study/` | `~/.pi/agent/extensions/study/` | `/study-init` `/study-chapter` `/study-review` 명령 + `study_diagnosis_open` tool + 인터랙티브 사전진단 브라우저 세션. `bash pi/install.sh --restore`로 설치 |
 | `pi/extensions/cliproxyapi-sync.ts` | `~/.pi/agent/extensions/cliproxyapi-sync.ts` | `bash pi/install.sh --restore`로 설치 |
 
 ---

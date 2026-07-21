@@ -67,8 +67,11 @@ study-{slug}/
 ├── ch-01-{영문-슬러그}/
 │   ├── README.md           # 챕터 개요 + 학습 목표
 │   ├── diagnosis.md        # 사전평가 결과 + 난이도 + 약점 기록
+│   ├── diagnosis.html      # study_diagnosis_open tool이 자동 생성 (진단 UI)
+│   ├── concept.md          # 개념 학습 후 생성되는 교과서형 개념 노트
 │   ├── test.md             # 학습 후 테스트 문제/과제
 │   ├── lab/                # 실습 산출물 (확장자/형식 도메인 자유)
+│   │   └── README.md       # 실습 목표/단계/완료조건/산출물 체크리스트
 │   └── review/
 │       ├── blank-recall.md # 백지 회상: 5개 핵심 아이디어 vs 학습자 답 + STRONG/WEAK/WRONG 분급
 │       ├── gap-fill.md     # WEAK/WRONG 보충 (다른 비유로 정정, recall gap만)
@@ -81,17 +84,39 @@ study-{slug}/
 
 규칙:
 - 디렉토리명: `ch-{NN}-{영문-슬러그}` (NN은 01부터 시작하는 2자리 숫자)
-- 챕터 내 파일명은 **역할 기반**으로 고정(README/diagnosis/test/lab/review). 확장자는 학습 주제에 맞춰 자유롭게 둔다.
-- `lab/` 산출물 형식은 도메인이 정한다: 코드/SQL은 `.go`, `.sql`, `.yaml`, 글쓰기는 `.md`, 언어 학습은 녹음 링크/대본, 음악은 악보/녹음 기록 등.
+- 챕터 내 파일명은 **역할 기반**으로 고정(README/diagnosis/concept/test/lab/review). 확장자는 학습 주제에 맞춰 자유롭게 둔다.
+- 사전진단 HTML 템플릿은 프로젝트에 두지 않는다. `study_diagnosis_open` tool이 extension에 내장된 템플릿을 사용해 `ch-{slug}/diagnosis.html`을 생성한다.
+- `diagnosis.html`은 생성 산출물이므로 챕터별로 다시 만들 수 있다. 채점 결과와 약점 기록의 canonical source는 `diagnosis.md`다.
+- `concept.md`는 개념 학습 후 남는 canonical 학습 노트다. 채팅 요약이 아니라, 여러 챕터의 concept.md만 모아도 교과서처럼 읽히는 독립 문서로 작성한다. 구조/흐름/순서/관계가 이해에 도움이 되면 markdown의 mermaid 다이어그램을 사용한다.
+- `lab/README.md`는 실습 목표/단계/완료조건/산출물 체크리스트다.
+- `lab/` 산출물 형식은 도메인이 정한다: 개발/DB는 코드·쿼리·설정·로그, 글쓰기는 초안/수정본, 언어 학습은 녹음 링크/대본, 음악은 악보/리듬/녹음 기록 등.
 - `ch-` 프리픽스는 챕터 구분과 정렬을 위함. Phase 구분은 README.md의 Phase 번호로 한다.
 
-## 5. 챕터 학습 플로우
+## 5. 사전진단 브라우저 세션 (study extension)
+
+사전진단은 Plannotator 스타일의 인터랙티브 브라우저 세션으로 진행한다. Pi의 `study_diagnosis_open` tool이 전부 담당한다.
+
+정상 흐름 (`/study-chapter {챕터} diagnosis`):
+1. 학습 주제/목표에 맞춰 `DiagnosisQuestionSet` JSON을 구성한다. 기본 구성은 **최소 10문항, 객관식 약 70%(single/multiple-choice), 주관식 약 20%(short-answer/code/sql), 서술형 약 10%(essay)** 이며, 10문항 기준으로는 객관식 7문항 + 주관식 2문항 + 서술형 1문항을 사용한다.
+2. `study_diagnosis_open` tool을 호출한다. (chapterSlug, chapterTitle, phase, questionsJson, diagnosisMdPath)
+3. tool이 extension에 내장된 HTML 템플릿에 JSON을 주입해 `ch-{slug}/diagnosis.html`을 생성한다.
+4. tool이 로컬 서버를 띄우고 **브라우저를 자동으로 연다**. 학습자가 직접 파일을 열 필요 없다.
+5. 학습자가 브라우저에서 답안을 작성하고 "AI에게 제출"을 누른다.
+6. 답안이 현재 Pi 세션으로 자동 전송된다. AI가 채점한다.
+7. 채점 결과(점수·정답·해설·보완 포인트)가 같은 브라우저에 자동으로 표시된다.
+8. AI가 `diagnosis.md` 하단에 결과를 기록한다.
+
+**전제 조건**: `study` extension이 설치되어 있어야 한다. `bash pi/install.sh --restore` 후 `/reload`. extension이 없으면 diagnosis 단계는 동작하지 않는다(수동 fallback도 제공하지 않는다 — 사전진단은 extension 기반이 표준이다).
+
+문항 JSON schema와 채점 결과 포맷은 `/study-chapter` 프롬프트를 따른다.
+
+## 6. 챕터 학습 플로우
 모든 챕터는 아래 순서로 진행한다:
 
-1. **사전 평가** — `diagnosis.md`에 객관식(80%)/주관식(15%)/서술형 또는 수행형(5%) 문제를 풀고 결과를 기록한다.
-2. **결과 기록** — `diagnosis.md`에 사전평가 결과 + 난이도 + 약점을 기록. 이후 단계에서 참조한다.
-3. **개념 학습** — 사전평가 결과에 맞춰 깊이와 난이도를 조정한다. 이미 아는 것은 가볍게, 약점은 깊이.
-4. **실습 수행** — `lab/`에서 직접 수행한다. 개발이면 실행결과/로그, 언어면 녹음/대본, 글쓰기면 초안/수정본, 운동·음악이면 기록/영상처럼 도메인 증거를 남긴다.
+1. **사전 평가** — `/study-chapter {챕터} diagnosis`가 `study_diagnosis_open` tool으로 브라우저 세션을 연다. 학습자가 풀고 제출하면 자동 채점된다.
+2. **결과 기록** — `diagnosis.md`에 사전평가 결과 + 난이도 + 약점 + 권장 학습 깊이를 기록. 이후 단계에서 참조한다.
+3. **개념 학습** — 사전평가 결과에 맞춰 깊이와 난이도를 조정한다. 이미 아는 것은 가볍게, 약점은 깊이. lab/test로 넘어가기 전 `concept.md`를 생성한다.
+4. **실습 수행** — `lab/README.md` 체크리스트를 만들고 `lab/`에서 직접 수행한다. 개발/DB면 실행결과·쿼리결과·로그, 언어면 녹음/대본, 글쓰기면 초안/수정본, 운동·음악이면 기록/영상처럼 도메인 증거를 남긴다.
 5. **테스트** — 통과 기준 미달 시 해당 개념만 재학습. 전체 반복 금지.
 6. **복습(`/study-review` 커맨드로 진행)** — 에이전트는 5가지 역할을 번갈아 한다:
    1. `blank-recall.md` (검증자): 원본에서 5개 핵심 아이디어 추출, 학습자 답과 대조해 STRONG/WEAK/WRONG 분급.
@@ -101,7 +126,7 @@ study-{slug}/
    5. `schedule.md` (스케줄러): 3일/1주/2주 간격, 매번 새 질문 생성.
    - **스코프 가드**: 피드백은 본 학습 범위(concept/lab)로 한정. 벗어나면 `learning-gaps.md`에 분류하고 "본 학습으로 회귀" 안내.
 
-## 6. AGENTS.md
+## 7. AGENTS.md
 해당 분야의 **전문 멘토 정체성**을 아래 8개 섹션으로 정의한다.
 
 1. **정체성**
@@ -144,6 +169,49 @@ study-{slug}/
 
 > 위 8개 섹션의 도메인 무관 내용(신조·교육 원칙 6개·톤·안전 원칙)은 유지한다.
 > 도메인 특화 예시와 증거 수집 도구만 해당 분야 용어로 바꾼다. 개발 도구/로그/실행계획은 개발 주제에서만 예시로 쓴다.
+
+## 생성 시 추가 지시
+
+- 새 프로젝트 생성 직후에는 각 챕터의 `diagnosis.html`을 미리 만들 필요는 없다. 챕터를 시작할 때 `/study-chapter {챕터} diagnosis`가 `study_diagnosis_open` tool으로 생성한다.
+- `diagnosis.md`는 비워두거나 아래 헤더만 둔다.
+
+```md
+# 사전진단 결과
+
+- 상태: 대기
+- 진단: /study-chapter {챕터} diagnosis 로 시작
+
+## 결과 기록
+
+아직 채점 전입니다.
+```
+
+- `concept.md`는 프로젝트 생성 시 비워두거나 아래 헤더만 둔다. 실제 내용은 `/study-chapter`의 개념 학습이 lab/test로 전환되기 전에 생성/최신화한다.
+
+```md
+# 개념 노트
+
+아직 개념 학습 전입니다.
+```
+
+- `lab/README.md`는 실습 전 아래 구조로 생성/최신화한다.
+
+```md
+# 실습
+
+## 목표
+
+## 단계
+- [ ] 1. 
+- [ ] 2. 
+- [ ] 3. 
+
+## 완료 조건
+
+## 산출물
+```
+
+- README에 사전진단 안내를 한 줄 추가한다: "각 챕터는 `/study-chapter {챕터} diagnosis` 로 시작한다. 브라우저가 자동으로 열리고 제출 시 자동 채점된다."
 
 ## 완료 후
 - 생성한 디렉토리 트리 출력

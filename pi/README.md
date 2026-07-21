@@ -16,7 +16,8 @@ pi/
 │   ├── flow-title.ts          (맞춤형 시작 헤더)
 │   ├── cliproxyapi-sync.ts    (cliproxy model 동기화 — 별도 설정 파일)
 │   ├── cliproxyapi-sync-loading.md  (cliproxyapi-sync 동작 메커니즘 문서)
-│   └── filechanges/           (/filechanges 변경사항 리뷰/되돌리기)
+│   ├── filechanges/           (/filechanges 변경사항 리뷰/되돌리기)
+│   └── study/                 (/study-init, /study-chapter, /study-review + 인터랙티브 사전진단 브라우저 세션)
 ├── themes/                ← Pi 테마 10종 (nebula-pulse, tokyo-night 등)
 ├── config/
 │   ├── settings.example.json
@@ -50,6 +51,20 @@ bash pi/sync.sh
 
 `cliproxyapi-sync.ts`는 심링크로 관리되므로 sync에서 제외됩니다. 설정 파일(`cliproxyapi-sync-config.jsonc`)은 사용자 로컬에만 존재하므로 sync되지 않습니다.
 
+## study extension
+
+학습 커리큘럼(`study-{slug}` 프로젝트)과 인터랙티브 사전진단을 담당하는 self-contained extension.
+
+| 구성 | 설명 |
+|------|------|
+| `prompts/study-init.md` | `/study-init <주제>` — 학습 프로젝트 생성 |
+| `prompts/study-chapter.md` | `/study-chapter [챕터] [단계]` — 챕터 학습 (diagnosis/lab/test/review) |
+| `prompts/study-review.md` | `/study-review [챕터] [단계]` — 5단계 복습 |
+| `study_diagnosis_open` tool | diagnosis HTML 생성 + 로컬 서버 + 브라우저 자동 open + 제출 bridge |
+| `assets/diagnosis-template.html` | 사전진단 UI 템플릿 (self-contained) |
+
+`/study-chapter {챕터} diagnosis`는 `study_diagnosis_open` tool로 브라우저를 자동으로 열고, 학습자가 제출하면 답안이 현재 Pi 세션으로 전송되어 자동 채점된다. 채점 결과(정답/해설)는 같은 브라우저에 표시된다. 자세한 흐름은 `pi/extensions/study/README.md` 참조.
+
 ## Extension 설명
 
 | Extension | 명령어 | 설명 |
@@ -60,6 +75,7 @@ bash pi/sync.sh
 | `safety-guard.ts` | `/safety` | force push, rm -rf 등 위험 명령 차단 |
 | `flow-title.ts` | (자동) | 시작 시 헤더 (full/minimal 모드, `/welcome mode minimal` 전환) |
 | `filechanges/` | `/filechanges`<br>`/filechanges-accept`<br>`/filechanges-decline` | Pi edit/write 내역 리뷰 (select list), diff 확인, 일괄 승인/되돌리기 |
+| `study/` | `/study-init`<br>`/study-chapter`<br>`/study-review` | 학습 프로젝트 + 인터랙티브 사전진단 브라우저 세션 (위 study extension 섹션 참조) |
 
 ## Skills
 
