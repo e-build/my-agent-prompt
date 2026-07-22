@@ -244,8 +244,17 @@ export default function (pi: ExtensionAPI) {
 			maxScore?: number;
 			level?: string;
 			weaknesses?: string[];
+			learnerPinpoints?: Array<{
+				id?: string;
+				status?: string;
+				score?: number;
+				maxScore?: number;
+				prompt?: string;
+				comment?: string;
+			}>;
 		};
 		const weaknesses = Array.isArray(grade.weaknesses) ? grade.weaknesses : [];
+		const learnerPinpoints = Array.isArray(grade.learnerPinpoints) ? grade.learnerPinpoints : [];
 		const lines = [
 			"# DIAGNOSIS_RESULTS_REVIEWED",
 			"",
@@ -256,11 +265,21 @@ export default function (pi: ExtensionAPI) {
 		];
 		if (grade.level) lines.push(`- level: ${grade.level}`);
 		if (weaknesses.length) lines.push(`- 취약 분야: ${weaknesses.join(", ")}`);
+		if (learnerPinpoints.length) {
+			lines.push("- 학습자가 강조한 pinpoint:");
+			for (const item of learnerPinpoints) {
+				const label = item.id ?? "unknown";
+				const score = item.score != null && item.maxScore != null ? ` (${item.score}/${item.maxScore}, ${item.status ?? "checked"})` : "";
+				const comment = item.comment ? ` — ${item.comment}` : "";
+				lines.push(`  - ${label}${score}: ${item.prompt ?? ""}${comment}`);
+			}
+		}
 		if (session.diagnosisMdPath) lines.push(`- diagnosisMdPath: ${session.diagnosisMdPath}`);
 		lines.push(
 			"",
 			"학습자가 브라우저에서 진단 결과(점수·정답·해설·보완 포인트)를 모두 확인했습니다.",
-			"이제 diagnosis.md의 결과를 바탕으로, 취약 분야를 우선 커버하는 개념 학습을 시작하세요.",
+			"이제 diagnosis.md의 결과를 바탕으로 개념 학습을 시작하세요.",
+			"학습자가 강조한 pinpoint가 있으면 점수상 약점보다 먼저 다룹니다. pinpoint가 없으면 취약 분야와 오답/부분정답을 우선 커버합니다.",
 		);
 		return lines.join("\n");
 	}

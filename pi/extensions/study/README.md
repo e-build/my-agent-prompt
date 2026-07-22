@@ -27,8 +27,9 @@ study/
 4. 학습자가 브라우저에서 답안을 작성하고 "AI에게 제출"을 누르면 `POST /submit`이 이를 받아 `pi.sendUserMessage()`로 현재 Pi 세션에 주입한다.
 5. AI가 채점한 뒤 응답 끝에 `<!--DIAGNOSIS_GRADE_JSON_START--> ... <!--DIAGNOSIS_GRADE_JSON_END-->` 마커를 포함한다.
 6. `message_end` 핸들러가 마커를 추출해 브라우저의 `GET /result` polling이 채점 결과(정답/해설/보완 포인트)를 표시한다.
-7. 학습자가 결과를 확인한 뒤 브라우저에서 `Pi에서 개념 학습 시작 →`을 누르면 `POST /ack`이 `DIAGNOSIS_RESULTS_REVIEWED` 신호를 현재 Pi 세션에 주입한다.
-8. 브라우저는 3초 카운트다운 후 `window.close()`를 best-effort로 시도하고, 실패해도 종료 화면으로 전환한다.
+7. 학습자는 결과 화면에서 개념 학습에서 더 깊게 다룰 문항을 `pinpoint`하고 문항별 comment를 남길 수 있다.
+8. 학습자가 `Pi에서 개념 학습 시작 →`을 누르면 `POST /ack`이 `DIAGNOSIS_RESULTS_REVIEWED` 신호를 현재 Pi 세션에 주입한다. 이때 `learnerPinpoints`도 함께 전달한다.
+9. 브라우저는 3초 카운트다운 후 `window.close()`를 best-effort로 시도하고, 실패해도 종료 화면으로 전환한다.
 
 전체 과정에서 사용자가 직접 파일을 열거나 복사/붙여넣기 할 필요가 없다.
 
@@ -59,5 +60,6 @@ ln -s /path/to/this/directory ~/.pi/agent/extensions/study
 - Plannotator(`backnotprop/plannotator`)의 "로컬 서버 + 브라우저 UI + 명시적 제출" 패턴을 축소 적용했다.
 - 로컬 server는 session-scoped이다. 첫 `study_diagnosis_open` 호출 시 시작하고 `session_shutdown`에서 종료한다.
 - 채점 결과는 `ch-{slug}/diagnosis.md` 하단에 기록된다. canonical source는 diagnosis.md다.
+- 학습자가 결과 화면에서 강조한 `pinpoint`는 개념 학습 시작 시 최우선으로 다룬다.
 - 개념 학습이 lab/test로 넘어가기 전 `ch-{slug}/concept.md`를 생성/최신화한다.
 - lab 시작 전 `ch-{slug}/lab/README.md`를 체크리스트로 생성/최신화한다.

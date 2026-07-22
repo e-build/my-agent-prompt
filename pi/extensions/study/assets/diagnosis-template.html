@@ -314,6 +314,42 @@
     }
     .resultBlock div { white-space: pre-wrap; }
     .resultBlock + .resultBlock { margin-top: 10px; }
+    .pinpointControl {
+      margin-top: 14px;
+      padding-top: 12px;
+      border-top: 1px solid var(--line);
+    }
+    .pinpointToggle {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      min-height: 34px;
+      padding: 0 10px;
+      border: 1px solid var(--line-strong);
+      border-radius: 999px;
+      background: var(--surface);
+      color: var(--text);
+      font-size: 12px;
+      font-weight: 760;
+    }
+    .pinpointToggle input { accent-color: var(--accent); }
+    .question.is-pinpointed .pinpointToggle {
+      border-color: var(--accent);
+      background: #eef2ff;
+      color: var(--accent);
+    }
+    .pinpointNote {
+      display: none;
+      margin-top: 10px;
+      min-height: 74px;
+      font-size: 13px;
+    }
+    .question.is-pinpointed .pinpointNote { display: block; }
+    .pinpointHint {
+      margin: 7px 0 0;
+      color: var(--muted);
+      font-size: 12px;
+    }
 
     .manualFallback {
       margin: 24px 0 0;
@@ -501,7 +537,7 @@
     <div class="dockInner">
       <div>
         <div class="dockTitle">결과 확인 완료</div>
-        <div class="dockStatus" id="resultsDockStatus">결과를 충분히 확인했다면 다음 단계로 넘어가세요.</div>
+        <div class="dockStatus" id="resultsDockStatus">더 깊게 배울 문항을 pinpoint하거나 바로 넘어가세요.</div>
       </div>
       <div class="dockActions">
         <button class="btn" type="button" id="copyWeaknessBtn">취약점 요약 복사</button>
@@ -540,7 +576,9 @@
       };
       const storageKey = `study-diagnosis:${metadata.chapterSlug}:${metadata.phase}:answers`;
       const gradeStorageKey = `study-diagnosis:${metadata.chapterSlug}:${metadata.phase}:grade`;
+      const pinpointStorageKey = `study-diagnosis:${metadata.chapterSlug}:${metadata.phase}:pinpoints`;
       const answers = loadJson(storageKey, {});
+      const pinpoints = loadJson(pinpointStorageKey, {});
       let gradeResults = loadJson(gradeStorageKey, null);
       let pollTimer = null;
 
@@ -615,6 +653,7 @@
         } catch { return fallback; }
       }
       function saveAnswers() { localStorage.setItem(storageKey, JSON.stringify(answers)); }
+      function savePinpoints() { localStorage.setItem(pinpointStorageKey, JSON.stringify(pinpoints)); }
       function sumPoints(items) { return items.reduce((sum, q) => sum + Number(q.points || 0), 0); }
       function cssEscape(value) {
         if (window.CSS && typeof window.CSS.escape === "function") return window.CSS.escape(String(value));
@@ -863,6 +902,11 @@
         const weaknesses = Array.isArray(gradeResults.weaknesses) ? gradeResults.weaknesses : [];
         const lines = [`사전진단 결과: ${score}/${max}${level}`];
         if (weaknesses.length) lines.push(`취약 분야: ${weaknesses.join(", ")}`);
+        const learnerPinpoints = buildLearnerPinpoints();
+        if (learnerPinpoints.length) {
+          lines.push("강조한 pinpoint:");
+          learnerPinpoints.forEach(p => lines.push(`- ${p.id}: ${p.comment || p.prompt}`));
+        }
         return lines.join("\n");
       }
       async function acknowledgeResults() {
@@ -877,7 +921,8 @@
           score: gradeResults.totalScore ?? null,
           maxScore: gradeResults.maxScore ?? null,
           level: gradeResults.level ?? null,
-          weaknesses: Array.isArray(gradeResults.weaknesses) ? gradeResults.weaknesses : []
+          weaknesses: Array.isArray(gradeResults.weaknesses) ? gradeResults.weaknesses : [],
+          learnerPinpoints: buildLearnerPinpoints()
         };
         els.continueBtn.disabled = true;
         els.continueBtn.textContent = "전송 중…";
@@ -997,9 +1042,81 @@
             <div class="resultBlock"><label>정답</label><div>${escapeHtml(result.correctAnswer || "제공 없음")}</div></div>
           </div>
           <div class="resultBlock"><label>해설</label><div>${escapeHtml(result.explanation || "제공 없음")}</div></div>
-          <div class="resultBlock"><label>보완</label><div>${escapeHtml(result.advice || "제공 없음")}</div></div>`;
+          <div class="resultBlock"><label>보완</label><div>${escapeHtml(result.advice || "제공 없음")}</div></div>
+          ${renderPinpointControl(q, result)}`;
         });
+        wirePinpointControls(resultById);
+        updatePinpointCount();
         window.scrollTo({ top: 0, behavior: "smooth" });
+      }
+      function renderPinpointControl(q, result) {
+        const saved = pinpoints[q.id] || {};
+        const checked = Boolean(saved.selected);
+        const note = saved.comment || "";
+        return `<div class="pinpointControl">
+          <label class="pinpointToggle">
+            <input type="checkbox" data-pinpoint-toggle="${escapeHtml(q.id)}" ${checked ? "checked" : ""} />
+            <span>이 문항 pinpoint</span>
+          </label>
+          <textarea class="pinpointNote" data-pinpoint-comment="${escapeHtml(q.id)}" placeholder="왜 더 다루고 싶은지 메모하세요. 예: 정답은 맞췄지만 감으로 찍었습니다.">${escapeHtml(note)}</textarea>
+          <p class="pinpointHint">pinpoint한 문항은 개념 학습에서 먼저 다룹니다.</p>
+        </div>`;
+      }
+      function wirePinpointControls(resultById) {
+        questions.forEach(q => {
+          const result = resultById.get(q.id) || {};
+          const node = byId(`q-${q.id}`);
+          const toggle = document.querySelector(`[data-pinpoint-toggle="${cssEscape(q.id)}"]`);
+          const comment = document.querySelector(`[data-pinpoint-comment="${cssEscape(q.id)}"]`);
+          if (!node || !toggle || !comment) return;
+          node.classList.toggle("is-pinpointed", Boolean(pinpoints[q.id]?.selected));
+          toggle.addEventListener("change", () => {
+            pinpoints[q.id] = {
+              selected: Boolean(toggle.checked),
+              comment: comment.value.trim(),
+              status: result.status || "checked",
+              score: result.score ?? 0,
+              maxScore: result.maxScore ?? q.points ?? 0,
+              prompt: q.prompt
+            };
+            if (!pinpoints[q.id].selected && !pinpoints[q.id].comment) delete pinpoints[q.id];
+            node.classList.toggle("is-pinpointed", Boolean(toggle.checked));
+            savePinpoints();
+            updatePinpointCount();
+          });
+          comment.addEventListener("input", () => {
+            pinpoints[q.id] = {
+              selected: Boolean(toggle.checked),
+              comment: comment.value.trim(),
+              status: result.status || "checked",
+              score: result.score ?? 0,
+              maxScore: result.maxScore ?? q.points ?? 0,
+              prompt: q.prompt
+            };
+            savePinpoints();
+          });
+        });
+      }
+      function buildLearnerPinpoints() {
+        return questions
+          .filter(q => pinpoints[q.id]?.selected)
+          .map(q => ({
+            id: q.id,
+            type: q.type,
+            sectionId: q.sectionId,
+            prompt: q.prompt,
+            status: pinpoints[q.id].status,
+            score: pinpoints[q.id].score,
+            maxScore: pinpoints[q.id].maxScore,
+            comment: pinpoints[q.id].comment || ""
+          }));
+      }
+      function updatePinpointCount() {
+        if (body.dataset.state !== "results") return;
+        const count = buildLearnerPinpoints().length;
+        els.resultsDockStatus.textContent = count
+          ? `강조한 pinpoint: ${count}개`
+          : "pinpoint 없음 · 채점 결과 기반으로 진행합니다.";
       }
       function statusToLabel(status) {
         return ({ correct: "정답", partial: "부분 정답", wrong: "오답", unanswered: "미답변" })[status] || "채점됨";
