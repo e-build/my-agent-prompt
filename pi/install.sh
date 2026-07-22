@@ -48,8 +48,8 @@ if [[ "$RESTORE" == "1" ]]; then
     for item in "$PI_DIR/extensions"/*; do
       base="$(basename "$item")"
       dest="$PI_HOME/extensions/$base"
-      # skip docs (.md), config, and npm/git-managed items
-      if [[ "$base" == *.md || "$base" == *.example.* ]]; then
+      # skip docs (.md), tests, config, and npm/git-managed items
+      if [[ "$base" == *.md || "$base" == *.test.ts || "$base" == *.example.* ]]; then
         continue
       fi
       # symlink everything so repo changes auto-reflect in Pi
