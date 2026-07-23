@@ -31,17 +31,28 @@ type DiagnosisSession = {
 	grade: unknown;
 };
 
+type CurriculumSession = {
+	id: string;
+	htmlPath: string;
+	projectSlug: string;
+	topic: string;
+	createdAt: number;
+	status: "open" | "reviewed" | "revision_requested";
+};
+
 const GRADE_START = "<!--DIAGNOSIS_GRADE_JSON_START-->";
 const GRADE_END = "<!--DIAGNOSIS_GRADE_JSON_END-->";
 const MAX_PAYLOAD = 5 * 1024 * 1024;
 
 export default function (pi: ExtensionAPI) {
 	const sessions = new Map<string, DiagnosisSession>();
+	const curriculumSessions = new Map<string, CurriculumSession>();
 	let server: Server | null = null;
 	let serverPort: number | null = null;
 
 	const moduleDir = dirname(fileURLToPath(import.meta.url));
 	const templatePath = join(moduleDir, "assets", "diagnosis-template.html");
+	const curriculumTemplatePath = join(moduleDir, "assets", "curriculum-template.html");
 	const promptsDir = join(moduleDir, "prompts");
 
 	// --- expose prompts/ so Pi registers /study-init, /study-chapter, /study-review ---
@@ -99,6 +110,57 @@ export default function (pi: ExtensionAPI) {
 			res.writeHead(200, { "Content-Type": "text/html; charset=utf-8", ...corsHeaders() });
 			res.end(html);
 			return;
+		}
+
+		// GET /curriculum/:id → serve HTML with injected bridge endpoints
+		const curriculumMatch = url.pathname.match(/^\/curriculum\/([^/]+)$/);
+		if (curriculumMatch && method === "GET") {
+			const session = curriculumSessions.get(curriculumMatch[1]);
+			if (!session) return sendJson(res, 404, { error: "Unknown curriculum session" });
+			const base = `http://127.0.0.1:${serverPort ?? 0}`;
+			const inject = `<script>window.CURRICULUM_ID=${JSON.stringify(session.id)};window.CURRICULUM_ACK_URL=${JSON.stringify(`${base}/api/study-curriculum/${session.id}/ack`)};window.CURRICULUM_REVISION_URL=${JSON.stringify(`${base}/api/study-curriculum/${session.id}/revision`)};window.CURRICULUM_MODE="bridge";</script>`;
+			let html = await readFile(session.htmlPath, "utf8");
+			if (/<head[^>]*>/i.test(html)) html = html.replace(/<head[^>]*>/i, (m) => `${m}\n${inject}`);
+			else html = inject + html;
+			res.writeHead(200, { "Content-Type": "text/html; charset=utf-8", ...corsHeaders() });
+			res.end(html);
+			return;
+		}
+
+		// POST /api/study-curriculum/:id/ack
+		const curriculumAckMatch = url.pathname.match(/^\/api\/study-curriculum\/([^/]+)\/ack$/);
+		if (curriculumAckMatch && method === "POST") {
+			const session = curriculumSessions.get(curriculumAckMatch[1]);
+			if (!session) return sendJson(res, 404, { error: "Unknown curriculum session" });
+			const body = await readBody(req);
+			let payload: unknown = {};
+			if (body.trim()) {
+				try {
+					payload = JSON.parse(body);
+				} catch {
+					return sendJson(res, 400, { error: "Invalid JSON payload" });
+				}
+			}
+			session.status = "reviewed";
+			deliverCurriculumReviewedToAgent(session, payload);
+			return sendJson(res, 200, { ok: true, status: "reviewed", message: "Pi 세션으로 커리큘럼 확인 신호를 보냈습니다." });
+		}
+
+		// POST /api/study-curriculum/:id/revision
+		const curriculumRevisionMatch = url.pathname.match(/^\/api\/study-curriculum\/([^/]+)\/revision$/);
+		if (curriculumRevisionMatch && method === "POST") {
+			const session = curriculumSessions.get(curriculumRevisionMatch[1]);
+			if (!session) return sendJson(res, 404, { error: "Unknown curriculum session" });
+			const body = await readBody(req);
+			let payload: unknown;
+			try {
+				payload = body.trim() ? JSON.parse(body) : {};
+			} catch {
+				return sendJson(res, 400, { error: "Invalid JSON payload" });
+			}
+			session.status = "revision_requested";
+			deliverCurriculumRevisionToAgent(session, payload);
+			return sendJson(res, 200, { ok: true, status: "revision_requested", message: "Pi 세션으로 방향 조정 요청을 보냈습니다." });
 		}
 
 		// GET /api/study-diagnosis/:id/result
@@ -238,6 +300,78 @@ export default function (pi: ExtensionAPI) {
 		}
 	}
 
+	function buildCurriculumReviewedPrompt(session: CurriculumSession, payload: unknown): string {
+		const data = (payload && typeof payload === "object" ? payload : {}) as { nextChapter?: string; comment?: string };
+		const lines = [
+			"# CURRICULUM_REVIEWED",
+			"",
+			`- curriculumId: ${session.id}`,
+			`- projectSlug: ${session.projectSlug}`,
+			`- topic: ${session.topic}`,
+			`- nextChapter: ${data.nextChapter ?? "ch-01"}`,
+		];
+		if (data.comment) lines.push(`- comment: ${data.comment}`);
+		lines.push(
+			"",
+			"학습자가 브라우저에서 전체 학습 목차와 방향을 확인했습니다.",
+			"다음 단계로 ch-01 사전진단을 안내하세요.",
+			"종료 안내는 3줄 구조로 작성하세요: 완료 / 다음 / 실행.",
+		);
+		return lines.join("\n");
+	}
+
+	function buildCurriculumRevisionPrompt(session: CurriculumSession, payload: unknown): string {
+		const data = (payload && typeof payload === "object" ? payload : {}) as { comment?: string; selectedChapters?: string[] };
+		const lines = [
+			"# CURRICULUM_REVISION_REQUESTED",
+			"",
+			`- curriculumId: ${session.id}`,
+			`- projectSlug: ${session.projectSlug}`,
+			`- topic: ${session.topic}`,
+		];
+		if (Array.isArray(data.selectedChapters) && data.selectedChapters.length) lines.push(`- selectedChapters: ${data.selectedChapters.join(", ")}`);
+		lines.push(
+			"",
+			"학습자가 브라우저에서 커리큘럼 방향 조정을 요청했습니다.",
+			"요청 내용을 반영해 README/챕터 README/SETUP/AGENTS.md 중 필요한 파일만 수정하세요.",
+			"수정 후 다시 study_curriculum_open을 호출해 학습자가 브라우저에서 재확인하게 하세요.",
+			"",
+			"요청 내용:",
+			data.comment?.trim() || "(내용 없음)",
+		);
+		return lines.join("\n");
+	}
+
+	function deliverCurriculumReviewedToAgent(session: CurriculumSession, payload: unknown) {
+		const prompt = buildCurriculumReviewedPrompt(session, payload);
+		try {
+			pi.sendUserMessage(prompt);
+			return;
+		} catch {
+			// agent may be streaming — queue as follow-up
+		}
+		try {
+			pi.sendUserMessage(prompt, { deliverAs: "followUp" });
+		} catch (err) {
+			console.warn("[study] failed to deliver curriculum reviewed signal:", err);
+		}
+	}
+
+	function deliverCurriculumRevisionToAgent(session: CurriculumSession, payload: unknown) {
+		const prompt = buildCurriculumRevisionPrompt(session, payload);
+		try {
+			pi.sendUserMessage(prompt);
+			return;
+		} catch {
+			// agent may be streaming — queue as follow-up
+		}
+		try {
+			pi.sendUserMessage(prompt, { deliverAs: "followUp" });
+		} catch (err) {
+			console.warn("[study] failed to deliver curriculum revision request:", err);
+		}
+	}
+
 	function buildReviewPrompt(session: DiagnosisSession, payload: unknown): string {
 		const grade = (payload && typeof payload === "object" ? payload : {}) as {
 			score?: number;
@@ -283,6 +417,84 @@ export default function (pi: ExtensionAPI) {
 		);
 		return lines.join("\n");
 	}
+
+	// ------------------------------------------------------------------
+	// tool: study_curriculum_open
+	// ------------------------------------------------------------------
+	pi.registerTool({
+		name: "study_curriculum_open",
+		label: "Study Curriculum Open",
+		description:
+			"/study-init 이후 생성한 전체 학습 목차와 방향을 diagnosis UI와 같은 무드의 브라우저 미리보기로 열고, 학습자의 승인 또는 방향 조정 요청을 현재 Pi 세션으로 되돌려 보냅니다.",
+		promptSnippet: "Open curriculum preview HTML in browser; bridge approval/revision back to the Pi session",
+		promptGuidelines: [
+			"/study-init에서 README/챕터 구조를 만든 뒤 study_curriculum_open을 호출해 전체 학습 방향을 브라우저에서 확인하게 하세요. 사용자가 직접 파일을 열게 하지 마세요.",
+		],
+		parameters: Type.Object({
+			projectSlug: Type.String({ description: "학습 프로젝트 디렉토리 slug. 예: study-backend-caching. {projectSlug}/curriculum.html이 생성됩니다." }),
+			topic: Type.String({ description: "학습 주제 전체. 예: 백엔드 애플리케이션에서의 캐싱" }),
+			curriculumJson: Type.String({ description: "CurriculumPreview JSON 문자열. 템플릿의 {{CURRICULUM_JSON}}에 주입됩니다." }),
+		}),
+		async execute(_toolCallId, params, signal, _onUpdate, ctx) {
+			const cwd = ctx?.cwd ?? process.cwd();
+			const projectSlug = params.projectSlug;
+			const htmlPath = resolve(cwd, projectSlug, "curriculum.html");
+
+			let template: string;
+			try {
+				template = await readFile(curriculumTemplatePath, "utf8");
+			} catch (err) {
+				throw new Error(`커리큘럼 템플릿을 찾을 수 없습니다: ${curriculumTemplatePath} (${err instanceof Error ? err.message : err})`);
+			}
+
+			try {
+				JSON.parse(params.curriculumJson);
+			} catch (err) {
+				throw new Error(`curriculumJson이 올바른 JSON이 아닙니다: ${err instanceof Error ? err.message : err}`);
+			}
+
+			const html = template
+				.replace(/{{PROJECT_SLUG}}/g, escapeForHtml(projectSlug))
+				.replace(/{{TOPIC}}/g, escapeForHtml(params.topic))
+				.replace("{{CURRICULUM_JSON}}", params.curriculumJson);
+
+			await mkdir(dirname(htmlPath), { recursive: true });
+			await writeFile(htmlPath, html, "utf8");
+
+			const port = await startServer();
+			const id = randomUUID().replace(/-/g, "").slice(0, 12);
+			const session: CurriculumSession = {
+				id,
+				htmlPath,
+				projectSlug,
+				topic: params.topic,
+				createdAt: Date.now(),
+				status: "open",
+			};
+			curriculumSessions.set(id, session);
+
+			const browserUrl = `http://127.0.0.1:${port}/curriculum/${id}`;
+			openBrowser(browserUrl);
+
+			if (signal?.aborted) return { content: [{ type: "text", text: "취소됨" }] };
+
+			return {
+				content: [
+					{
+						type: "text",
+						text: [
+							`✅ 학습 설계 미리보기 브라우저 세션을 열었습니다.`,
+							`URL: ${browserUrl}`,
+							`생성 파일: ${htmlPath}`,
+							``,
+							`학습자는 브라우저에서 전체 학습 목차와 방향을 확인한 뒤 "이 방향으로 시작" 또는 "방향 조정 요청"을 누르면 됩니다. 결과는 이 Pi 세션으로 자동 전송됩니다.`,
+						].join("\n"),
+					},
+				],
+				details: { url: browserUrl, id, htmlPath, port },
+			};
+		},
+	});
 
 	// ------------------------------------------------------------------
 	// tool: study_diagnosis_open
@@ -447,6 +659,7 @@ export default function (pi: ExtensionAPI) {
 		server = null;
 		serverPort = null;
 		sessions.clear();
+		curriculumSessions.clear();
 	});
 
 	// ------------------------------------------------------------------

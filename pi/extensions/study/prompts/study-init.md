@@ -111,6 +111,7 @@ argument-hint: "<학습주제>"
 - **커리큘럼 설계 근거**: 학습 설계 브리프(목적/성공 기준, 현재 수준, 범위/선호 규모, 참고 출처, 기술 스택/환경 제약)와 대표 자료의 학습 순서, 개념 의존성, 헷갈리는 개념 쌍을 어떻게 반영했는지 짧게 설명
 - **개념 의존성 지도**: 전체 커리큘럼의 주요 개념 선후 관계를 mermaid 다이어그램으로 표시
 - **추천 학습 리소스**: 책/공식문서/강의/문제집/사례/데이터셋/연습 도구 표
+- **학습 설계 미리보기 데이터**: `study_curriculum_open`에 넘길 CurriculumPreview JSON의 source가 되도록, README의 커리큘럼 설계 근거/Phase/챕터/개념 의존성 정보를 구조적으로 작성
 - **학습 원칙 요약**: 아래 5개 테마를 도메인에 맞게 구체화한다.
   1. 읽기보다 직접 해본다: 말하기, 풀기, 쓰기, 연주하기, 실험하기, 실행하기 등.
   2. 주장에는 근거를 붙인다: 채점 결과, 녹음/영상, 로그, 지표, 피드백, 해설, 관찰 기록 등.
@@ -157,7 +158,71 @@ flowchart TD
 - README는 "이 챕터에서 무엇을 배우는지"를 보여주는 지도 역할이다.
 - `다룰 내용`과 `완료 기준`이 같은 말로 반복되지 않도록, `다룰 내용`은 **개념/용어/관계**, `학습 목표`는 **이해/판단/적용 능력** 중심으로 분리한다.
 
-## 5. SETUP.md
+## 5. 학습 설계 미리보기 브라우저 세션 (study extension)
+
+README/SETUP/챕터 구조를 생성한 뒤, 바로 다음 단계로 넘어가지 말고 `study_curriculum_open` tool을 호출해 브라우저에서 전체 학습 목차와 방향을 확인하게 한다.
+사용자에게 `curriculum.html`을 직접 열라고 안내하지 않는다.
+
+**필수 가드**: `study_curriculum_open` tool이 현재 세션에 없으면 수동 HTML 생성, 직접 파일 열기, 일반 브라우저 open, mcp 검색, 임시 서버 작성 같은 workaround를 하지 않는다. 아래처럼 안내하고 중단한다.
+
+```text
+완료: 학습 프로젝트 파일은 생성했지만, 학습 설계 미리보기 tool이 현재 Pi 세션에 등록되어 있지 않습니다.
+다음: study extension을 다시 로드해야 합니다.
+실행: /reload 후 현재 학습 프로젝트에 대해 학습 설계 미리보기를 다시 열어달라고 요청하세요. 그래도 없으면 bash pi/install.sh --restore 후 /reload 하세요.
+```
+
+### CurriculumPreview JSON schema
+
+`study_curriculum_open`의 `curriculumJson`에는 아래 형태의 JSON object를 문자열로 넘긴다.
+
+```ts
+type CurriculumPreview = {
+  version: "1.0";
+  projectSlug: string;
+  topic: string;
+  summary?: string;
+  nextChapter?: string;          // 보통 "ch-01"
+  brief?: {
+    purpose?: string;
+    level?: string;
+    scope?: string;
+    sources?: string;
+    stack?: string;
+  };
+  rationale: string[];           // "왜 이 순서인가" 3~5개
+  phases: Array<{
+    title: string;               // 예: "Phase 1 — 기초 모델"
+    goal?: string;
+    chapters: Array<{
+      slug: string;              // 예: "ch-01-cache-mental-model"
+      title: string;
+      goals: string[];           // 1~3개
+      concepts: string[];        // 3~8개
+    }>;
+  }>;
+  conceptMapMermaid: string;     // README의 전체 개념 의존성 지도
+};
+```
+
+정상 흐름:
+1. 학습 설계 브리프 확인 후 파일을 생성한다.
+2. README/SETUP/챕터 README를 만든다.
+3. README 내용을 바탕으로 `CurriculumPreview` JSON을 만든다.
+4. `study_curriculum_open` tool을 호출한다. 필수 인자:
+   - `projectSlug`: 학습 프로젝트 디렉토리 slug (예: `study-backend-caching`)
+   - `topic`: 학습 주제 전체
+   - `curriculumJson`: 위 JSON을 문자열로
+5. 브라우저에서 학습자가 “이 방향으로 시작 →”을 누르면 `# CURRICULUM_REVIEWED` 신호가 들어온다.
+6. 브라우저에서 학습자가 “방향 조정 요청”을 보내면 `# CURRICULUM_REVISION_REQUESTED` 신호가 들어온다. 그때 필요한 파일만 수정하고 다시 `study_curriculum_open`을 호출한다.
+7. `# CURRICULUM_REVIEWED` 신호를 받은 뒤에만 아래 3줄 구조로 ch-01 diagnosis를 안내한다.
+
+```text
+완료: 전체 학습 목차와 방향을 확인했습니다.
+다음: ch-01 사전진단으로 현재 이해 수준을 확인합니다.
+실행: /study-chapter 01 diagnosis
+```
+
+## 6. SETUP.md
 학습자가 첫 세션 전에 통과해야 하는 **학습 환경 세팅 문서**를 만든다.
 
 포함할 내용:
@@ -170,7 +235,7 @@ flowchart TD
 
 문서 끝에는 "이 체크리스트를 통과하기 전에는 Phase 1 실습을 시작하지 않는다"를 명시한다.
 
-## 6. 챕터 디렉토리 규칙
+## 7. 챕터 디렉토리 규칙
 각 Phase의 하위 학습 단위는 챕터 디렉토리로 분리한다.
 
 ```
@@ -178,6 +243,7 @@ study-{slug}/
 ├── README.md
 ├── AGENTS.md
 ├── SETUP.md
+├── curriculum.html             # study_curriculum_open tool이 자동 생성 (학습 설계 미리보기 UI)
 ├── ch-01-{영문-슬러그}/
 │   ├── README.md           # 챕터 개요 + 학습 목표
 │   ├── diagnosis.md        # 사전평가 결과 + 난이도 + 약점 기록
@@ -199,6 +265,7 @@ study-{slug}/
 규칙:
 - 디렉토리명: `ch-{NN}-{영문-슬러그}` (NN은 01부터 시작하는 2자리 숫자)
 - 챕터 내 파일명은 **역할 기반**으로 고정(README/diagnosis/concept/test/lab/review). 확장자는 학습 주제에 맞춰 자유롭게 둔다.
+- 학습 설계 미리보기 HTML 템플릿은 프로젝트에 두지 않는다. `study_curriculum_open` tool이 extension에 내장된 템플릿을 사용해 `curriculum.html`을 생성한다.
 - 사전진단 HTML 템플릿은 프로젝트에 두지 않는다. `study_diagnosis_open` tool이 extension에 내장된 템플릿을 사용해 `ch-{slug}/diagnosis.html`을 생성한다.
 - `diagnosis.html`은 생성 산출물이므로 챕터별로 다시 만들 수 있다. 채점 결과와 약점 기록의 canonical source는 `diagnosis.md`다.
 - `concept.md`는 개념 학습 후 남는 canonical 학습 노트다. 채팅 요약이 아니라, 여러 챕터의 concept.md만 모아도 교과서처럼 읽히는 독립 문서로 작성한다. 구조/흐름/순서/관계가 이해에 도움이 되면 markdown의 mermaid 다이어그램을 사용한다.
@@ -206,7 +273,7 @@ study-{slug}/
 - `lab/` 산출물 형식은 도메인이 정한다: 개발/DB는 코드·쿼리·설정·로그, 글쓰기는 초안/수정본, 언어 학습은 녹음 링크/대본, 음악은 악보/리듬/녹음 기록 등.
 - `ch-` 프리픽스는 챕터 구분과 정렬을 위함. Phase 구분은 README.md의 Phase 번호로 한다.
 
-## 7. 사전진단 브라우저 세션 (study extension)
+## 8. 사전진단 브라우저 세션 (study extension)
 
 사전진단은 Plannotator 스타일의 인터랙티브 브라우저 세션으로 진행한다. Pi의 `study_diagnosis_open` tool이 전부 담당한다.
 
@@ -224,7 +291,7 @@ study-{slug}/
 
 문항 JSON schema와 채점 결과 포맷은 `/study-chapter` 프롬프트를 따른다.
 
-## 8. 챕터 학습 플로우
+## 9. 챕터 학습 플로우
 모든 챕터는 아래 순서로 진행한다:
 
 1. **사전 평가** — `/study-chapter {챕터} diagnosis`가 `study_diagnosis_open` tool으로 브라우저 세션을 연다. 학습자가 풀고 제출하면 자동 채점된다.
@@ -240,7 +307,7 @@ study-{slug}/
    5. `schedule.md` (스케줄러): 3일/1주/2주 간격, 매번 새 질문 생성.
    - **스코프 가드**: 피드백은 본 학습 범위(concept/lab)로 한정. 벗어나면 `learning-gaps.md`에 분류하고 "본 학습으로 회귀" 안내.
 
-## 9. AGENTS.md
+## 10. AGENTS.md
 해당 분야의 **전문 멘토 정체성**을 아래 8개 섹션으로 정의한다.
 
 1. **정체성**
@@ -329,12 +396,15 @@ study-{slug}/
 
 ## 완료 후
 - 생성한 디렉토리 트리 출력
-- 사용자가 고민하지 않고 바로 다음 행동을 할 수 있도록 아래 3줄 구조로 안내한다.
+- `study_curriculum_open` tool이 브라우저를 열었음을 안내한다.
+- 사용자가 브라우저에서 “이 방향으로 시작 →” 또는 “방향 조정 요청”을 누를 때까지 ch-01 diagnosis를 직접 안내하지 않는다.
+- 브라우저 미리보기 직후 안내는 아래 3줄 구조로 끝낸다.
 
 ```text
-완료: 학습 프로젝트와 챕터 구조를 만들었습니다.
-다음: ch-01 사전진단으로 현재 이해 수준을 확인합니다.
-실행: /study-chapter 01 diagnosis
+완료: 학습 프로젝트와 챕터 구조를 만들고 브라우저에 학습 설계 미리보기를 열었습니다.
+다음: 전체 목차와 방향을 확인합니다.
+실행: 브라우저에서 “이 방향으로 시작 →” 또는 “방향 조정 요청”을 선택하세요.
 ```
 
+- `# CURRICULUM_REVIEWED` 신호를 받은 뒤에만 ch-01 diagnosis 안내를 한다.
 - init 직후에는 실습 과제 세트 생성을 묻지 않는다. 실습 과제 세트는 diagnosis와 concept 학습이 끝난 뒤, lab으로 전환하는 시점에 제안한다.
