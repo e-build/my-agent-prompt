@@ -278,8 +278,8 @@ export default function (pi: ExtensionAPI) {
 		lines.push(
 			"",
 			"학습자가 브라우저에서 진단 결과(점수·정답·해설·보완 포인트)를 모두 확인했습니다.",
-			"이제 diagnosis.md의 결과를 바탕으로 개념 학습을 시작하세요.",
-			"학습자가 강조한 pinpoint가 있으면 점수상 약점보다 먼저 다룹니다. pinpoint가 없으면 취약 분야와 오답/부분정답을 우선 커버합니다.",
+			"이제 diagnosis.md의 결과와 챕터 README의 학습 목표를 기준으로 개념 학습을 시작하세요.",
+			"학습자가 강조한 pinpoint는 학습 범위 변경이나 우선순위 override가 아니라 비중 조절 신호입니다. 전체 개념 흐름은 유지하고, pinpoint와 연결된 개념의 설명 밀도·예시·확인 질문만 조금 늘립니다.",
 		);
 		return lines.join("\n");
 	}

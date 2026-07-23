@@ -537,7 +537,7 @@
     <div class="dockInner">
       <div>
         <div class="dockTitle">결과 확인 완료</div>
-        <div class="dockStatus" id="resultsDockStatus">더 깊게 배울 문항을 pinpoint하거나 바로 넘어가세요.</div>
+        <div class="dockStatus" id="resultsDockStatus">조금 더 비중 있게 다룰 문항을 pinpoint하거나 바로 넘어가세요.</div>
       </div>
       <div class="dockActions">
         <button class="btn" type="button" id="copyWeaknessBtn">취약점 요약 복사</button>
@@ -1058,8 +1058,8 @@
             <input type="checkbox" data-pinpoint-toggle="${escapeHtml(q.id)}" ${checked ? "checked" : ""} />
             <span>이 문항 pinpoint</span>
           </label>
-          <textarea class="pinpointNote" data-pinpoint-comment="${escapeHtml(q.id)}" placeholder="왜 더 다루고 싶은지 메모하세요. 예: 정답은 맞췄지만 감으로 찍었습니다.">${escapeHtml(note)}</textarea>
-          <p class="pinpointHint">pinpoint한 문항은 개념 학습에서 먼저 다룹니다.</p>
+          <textarea class="pinpointNote" data-pinpoint-comment="${escapeHtml(q.id)}" placeholder="왜 조금 더 비중 있게 다루면 좋을지 메모하세요. 예: 정답은 맞췄지만 감으로 찍었습니다.">${escapeHtml(note)}</textarea>
+          <p class="pinpointHint">pinpoint는 학습 방향을 바꾸지 않고, 관련 설명의 비중만 조금 높입니다.</p>
         </div>`;
       }
       function wirePinpointControls(resultById) {
