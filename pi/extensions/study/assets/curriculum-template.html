@@ -1,0 +1,544 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>학습 설계 미리보기 — {{TOPIC}}</title>
+  <style>
+    :root {
+      --bg: #f8fafc;
+      --surface: #ffffff;
+      --surface-muted: #f1f5f9;
+      --text: #0f172a;
+      --muted: #64748b;
+      --border: #e2e8f0;
+      --accent: #2563eb;
+      --accent-soft: #dbeafe;
+      --success: #16a34a;
+      --warning: #d97706;
+      --danger: #dc2626;
+      --shadow: 0 10px 28px rgba(15, 23, 42, 0.06);
+      --radius: 16px;
+      --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%);
+      color: var(--text);
+      line-height: 1.58;
+      padding-bottom: 124px;
+    }
+    button, textarea { font: inherit; }
+    button { cursor: pointer; }
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 20;
+      background: rgba(248, 250, 252, 0.86);
+      backdrop-filter: blur(16px);
+      border-bottom: 1px solid var(--border);
+    }
+    .topbarRow {
+      max-width: 980px;
+      margin: 0 auto;
+      padding: 18px 22px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 18px;
+    }
+    .eyebrow { color: var(--accent); font-weight: 700; font-size: 12px; letter-spacing: .08em; text-transform: uppercase; }
+    h1 { margin: 2px 0 0; font-size: clamp(22px, 4vw, 34px); letter-spacing: -0.04em; line-height: 1.12; }
+    .meta { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; color: var(--muted); font-size: 13px; }
+    .pill { border: 1px solid var(--border); border-radius: 999px; padding: 6px 10px; background: rgba(255,255,255,.72); white-space: nowrap; }
+    main { max-width: 980px; margin: 0 auto; padding: 28px 22px 56px; }
+    .panel, .phase, .conceptMap, .revisionPanel, .closedScreen {
+      background: rgba(255,255,255,.96);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+    }
+    .panel { padding: 24px; margin-bottom: 18px; }
+    .panelTitle { margin: 0 0 10px; font-size: 18px; letter-spacing: -0.02em; line-height: 1.25; }
+    .summaryList { margin: 16px 0 0; border-top: 1px solid var(--border); }
+    .summaryRow { display: grid; grid-template-columns: 148px 1fr; gap: 18px; padding: 12px 0; border-bottom: 1px solid var(--border); }
+    .summaryRow dt { color: var(--muted); font-size: 12px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
+    .summaryRow dd { margin: 0; color: #1e293b; font-weight: 610; overflow-wrap: anywhere; word-break: keep-all; }
+    .bullets { margin: 10px 0 0; padding-left: 20px; color: #334155; }
+    .bullets li { margin: 6px 0; }
+    .sectionHead { margin: 30px 0 12px; display: flex; align-items: end; justify-content: space-between; gap: 12px; }
+    .sectionHead h2 { margin: 0; font-size: 20px; letter-spacing: -0.03em; }
+    .sectionHead p { margin: 4px 0 0; color: var(--muted); }
+    #roadmap { position: relative; }
+    #roadmap::before { content: ""; position: absolute; left: 21px; top: 8px; bottom: 8px; width: 1px; background: linear-gradient(var(--accent), var(--border)); }
+    .phase { position: relative; padding: 18px 18px 18px 54px; margin-bottom: 14px; box-shadow: none; background: rgba(255,255,255,.78); }
+    .phase::before { content: ""; position: absolute; left: 14px; top: 23px; width: 15px; height: 15px; border-radius: 999px; border: 3px solid #fff; background: var(--accent); box-shadow: 0 0 0 1px var(--border); }
+    .phaseHead { display: flex; align-items: start; justify-content: space-between; gap: 16px; margin-bottom: 10px; }
+    .phaseTitle { margin: 0; font-size: 18px; letter-spacing: -0.02em; }
+    .phaseGoal { margin: 5px 0 0; color: var(--muted); overflow-wrap: anywhere; word-break: keep-all; }
+    .chapterList { display: grid; gap: 7px; }
+    .chapter {
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 12px 13px;
+      background: #fff;
+    }
+    .chapterHead { display: flex; align-items: baseline; gap: 10px; margin-bottom: 6px; min-width: 0; }
+    .chapterSlug { flex: 0 0 auto; font-family: var(--mono); font-size: 11px; color: var(--accent); background: var(--accent-soft); padding: 3px 7px; border-radius: 999px; }
+    .chapterTitle { font-weight: 750; letter-spacing: -0.02em; overflow-wrap: anywhere; word-break: keep-all; }
+    .chapterBody { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, .85fr); gap: 12px; }
+    .miniBlock label { display: block; color: var(--muted); font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; margin-bottom: 5px; }
+    .miniBlock ul { margin: 0; padding-left: 17px; color: #334155; }
+    .miniBlock li { margin: 2px 0; overflow-wrap: anywhere; word-break: keep-all; }
+    .concepts { display: flex; flex-wrap: wrap; gap: 6px; }
+    .concept { font-size: 12px; border: 1px solid var(--border); border-radius: 999px; padding: 4px 8px; background: #fff; color: #334155; }
+    .conceptMap { padding: 18px; box-shadow: none; overflow: auto; }
+    .diagramCanvas {
+      min-height: 260px;
+      width: 100%;
+      display: grid;
+      place-items: center;
+      border-radius: 14px;
+      background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+    }
+    .diagramCanvas svg {
+      display: block;
+      width: 100% !important;
+      max-width: 100% !important;
+      height: auto !important;
+    }
+    .diagramCanvas .nodeLabel,
+    .diagramCanvas .edgeLabel,
+    .diagramCanvas foreignObject,
+    .diagramCanvas .label {
+      overflow-wrap: anywhere;
+      word-break: keep-all;
+      line-height: 1.35;
+    }
+    .diagramToolbar { display: flex; justify-content: flex-end; margin-bottom: 10px; }
+    .sourceToggle { min-height: 34px; padding: 0 11px; border-radius: 999px; border: 1px solid var(--border); background: #fff; color: var(--muted); font-size: 12px; font-weight: 700; }
+    .diagramFallback { display: none; margin-top: 12px; }
+    .conceptMap.is-fallback .diagramCanvas { display: none; }
+    .conceptMap.is-fallback .diagramFallback,
+    .conceptMap.show-source .diagramFallback { display: block; }
+    pre {
+      margin: 0;
+      padding: 16px;
+      border-radius: 14px;
+      border: 1px solid var(--border);
+      background: #f8fafc;
+      color: #334155;
+      overflow: auto;
+      font-family: var(--mono);
+      font-size: 13px;
+      line-height: 1.55;
+    }
+    .revisionPanel { display: none; padding: 18px; margin-top: 16px; box-shadow: none; }
+    body[data-mode="revision"] .revisionPanel { display: block; }
+    textarea {
+      width: 100%;
+      min-height: 130px;
+      resize: vertical;
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 13px 14px;
+      color: var(--text);
+      background: #fff;
+    }
+    textarea:focus, button:focus-visible { outline: 3px solid rgba(37,99,235,.22); outline-offset: 2px; }
+    .dock {
+      position: fixed;
+      left: 0; right: 0; bottom: 0;
+      background: rgba(248,250,252,.88);
+      backdrop-filter: blur(16px);
+      border-top: 1px solid var(--border);
+      z-index: 30;
+    }
+    .dockInner {
+      max-width: 980px;
+      margin: 0 auto;
+      padding: 16px 22px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+    }
+    .dockTitle { font-weight: 750; }
+    .dockStatus { color: var(--muted); font-size: 13px; margin-top: 2px; }
+    .dockActions { display: flex; gap: 10px; flex-wrap: wrap; justify-content: flex-end; }
+    .btn {
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      min-height: 44px;
+      padding: 0 16px;
+      background: #fff;
+      color: var(--text);
+      font-weight: 700;
+      transition: transform .16s ease, background .16s ease, border-color .16s ease;
+    }
+    .btn:hover { transform: translateY(-1px); border-color: #cbd5e1; }
+    .btn.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+    .btn.ghost { background: transparent; }
+    .closedScreen { display: none; min-height: 100vh; place-items: center; text-align: center; padding: 32px; }
+    .closedCard { max-width: 440px; }
+    .closedCard h2 { margin: 0 0 8px; font-size: 26px; }
+    .closedCard p { margin: 0; color: var(--muted); }
+    body[data-state="closed"] .topbar,
+    body[data-state="closed"] main,
+    body[data-state="closed"] .dock { display: none; }
+    body[data-state="closed"] .closedScreen { display: grid; }
+    @media (max-width: 720px) {
+      .topbarRow, .dockInner { align-items: stretch; flex-direction: column; }
+      .meta, .dockActions { justify-content: flex-start; }
+      .summaryRow, .chapterBody { grid-template-columns: 1fr; gap: 6px; }
+      #roadmap::before { left: 18px; }
+      .phase { padding-left: 48px; }
+      body { padding-bottom: 176px; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      * { scroll-behavior: auto !important; transition: none !important; }
+    }
+  </style>
+</head>
+<body data-mode="review" data-state="open">
+  <header class="topbar">
+    <div class="topbarRow">
+      <div>
+        <div class="eyebrow">Study Curriculum Preview</div>
+        <h1 id="topicTitle">{{TOPIC}}</h1>
+      </div>
+      <div class="meta" id="topMeta"></div>
+    </div>
+  </header>
+
+  <main>
+    <section class="panel">
+      <h2 class="panelTitle">학습 설계 요약</h2>
+      <p id="summaryText" class="phaseGoal"></p>
+      <dl class="summaryList" id="summaryGrid"></dl>
+    </section>
+
+    <section class="panel">
+      <h2 class="panelTitle">왜 이 순서인가</h2>
+      <ul class="bullets" id="rationaleList"></ul>
+    </section>
+
+    <div class="sectionHead">
+      <div>
+        <h2>학습 로드맵</h2>
+        <p>Phase별 목차와 챕터별 목표를 확인하세요.</p>
+      </div>
+    </div>
+    <section id="roadmap"></section>
+
+    <div class="sectionHead">
+      <div>
+        <h2>개념 관계도</h2>
+        <p>전체 학습 순서를 만든 개념 의존성입니다.</p>
+      </div>
+    </div>
+    <section class="conceptMap" id="conceptMap">
+      <div class="diagramToolbar">
+        <button class="sourceToggle" type="button" id="toggleMermaidSourceBtn">Mermaid 원본 보기</button>
+      </div>
+      <div class="diagramCanvas" id="conceptMapDiagram" aria-label="개념 관계도"></div>
+      <pre class="diagramFallback" id="conceptMapCode"></pre>
+    </section>
+
+    <section class="revisionPanel" id="revisionPanel">
+      <h2 class="panelTitle">방향 조정 요청</h2>
+      <p class="phaseGoal">바꾸고 싶은 방향을 짧게 적어주세요. Pi가 필요한 파일만 수정하고 다시 미리보기를 열게 됩니다.</p>
+      <textarea id="revisionText" aria-label="방향 조정 요청 내용"></textarea>
+    </section>
+  </main>
+
+  <footer class="dock">
+    <div class="dockInner">
+      <div>
+        <div class="dockTitle" id="dockTitle">학습 설계를 확인하세요</div>
+        <div class="dockStatus" id="dockStatus">방향이 맞으면 시작하고, 다르면 조정 요청을 보냅니다.</div>
+      </div>
+      <div class="dockActions" id="reviewActions">
+        <button class="btn" type="button" id="requestRevisionBtn">방향 조정 요청</button>
+        <button class="btn primary" type="button" id="approveBtn">이 방향으로 시작 →</button>
+      </div>
+      <div class="dockActions" id="revisionActions" style="display:none">
+        <button class="btn ghost" type="button" id="cancelRevisionBtn">취소</button>
+        <button class="btn primary" type="button" id="sendRevisionBtn">Pi에 조정 요청 보내기</button>
+      </div>
+    </div>
+  </footer>
+
+  <section class="closedScreen">
+    <div class="closedCard">
+      <h2>Pi로 넘겼습니다</h2>
+      <p>다음 단계는 Pi에서 이어집니다. 이 탭은 닫으셔도 됩니다.</p>
+    </div>
+  </section>
+
+  <script id="curriculum-data" type="application/json">{{CURRICULUM_JSON}}</script>
+  <script>
+    const body = document.body;
+    const els = {
+      topicTitle: document.getElementById("topicTitle"),
+      topMeta: document.getElementById("topMeta"),
+      summaryText: document.getElementById("summaryText"),
+      summaryGrid: document.getElementById("summaryGrid"),
+      rationaleList: document.getElementById("rationaleList"),
+      roadmap: document.getElementById("roadmap"),
+      conceptMap: document.getElementById("conceptMap"),
+      conceptMapDiagram: document.getElementById("conceptMapDiagram"),
+      conceptMapCode: document.getElementById("conceptMapCode"),
+      toggleMermaidSourceBtn: document.getElementById("toggleMermaidSourceBtn"),
+      revisionPanel: document.getElementById("revisionPanel"),
+      revisionText: document.getElementById("revisionText"),
+      dockTitle: document.getElementById("dockTitle"),
+      dockStatus: document.getElementById("dockStatus"),
+      reviewActions: document.getElementById("reviewActions"),
+      revisionActions: document.getElementById("revisionActions"),
+      requestRevisionBtn: document.getElementById("requestRevisionBtn"),
+      approveBtn: document.getElementById("approveBtn"),
+      cancelRevisionBtn: document.getElementById("cancelRevisionBtn"),
+      sendRevisionBtn: document.getElementById("sendRevisionBtn")
+    };
+
+    function loadData() {
+      const raw = document.getElementById("curriculum-data")?.textContent?.trim() || "{}";
+      try { return JSON.parse(raw); } catch (err) { return { topic: "커리큘럼", parseError: String(err) }; }
+    }
+    const data = loadData();
+
+    function escapeHtml(value) {
+      return String(value ?? "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+    }
+    function asArray(value) { return Array.isArray(value) ? value : value ? [value] : []; }
+    function text(value, fallback = "-") { return String(value ?? "").trim() || fallback; }
+
+    function render() {
+      const topic = data.topic || "{{TOPIC}}";
+      const phases = asArray(data.phases);
+      const chapters = phases.flatMap(p => asArray(p.chapters));
+      els.topicTitle.textContent = topic;
+      els.topMeta.innerHTML = [
+        `${phases.length || "-"} Phases`,
+        `${chapters.length || "-"} Chapters`,
+        text(data.projectSlug || "{{PROJECT_SLUG}}")
+      ].map(v => `<span class="pill">${escapeHtml(v)}</span>`).join("");
+
+      els.summaryText.textContent = data.summary || "전체 학습 목차와 방향을 확인한 뒤 시작합니다.";
+      const brief = data.brief || {};
+      const summaryItems = [
+        ["목적/성공 기준", brief.purpose || data.purpose],
+        ["현재 수준", brief.level || data.level],
+        ["범위/규모", brief.scope || data.scope],
+        ["참고 출처/환경", brief.sources || brief.stack || data.sources]
+      ].filter(([, value]) => text(value, "") !== "");
+      els.summaryGrid.innerHTML = summaryItems.map(([label, value]) => `
+        <div class="summaryRow"><dt>${escapeHtml(label)}</dt><dd>${escapeHtml(value)}</dd></div>
+      `).join("") || `<div class="summaryRow"><dt>요약</dt><dd>README의 커리큘럼 설계 근거를 확인하세요.</dd></div>`;
+
+      const rationale = asArray(data.rationale);
+      els.rationaleList.innerHTML = rationale.length
+        ? rationale.map(item => `<li>${escapeHtml(item)}</li>`).join("")
+        : `<li>대표 자료의 학습 순서와 개념 의존성을 기준으로 챕터를 배치했습니다.</li>`;
+
+      els.roadmap.innerHTML = phases.map((phase, phaseIndex) => renderPhase(phase, phaseIndex)).join("") || `<section class="phase"><p class="phaseGoal">표시할 Phase가 없습니다.</p></section>`;
+      const mermaidSource = data.conceptMapMermaid || data.conceptMap || "flowchart TD\n  A[학습 시작] --> B[개념 학습]\n  B --> C[실습]\n  C --> D[테스트/복습]";
+      els.conceptMapCode.textContent = mermaidSource;
+      renderMermaidDiagram(mermaidSource);
+    }
+
+    let mermaidModulePromise = null;
+    let mermaidRenderToken = 0;
+    function loadMermaid() {
+      if (!mermaidModulePromise) {
+        mermaidModulePromise = import("https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs")
+          .then((module) => module.default);
+      }
+      return mermaidModulePromise;
+    }
+
+    function configureMermaid(mermaid) {
+      const width = Math.max(320, Math.min(980, els.conceptMapDiagram.clientWidth || window.innerWidth || 720));
+      const wrappingWidth = Math.max(110, Math.min(260, Math.floor(width / 4)));
+      mermaid.initialize({
+        startOnLoad: false,
+        securityLevel: "loose",
+        theme: "base",
+        themeVariables: {
+          fontFamily: "Inter, ui-sans-serif, system-ui, sans-serif",
+          primaryColor: "#ffffff",
+          primaryTextColor: "#0f172a",
+          primaryBorderColor: "#cbd5e1",
+          lineColor: "#94a3b8",
+          secondaryColor: "#f8fafc",
+          tertiaryColor: "#eff6ff",
+          clusterBkg: "#f8fafc",
+          clusterBorder: "#cbd5e1",
+          edgeLabelBackground: "#ffffff"
+        },
+        flowchart: { htmlLabels: true, curve: "basis", useMaxWidth: true, wrappingWidth },
+        sequence: { useMaxWidth: true, wrap: true, width: Math.min(170, wrappingWidth) },
+        class: { useMaxWidth: true },
+        state: { useMaxWidth: true },
+        er: { useMaxWidth: true },
+        gantt: { useMaxWidth: true },
+        mindmap: { useMaxWidth: true },
+        timeline: { useMaxWidth: true }
+      });
+    }
+
+    async function renderMermaidDiagram(source) {
+      const token = ++mermaidRenderToken;
+      const diagram = String(source || "").trim();
+      if (!diagram) return showDiagramFallback(diagram);
+      els.conceptMap.classList.remove("is-fallback");
+      els.toggleMermaidSourceBtn.textContent = els.conceptMap.classList.contains("show-source") ? "Mermaid 원본 숨기기" : "Mermaid 원본 보기";
+      els.conceptMapDiagram.innerHTML = "";
+      try {
+        const mermaid = await loadMermaid();
+        if (token !== mermaidRenderToken) return;
+        configureMermaid(mermaid);
+        const renderId = `curriculum-map-${window.CURRICULUM_ID || "local"}-${token}`;
+        const result = await mermaid.render(renderId, diagram);
+        if (token !== mermaidRenderToken) return;
+        els.conceptMapDiagram.innerHTML = result.svg;
+        const svg = els.conceptMapDiagram.querySelector("svg");
+        if (svg) {
+          svg.removeAttribute("height");
+          svg.setAttribute("width", "100%");
+          svg.setAttribute("preserveAspectRatio", "xMidYMid meet");
+          svg.style.maxWidth = "100%";
+          svg.style.height = "auto";
+        }
+      } catch (err) {
+        showDiagramFallback(diagram, err);
+      }
+    }
+
+    function showDiagramFallback(source, err) {
+      els.conceptMap.classList.add("is-fallback");
+      els.conceptMapCode.textContent = source || "Mermaid 다이어그램을 표시할 수 없습니다.";
+      els.toggleMermaidSourceBtn.textContent = "Mermaid 원본";
+      if (err) console.warn("[study] Mermaid render failed", err);
+    }
+
+    let resizeTimer = null;
+    window.addEventListener("resize", () => {
+      clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(() => {
+        const source = data.conceptMapMermaid || data.conceptMap || els.conceptMapCode.textContent;
+        renderMermaidDiagram(source);
+      }, 180);
+    });
+
+    function renderPhase(phase, phaseIndex) {
+      const chapters = asArray(phase.chapters);
+      return `<section class="phase">
+        <div class="phaseHead">
+          <div>
+            <h3 class="phaseTitle">${escapeHtml(phase.title || `Phase ${phaseIndex + 1}`)}</h3>
+            <p class="phaseGoal">${escapeHtml(phase.goal || phase.description || "")}</p>
+          </div>
+          <span class="pill">${chapters.length} chapters</span>
+        </div>
+        <div class="chapterList">
+          ${chapters.map(renderChapter).join("")}
+        </div>
+      </section>`;
+    }
+
+    function renderChapter(chapter) {
+      const goals = asArray(chapter.goals || chapter.learningGoals).slice(0, 3);
+      const concepts = asArray(chapter.concepts || chapter.terms).slice(0, 8);
+      return `<article class="chapter">
+        <div class="chapterHead">
+          <span class="chapterSlug">${escapeHtml(chapter.slug || chapter.id || "ch")}</span>
+          <span class="chapterTitle">${escapeHtml(chapter.title || "제목 없음")}</span>
+        </div>
+        <div class="chapterBody">
+          <div class="miniBlock">
+            <label>학습 목표</label>
+            ${goals.length ? `<ul>${goals.map(g => `<li>${escapeHtml(g)}</li>`).join("")}</ul>` : `<div class="phaseGoal">README에서 확인</div>`}
+          </div>
+          <div class="miniBlock">
+            <label>다룰 개념</label>
+            ${concepts.length ? `<div class="concepts">${concepts.map(c => `<span class="concept">${escapeHtml(c)}</span>`).join("")}</div>` : `<div class="phaseGoal">챕터 README에서 확인</div>`}
+          </div>
+        </div>
+      </article>`;
+    }
+
+    function setMode(mode) {
+      body.dataset.mode = mode;
+      const revision = mode === "revision";
+      els.reviewActions.style.display = revision ? "none" : "flex";
+      els.revisionActions.style.display = revision ? "flex" : "none";
+      els.dockTitle.textContent = revision ? "방향 조정 요청" : "학습 설계를 확인하세요";
+      els.dockStatus.textContent = revision ? "바꾸고 싶은 방향을 적어 Pi로 보냅니다." : "방향이 맞으면 시작하고, 다르면 조정 요청을 보냅니다.";
+      if (revision) setTimeout(() => els.revisionText.focus(), 80);
+    }
+
+    async function postJson(url, payload) {
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload || {})
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return res.json();
+    }
+
+    function closeFlow() {
+      body.dataset.state = "closed";
+      setTimeout(() => { try { window.close(); } catch {} }, 600);
+    }
+
+    els.toggleMermaidSourceBtn.addEventListener("click", () => {
+      const showing = els.conceptMap.classList.toggle("show-source");
+      els.toggleMermaidSourceBtn.textContent = showing ? "Mermaid 원본 숨기기" : "Mermaid 원본 보기";
+    });
+
+    els.requestRevisionBtn.addEventListener("click", () => setMode("revision"));
+    els.cancelRevisionBtn.addEventListener("click", () => setMode("review"));
+    els.approveBtn.addEventListener("click", async () => {
+      els.approveBtn.disabled = true;
+      els.dockStatus.textContent = "Pi로 확인 신호를 보내는 중입니다.";
+      try {
+        await postJson(window.CURRICULUM_ACK_URL, { nextChapter: data.nextChapter || "ch-01" });
+        closeFlow();
+      } catch (err) {
+        els.approveBtn.disabled = false;
+        els.dockStatus.textContent = `전송 실패: ${err.message || err}`;
+      }
+    });
+    els.sendRevisionBtn.addEventListener("click", async () => {
+      const comment = els.revisionText.value.trim();
+      if (!comment) {
+        els.dockStatus.textContent = "조정 요청 내용을 먼저 적어주세요.";
+        els.revisionText.focus();
+        return;
+      }
+      els.sendRevisionBtn.disabled = true;
+      els.dockStatus.textContent = "Pi로 조정 요청을 보내는 중입니다.";
+      try {
+        await postJson(window.CURRICULUM_REVISION_URL, { comment });
+        closeFlow();
+      } catch (err) {
+        els.sendRevisionBtn.disabled = false;
+        els.dockStatus.textContent = `전송 실패: ${err.message || err}`;
+      }
+    });
+
+    render();
+  </script>
+</body>
+</html>
