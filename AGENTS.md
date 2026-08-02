@@ -75,6 +75,7 @@ Claude Code / Codex도 같은 수준의 비교 축에서 관리하는 저장소*
 | `pi/commands/` | Pi 전용 command wrapper |
 | `opencode-plugins/` | OpenCode plugin 패키지 및 배포 자원 |
 | `pi/extensions/` | Pi 전용 extension 소스 |
+| `cliproxyapi/` | CLI Proxy API 서버 구성 소스(`config.template.yaml`, `docker-compose.yml`, `install.sh`) + Claude Code/Codex 연동 가이드 |
 | `refs/` | 공통 규칙, 정책, 가이드라인 문서 |
 | `prompt/` | 프롬프트 템플릿, 아키텍처 가이드, 설계 문서 |
 | `command/` | `opencode/commands/` 로 연결된 하위 호환용 심링크 |

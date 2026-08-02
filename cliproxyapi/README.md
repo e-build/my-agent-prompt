@@ -4,12 +4,67 @@
 
 ## 목차
 
+- [서버 구성 설치](#서버-구성-설치)
 - [대상 독자](#대상-독자)
 - [전제 조건](#전제-조건)
 - [사용 가능 모델](#사용-가능-모델)
 - [빠른 검증](#빠른-검증)
 - [문서 구성](#문서-구성)
 - [핵심 주의사항](#핵심-주의사항)
+
+## 서버 구성 설치
+
+이 디렉토리에는 서버 실행에 필요한 구성 소스가 함께 보관되어 있다.
+
+| 파일 | 용도 |
+|------|------|
+| `config.template.yaml` | 서버 구성 템플릿. API 키는 `__CLIPROXY_*__` 플레이스홀더 |
+| `docker-compose.yml` | `eceasy/cli-proxy-api` 컨테이너 실행 정의 |
+| `install.sh` | 어느 머신에서든 동일 구성 설치 + 템플릿 동기화 스크립트 |
+
+> 관리 UI는 컨테이너가 `http://localhost:8317/management.html` 에서 자체 서빙한다.
+> 별도 파일 보관/마운트 불필요 (`docker-compose.yml` 에 static 마운트 없음).
+
+```bash
+# 기본: $HOME/cliproxyapi 에 설치 + docker compose up
+bash cliproxyapi/install.sh
+
+# 키는 환경변수로 주입 (bash 네이티브, python/sed 외부 의존 없음)
+CLIPROXY_SECRET_KEY=... CLIPROXY_ZAI_API_KEY=... CLIPROXY_DEEPSEEK_API_KEY=... \
+  bash cliproxyapi/install.sh
+
+# 기존 config.yaml을 통째로 복사해 신규 머신에 동일 구성 재현
+bash cliproxyapi/install.sh --from /path/to/기존/config.yaml
+
+# 실제 config 변경 → 템플릿에 반영 (키는 플레이스홀더화, 드리프트 방지)
+bash cliproxyapi/install.sh --sync-from ~/cliproxyapi/config.yaml
+
+# 대상 디렉토리/동작 변경
+CLIPROXY_DIR=/opt/cpa bash cliproxyapi/install.sh --no-compose
+```
+
+동작 방식 (설치 모드):
+
+1. 대상 디렉토리(기본 `$HOME/cliproxyapi`, `CLIPROXY_DIR`로 변경)에 `docker-compose.yml` 복사
+2. `config.yaml` 이 없으면 템플릿에서 생성하고 환경변수로 키를 주입.
+   `--from` 이 있으면 템플릿 생성 대신 그 파일을 통째로 복사.
+   이미 `config.yaml` 이 있으면 유지 (재실행해도 안전)
+3. `docker compose up -d` 후 `/v1/models` 응답을 재시도로 검증
+
+동기화 모드 (`--sync-from`):
+
+- 실제 config.yaml 의 구조(프로바이더/모델/alias)를 템플릿에 덮어쓰고,
+- 3개 키(secret-key, zai api-key, deepseek api-key)만 플레이스홀더로 되돌린다.
+- 실제 config에 모델을 추가한 뒤 실행하면 템플릿이 따라감 (보관 = 유지)
+
+> **보안**: 이 저장소는 **public** 이다. 실제 API 키가 담긴 `config.yaml` 을 커밋하지 말 것.
+> 템플릿의 플레이스홀더를 실제 값으로 바꾼 파일은 git 에 올리지 않는다 (`.gitignore` 에 `cliproxyapi/config.yaml` 등록됨).
+
+### OAuth 인증 파일 (`auth-dir`)
+
+`config.yaml` 의 `auth-dir` 은 컨테이너 내부 경로(`/root/.cli-proxy-api`)이며, 호스트의 `~/.cli-proxy-api/` 가 마운트된다.
+여기 담기는 OAuth 토큰(`codex-*.json` 등)은 머신/계정별 인증 파일이므로 **저장소에 보관하지 않는다.**
+새 머신에서는 프록시 관리 UI(또는 프록시 OAuth 플로우)로 재로그인한다.
 
 ## 대상 독자
 

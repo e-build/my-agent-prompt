@@ -13,6 +13,10 @@ out/
 
 # Tracked OpenCode plugin build artifact
 !opencode-plugins/forge-plugin/dist/
+
+# cliproxyapi runtime (실제 API 키 포함 — 커밋 금지)
+cliproxyapi/config.yaml
+cliproxyapi/cliproxy.log
 !opencode-plugins/forge-plugin/dist/**/
 !opencode-plugins/forge-plugin/dist/**
 
