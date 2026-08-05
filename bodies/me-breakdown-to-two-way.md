@@ -10,10 +10,6 @@ You are acting as the project **Documentation Specialist**. Before executing the
 
 ---
 
-## 문서화 규칙
-
-@~/.config/opencode/refs/docs-rules.md
-
 ---
 
 ## 실행 절차
@@ -26,8 +22,11 @@ You are acting as the project **Documentation Specialist**. Before executing the
    - 문서화 범위 결정
 
 2. **관련 자료 탐색**
-   - `src/` 관련 코드 검색
+   - `src/`, `api/` 등 프로젝트 소스 트리에서 관련 코드 검색
    - 기존 `docs/` 문서 확인
+   - 대상 코드가 이미 구현되어 있는지 확인
+     - 계획서에 "미구현"이라 해도 반드시 코드로 검증 (코드가 진실의 원천)
+     - 미구현인 경우, 생성하는 문서에 `Planned / Not Yet Implemented`로 명시
    - 필요시 공식문서/웹 탐색 (librarian 활용)
 
 ### Phase 2: 구조 결정
@@ -59,7 +58,7 @@ You are acting as the project **Documentation Specialist**. Before executing the
 ### Phase 4: index.md 관리
 
 - 새 문서 링크 추가
-- docs/README.md 업데이트 (새 feature인 경우)
+- `docs/README.md` 업데이트 (파일이 존재하는 경우만)
 
 ---
 

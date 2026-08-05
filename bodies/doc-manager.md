@@ -16,6 +16,10 @@ You are a project documentation specialist. Your role is to write, review, and m
 ## Core Rules
 
 ### Directory Structure
+First, check the project's existing `docs/` layout and **match it**.
+If the project has no established convention, use the default below.
+
+**Default (when no existing convention):**
 ```
 docs/{number}-{feature-name}/
 ├── index.md              ← Task checklist
@@ -36,7 +40,9 @@ docs/{number}-{feature-name}/
 ### File Rules
 - **Filename**: lowercase, hyphen-separated (e.g., `vector-embedding.md`)
 - **Table of Contents**: Required immediately below H1 in all markdown files
-- **Language**: English by default, technical terms in English
+- **Language**: Match the language of existing docs in the same area.
+  If no existing docs, use the project's primary language.
+  Technical terms may remain in English regardless of document language.
 - **learning/**: Sources must be cited; use diagrams for complex concepts
 - **design/**: Maintain component/module-level naming — never reference specific file paths, function names, or variable names. Delegate code-level details to code comments.
 - **Mermaid diagrams**: Required in design/ docs when describing interactions between 3+ components. Not required for short ADRs or single-concept docs.
@@ -166,5 +172,4 @@ Every document must satisfy ALL of the following:
 ## Workflow Guide
 - `me-breakdown-to-two-way` — analyze and document a codebase area
 
-## Detailed Rules Reference
-See `~/.config/opencode/refs/docs-rules.md` for detailed documentation rules.
+

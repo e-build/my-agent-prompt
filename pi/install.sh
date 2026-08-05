@@ -23,7 +23,7 @@ usage() {
 Usage:
   bash pi/install.sh                      # compact launcher + sync helper only
   bash pi/install.sh --copy-config        # also copy example settings/mcp
-  bash pi/install.sh --restore            # also restore pi/extensions/ and pi/themes/
+  bash pi/install.sh --restore            # also restore pi/extensions/, pi/themes/, and bodies/
   bash pi/install.sh --restore --copy-config  # full install
 EOF
 }
@@ -63,6 +63,15 @@ if [[ "$RESTORE" == "1" ]]; then
     mkdir -p "$PI_HOME/themes"
     cp -R "$PI_DIR/themes"/. "$PI_HOME/themes/" 2>/dev/null || true
     echo "  ✓ pi/themes/ restored"
+  fi
+
+  # --- Restore bodies/ (shared command bodies) ---
+  # bodies/ contains the implementation text referenced by slash-command wrappers
+  # in pi/commands/. Without this symlink, agents cannot resolve `bodies/*.md`.
+  if [[ -d "$ROOT/bodies" && "$(ls -A "$ROOT/bodies" 2>/dev/null)" ]]; then
+    ln -sfn "$ROOT/bodies" "$PI_HOME/bodies"
+    echo "  symlinked: $PI_HOME/bodies → $ROOT/bodies"
+    echo "  ✓ bodies/ restored (symlinked)"
   fi
 
 else
