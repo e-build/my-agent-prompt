@@ -53,17 +53,18 @@ bash pi/sync.sh
 
 ## study extension
 
-학습 커리큘럼(`study-{slug}` 프로젝트)과 인터랙티브 사전진단을 담당하는 self-contained extension.
+학습 커리큘럼(`study-{slug}` 프로젝트)과 인터랙티브 사전진단/학습 완료 테스트를 담당하는 self-contained extension.
 
 | 구성 | 설명 |
 |------|------|
 | `prompts/study-init.md` | `/study-init <주제>` — 학습 프로젝트 생성 |
 | `prompts/study-chapter.md` | `/study-chapter [챕터] [단계]` — 챕터 학습 (diagnosis/lab/test/review) |
 | `prompts/study-review.md` | `/study-review [챕터] [단계]` — 5단계 복습 |
-| `study_diagnosis_open` tool | diagnosis HTML 생성 + 로컬 서버 + 브라우저 자동 open + 제출 bridge |
-| `assets/diagnosis-template.html` | 사전진단 UI 템플릿 (self-contained) |
+| `study_diagnosis_open` tool | diagnosis HTML 생성 + 브라우저 자동 open + 제출/채점 bridge |
+| `study_test_open` tool | test HTML 생성 + 브라우저 자동 open + 제출/채점/점수별 handoff bridge |
+| `assets/assessment-template.html` | 사전진단/테스트 공통 UI 템플릿 (self-contained) |
 
-`/study-chapter {챕터} diagnosis`는 `study_diagnosis_open` tool로 브라우저를 자동으로 열고, 학습자가 제출하면 답안이 현재 Pi 세션으로 전송되어 자동 채점된다. 채점 결과(정답/해설)는 같은 브라우저에 표시된다. 자세한 흐름은 `pi/extensions/study/README.md` 참조.
+`/study-chapter {챕터} diagnosis`와 `/study-chapter {챕터} test`는 각 tool로 브라우저를 자동으로 연다. 제출 답안은 현재 Pi 세션에서 채점되고 정답/해설이 같은 브라우저에 표시된다. test는 통과 시 복습, 미달 시 취약 개념 재학습으로 분기하며 `test.md`에 attempt별 문제·답안·채점을 누적한다. 자세한 흐름은 `pi/extensions/study/README.md` 참조.
 
 ## Extension 설명
 

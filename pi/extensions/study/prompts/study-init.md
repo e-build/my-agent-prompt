@@ -249,7 +249,8 @@ study-{slug}/
 │   ├── diagnosis.md        # 사전평가 결과 + 난이도 + 약점 기록
 │   ├── diagnosis.html      # study_diagnosis_open tool이 자동 생성 (진단 UI)
 │   ├── concept.md          # 개념 학습 후 생성되는 교과서형 개념 노트
-│   ├── test.md             # 학습 후 테스트 문제/과제
+│   ├── test.md             # 테스트 attempt별 문제·답안·채점 결과 (canonical)
+│   ├── test.html           # study_test_open tool이 자동 생성 (테스트 UI)
 │   ├── lab/                # 실습 산출물 (확장자/형식 도메인 자유)
 │   │   └── README.md       # 실습 목표/단계/완료조건/산출물 체크리스트
 │   └── review/
@@ -266,8 +267,8 @@ study-{slug}/
 - 디렉토리명: `ch-{NN}-{영문-슬러그}` (NN은 01부터 시작하는 2자리 숫자)
 - 챕터 내 파일명은 **역할 기반**으로 고정(README/diagnosis/concept/test/lab/review). 확장자는 학습 주제에 맞춰 자유롭게 둔다.
 - 학습 설계 미리보기 HTML 템플릿은 프로젝트에 두지 않는다. `study_curriculum_open` tool이 extension에 내장된 템플릿을 사용해 `curriculum.html`을 생성한다.
-- 사전진단 HTML 템플릿은 프로젝트에 두지 않는다. `study_diagnosis_open` tool이 extension에 내장된 템플릿을 사용해 `ch-{slug}/diagnosis.html`을 생성한다.
-- `diagnosis.html`은 생성 산출물이므로 챕터별로 다시 만들 수 있다. 채점 결과와 약점 기록의 canonical source는 `diagnosis.md`다.
+- 사전진단/테스트 HTML 템플릿은 프로젝트에 두지 않는다. extension의 공통 assessment 템플릿을 사용해 `study_diagnosis_open`은 `diagnosis.html`, `study_test_open`은 `test.html`을 생성한다.
+- `diagnosis.html`과 `test.html`은 생성 산출물이므로 다시 만들 수 있다. canonical source는 각각 `diagnosis.md`, attempt별 문제·답안·채점 결과가 누적되는 `test.md`다.
 - `concept.md`는 개념 학습 후 남는 canonical 학습 노트다. 채팅 요약이 아니라, 여러 챕터의 concept.md만 모아도 교과서처럼 읽히는 독립 문서로 작성한다. 구조/흐름/순서/관계가 이해에 도움이 되면 markdown의 mermaid 다이어그램을 사용한다.
 - `lab/README.md`는 실습 목표/단계/완료조건/산출물 체크리스트다.
 - `lab/` 산출물 형식은 도메인이 정한다: 개발/DB는 코드·쿼리·설정·로그, 글쓰기는 초안/수정본, 언어 학습은 녹음 링크/대본, 음악은 악보/리듬/녹음 기록 등.
@@ -298,7 +299,7 @@ study-{slug}/
 2. **결과 기록** — `diagnosis.md`에 사전평가 결과 + 난이도 + 약점 + 권장 학습 깊이를 기록. 이후 단계에서 참조한다.
 3. **개념 학습** — 사전평가 결과에 맞춰 깊이와 난이도를 조정한다. 이미 아는 것은 가볍게, 약점은 깊이. lab/test로 넘어가기 전 `concept.md`를 생성한다.
 4. **실습 수행** — `lab/README.md` 체크리스트를 만들고 `lab/`에서 직접 수행한다. 개발/DB면 실행결과·쿼리결과·로그, 언어면 녹음/대본, 글쓰기면 초안/수정본, 운동·음악이면 기록/영상처럼 도메인 증거를 남긴다.
-5. **테스트** — 통과 기준 미달 시 해당 개념만 재학습. 전체 반복 금지.
+5. **테스트** — `study_test_open`으로 브라우저 테스트를 열고 같은 화면에서 자동 채점 결과를 확인한다. `test.md`에는 attempt별 문제·답안·채점을 누적한다. 통과 기준 미달 시 해당 개념만 재학습하고 새 변형 문제로 다음 attempt를 진행한다. 전체 반복 금지.
 6. **복습(`/study-review` 커맨드로 진행)** — 에이전트는 5가지 역할을 번갈아 한다:
    1. `blank-recall.md` (검증자): 원본에서 5개 핵심 아이디어 추출, 학습자 답과 대조해 STRONG/WEAK/WRONG 분급.
    2. `gap-fill.md` (보강자): WEAK/WRONG만 다른 비유로 정정 + 연습문제, 끝에 "가장 먼저 다시 볼 1개" 지정. 학습 누락은 제외.
@@ -353,7 +354,7 @@ study-{slug}/
 
 ## 생성 시 추가 지시
 
-- 새 프로젝트 생성 직후에는 각 챕터의 `diagnosis.html`을 미리 만들 필요는 없다. 챕터를 시작할 때 `/study-chapter {챕터} diagnosis`가 `study_diagnosis_open` tool으로 생성한다.
+- 새 프로젝트 생성 직후에는 각 챕터의 `diagnosis.html`/`test.html`을 미리 만들 필요가 없다. 각 단계 진입 시 `/study-chapter`가 `study_diagnosis_open`/`study_test_open` tool으로 생성한다.
 - `diagnosis.md`는 비워두거나 아래 헤더만 둔다.
 
 ```md

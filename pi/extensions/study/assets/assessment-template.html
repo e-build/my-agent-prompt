@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>{{CHAPTER_TITLE}} · 사전진단</title>
+  <title>{{CHAPTER_TITLE}} · {{ASSESSMENT_TITLE}}</title>
   <style>
     :root {
       --bg: #fafaf9;
@@ -25,6 +25,18 @@
 
     * { box-sizing: border-box; }
     html { scroll-behavior: smooth; }
+    .skipLink {
+      position: fixed;
+      top: 8px;
+      left: 8px;
+      z-index: 100;
+      padding: 10px 14px;
+      border-radius: 10px;
+      background: var(--text);
+      color: #fff;
+      transform: translateY(-150%);
+    }
+    .skipLink:focus { transform: translateY(0); }
     body {
       margin: 0;
       min-height: 100vh;
@@ -36,7 +48,20 @@
     }
     button, input, textarea { font: inherit; }
     button { cursor: pointer; }
+    button, .choice, .pinpointToggle { min-height: 44px; }
+    input[type="radio"], input[type="checkbox"] { min-width: 20px; min-height: 20px; }
     code { font-family: var(--mono); }
+    .srOnly {
+      position: absolute !important;
+      width: 1px !important;
+      height: 1px !important;
+      padding: 0 !important;
+      margin: -1px !important;
+      overflow: hidden !important;
+      clip: rect(0, 0, 0, 0) !important;
+      white-space: nowrap !important;
+      border: 0 !important;
+    }
 
     .topbar {
       position: sticky;
@@ -213,6 +238,12 @@
     .question.is-partial::before { background: var(--warning); }
     .question.is-wrong::before, .question.is-unanswered::before { background: var(--danger); }
     .question.missing .questionPrompt { color: var(--danger); }
+    .questionError {
+      margin: 8px 0 0 40px;
+      color: var(--danger);
+      font-size: 13px;
+      font-weight: 650;
+    }
 
     .questionHead {
       display: grid;
@@ -236,7 +267,19 @@
       letter-spacing: -0.015em;
       white-space: pre-line;
     }
-    .questionDesc { margin: 6px 0 0; color: var(--muted); font-size: 13px; }
+    .questionDesc { margin: 6px 0 0; color: #57534e; font-size: 14px; }
+    .questionDesc p { margin: 6px 0; }
+    .questionDesc pre {
+      margin: 10px 0 0;
+      padding: 14px;
+      overflow-x: auto;
+      border: 1px solid var(--line-strong);
+      border-radius: 12px;
+      background: #1c1917;
+      color: #fafaf9;
+      font: 13px/1.55 var(--mono);
+      white-space: pre;
+    }
     .questionMeta {
       display: flex;
       gap: 7px;
@@ -360,7 +403,6 @@
     }
     .manualFallback h2 { margin: 0 0 8px; font-size: 16px; }
     .manualFallback p { margin: 0 0 12px; color: var(--muted); font-size: 13px; }
-    .manualFallback textarea { min-height: 128px; font-family: var(--mono); font-size: 12px; }
     .manualActions { display: flex; gap: 8px; flex-wrap: wrap; margin: 10px 0 18px; }
 
     .dock {
@@ -400,6 +442,19 @@
     .btn.primary { background: var(--text); border-color: var(--text); color: #fff; }
     .btn.primary:hover { background: #262626; }
     .btn:disabled { opacity: .55; cursor: not-allowed; transform: none; }
+    .savedState { margin-top: 4px; color: var(--muted); font-size: 12px; }
+    .passBadge {
+      display: inline-flex;
+      min-height: 32px;
+      align-items: center;
+      padding: 5px 10px;
+      border-radius: 999px;
+      border: 1px solid currentColor;
+      font-size: 12px;
+      font-weight: 800;
+    }
+    .passBadge.passed { color: var(--success); background: #f0fdf4; }
+    .passBadge.failed { color: var(--danger); background: #fef2f2; }
 
     .gradingIndicator {
       display: none;
@@ -470,6 +525,11 @@
     @media (prefers-reduced-motion: reduce) {
       * { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
     }
+    @media (prefers-reduced-motion: reduce) {
+      html { scroll-behavior: auto; }
+      *, *::before, *::after { animation-duration: .001ms !important; animation-iteration-count: 1 !important; transition-duration: .001ms !important; }
+    }
+
     @media (max-width: 640px) {
       body { padding-bottom: 110px; }
       .topbarInner, .content, .dockInner { width: min(100% - 28px, 760px); }
@@ -477,15 +537,16 @@
       .topMeta { justify-content: flex-start; }
       .questionHead { grid-template-columns: 1fr; gap: 4px; }
       .questionNo { min-width: 0; }
-      .questionMeta, .answerControl, .rubric, .constraints, .questionFeedback { margin-left: 0; }
+      .questionMeta, .answerControl, .rubric, .constraints, .questionFeedback, .questionError { margin-left: 0; }
       .answerGrid { grid-template-columns: 1fr; }
       .dockInner { align-items: stretch; flex-direction: column; }
       .btn { width: 100%; }
     }
   </style>
 </head>
-<body data-state="assess" data-chapter-slug="{{CHAPTER_SLUG}}" data-chapter-title="{{CHAPTER_TITLE}}" data-phase="{{PHASE}}">
+<body data-state="assess" data-assessment-kind="{{ASSESSMENT_KIND}}" data-chapter-slug="{{CHAPTER_SLUG}}" data-chapter-title="{{CHAPTER_TITLE}}" data-phase="{{PHASE}}">
   <script type="application/json" id="questions-data">{{QUESTIONS_JSON}}</script>
+  <script type="application/json" id="assessment-config">{{ASSESSMENT_CONFIG_JSON}}</script>
 
   <header class="topbar">
     <div class="topbarInner">
@@ -499,27 +560,23 @@
           <span class="metric strong" id="scoreLabel">100점</span>
         </div>
       </div>
-      <div class="progressTrack" aria-hidden="true"><div class="progressFill" id="progressFill"></div></div>
+      <div class="progressTrack" role="progressbar" aria-label="답안 작성 진행률" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="progressTrack"><div class="progressFill" id="progressFill"></div></div>
     </div>
   </header>
 
-  <main class="content">
+  <a class="skipLink" href="#assessmentMain">문항으로 바로가기</a>
+
+  <main class="content" id="assessmentMain" tabindex="-1">
     <p class="intro" id="introText">현재 이해 수준을 확인합니다. 모르는 문항은 “모른다”고 답하세요.</p>
     <section class="gradeSummary hidden" id="gradeSummary"></section>
     <div id="sectionsRoot"></div>
-    <div class="gradingIndicator" id="gradingIndicator">Pi가 채점 중입니다. 결과가 준비되면 이 화면으로 돌아옵니다.</div>
-    <section class="manualFallback hidden" id="manualFallback">
-      <h2>수동 제출</h2>
-      <p>자동 제출이 되지 않을 때만 사용합니다.</p>
-      <textarea id="submissionOutput" spellcheck="false" placeholder="제출 패키지"></textarea>
+    <div class="gradingIndicator" id="gradingIndicator" role="status" aria-live="polite">Pi가 채점 중입니다. 이 탭을 열어 두면 결과가 준비되는 즉시 표시됩니다.</div>
+    <section class="manualFallback hidden" id="manualFallback" role="alert">
+      <h2>Pi 연결을 확인해 주세요</h2>
+      <p id="manualStatus">extension 연결이 끊어졌습니다. `/reload` 후 다시 시도할 수 있습니다.</p>
       <div class="manualActions">
-        <button class="btn" type="button" id="copySubmitBtn">제출 패키지 복사</button>
+        <button class="btn primary" type="button" id="retrySubmitBtn">다시 제출</button>
       </div>
-      <textarea id="gradeInput" spellcheck="false" placeholder="채점 JSON을 붙여넣으세요"></textarea>
-      <div class="manualActions">
-        <button class="btn primary" type="button" id="loadGradeBtn">결과 보기</button>
-      </div>
-      <div id="manualStatus" class="dockStatus"></div>
     </section>
   </main>
 
@@ -527,7 +584,7 @@
     <div class="dockInner">
       <div>
         <div class="dockTitle" id="dockTitle">진단 중</div>
-        <div class="dockStatus" id="dockStatus">답변을 작성하세요.</div>
+        <div class="dockStatus" id="dockStatus" role="status" aria-live="polite">답변을 작성하세요.</div>
       </div>
       <button class="btn primary" type="button" id="submitBtn">제출하기</button>
     </div>
@@ -537,11 +594,11 @@
     <div class="dockInner">
       <div>
         <div class="dockTitle">결과 확인 완료</div>
-        <div class="dockStatus" id="resultsDockStatus">조금 더 비중 있게 다룰 문항을 pinpoint하거나 바로 넘어가세요.</div>
+        <div class="dockStatus" id="resultsDockStatus" role="status" aria-live="polite">결과를 확인한 뒤 다음 단계로 이동하세요.</div>
       </div>
       <div class="dockActions">
         <button class="btn" type="button" id="copyWeaknessBtn">취약점 요약 복사</button>
-        <button class="btn primary" type="button" id="continueBtn">Pi에서 개념 학습 시작 →</button>
+        <button class="btn primary" type="button" id="continueBtn">Pi에서 계속 →</button>
       </div>
     </div>
   </footer>
@@ -567,16 +624,32 @@
       };
 
       const rawData = document.getElementById("questions-data").textContent.trim();
+      const rawConfig = document.getElementById("assessment-config").textContent.trim();
       const data = parseInitialData(rawData) || fallbackData;
-      const metadata = {
-        chapterSlug: cleanPlaceholder(body.dataset.chapterSlug, data.chapterSlug || "unknown-chapter"),
-        chapterTitle: cleanPlaceholder(body.dataset.chapterTitle, data.chapterTitle || "사전진단"),
-        phase: cleanPlaceholder(body.dataset.phase, data.phase || "diagnosis"),
-        version: data.version || "1.0"
+      const config = parseInitialData(rawConfig) || {
+        kind: "diagnosis",
+        title: "사전진단",
+        submissionKind: "study-diagnosis-submission",
+        submissionHeading: "DIAGNOSIS_SUBMISSION",
+        returnFormat: "DIAGNOSIS_GRADE_JSON",
+        markerStart: "<!--DIAGNOSIS_GRADE_JSON_START-->",
+        markerEnd: "<!--DIAGNOSIS_GRADE_JSON_END-->",
+        continueLabel: "Pi에서 개념 학습 시작 →",
+        continueMessage: "개념 학습은 Pi에서 이어집니다."
       };
-      const storageKey = `study-diagnosis:${metadata.chapterSlug}:${metadata.phase}:answers`;
-      const gradeStorageKey = `study-diagnosis:${metadata.chapterSlug}:${metadata.phase}:grade`;
-      const pinpointStorageKey = `study-diagnosis:${metadata.chapterSlug}:${metadata.phase}:pinpoints`;
+      const metadata = {
+        assessmentKind: config.kind || body.dataset.assessmentKind || "diagnosis",
+        assessmentId: window.ASSESSMENT_ID || window.DIAGNOSIS_ID || window.TEST_ID || "standalone",
+        chapterSlug: cleanPlaceholder(body.dataset.chapterSlug, data.chapterSlug || "unknown-chapter"),
+        chapterTitle: cleanPlaceholder(body.dataset.chapterTitle, data.chapterTitle || config.title || "평가"),
+        phase: cleanPlaceholder(body.dataset.phase, data.phase || config.kind || "assessment"),
+        version: data.version || "1.0",
+        attempt: Number(data.attempt || 1)
+      };
+      const storagePrefix = `study-${metadata.assessmentKind}:${metadata.chapterSlug}:${metadata.phase}:attempt-${metadata.attempt}:${metadata.assessmentId}`;
+      const storageKey = `${storagePrefix}:answers`;
+      const gradeStorageKey = `${storagePrefix}:grade`;
+      const pinpointStorageKey = `${storagePrefix}:pinpoints`;
       const answers = loadJson(storageKey, {});
       const pinpoints = loadJson(pinpointStorageKey, {});
       let gradeResults = loadJson(gradeStorageKey, null);
@@ -592,15 +665,13 @@
         chapterTitle: byId("chapterTitle"),
         progressLabel: byId("progressLabel"),
         scoreLabel: byId("scoreLabel"),
+        progressTrack: byId("progressTrack"),
         progressFill: byId("progressFill"),
         introText: byId("introText"),
         gradeSummary: byId("gradeSummary"),
         sectionsRoot: byId("sectionsRoot"),
         manualFallback: byId("manualFallback"),
-        submissionOutput: byId("submissionOutput"),
-        copySubmitBtn: byId("copySubmitBtn"),
-        gradeInput: byId("gradeInput"),
-        loadGradeBtn: byId("loadGradeBtn"),
+        retrySubmitBtn: byId("retrySubmitBtn"),
         manualStatus: byId("manualStatus"),
         dock: byId("dock"),
         dockTitle: byId("dockTitle"),
@@ -617,11 +688,16 @@
       init();
 
       function init() {
-        document.title = `${metadata.chapterTitle} · 사전진단`;
+        document.title = `${metadata.chapterTitle} · ${config.title || "평가"}`;
         els.phaseLabel.textContent = metadata.phase;
         els.chapterTitle.textContent = metadata.chapterTitle;
         els.introText.textContent = data.instructions || els.introText.textContent;
-        els.scoreLabel.textContent = `${data.totalPoints || sumPoints(questions)}점`;
+        els.scoreLabel.textContent = metadata.assessmentKind === "test"
+          ? `${data.totalPoints || sumPoints(questions)}점 · 통과 ${data.passScore}점`
+          : `${data.totalPoints || sumPoints(questions)}점`;
+        els.dockTitle.textContent = metadata.assessmentKind === "test" ? `테스트 · ${metadata.attempt}차` : "진단 중";
+        els.continueBtn.textContent = config.continueLabel || "Pi에서 계속 →";
+        if (metadata.assessmentKind === "test") els.copyWeaknessBtn.classList.add("hidden");
         renderSections();
         wireControls();
         updateProgress();
@@ -652,7 +728,10 @@
           return raw ? JSON.parse(raw) : fallback;
         } catch { return fallback; }
       }
-      function saveAnswers() { localStorage.setItem(storageKey, JSON.stringify(answers)); }
+      function saveAnswers() {
+        localStorage.setItem(storageKey, JSON.stringify(answers));
+        els.dockStatus.textContent = `자동 저장됨 · ${new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
+      }
       function savePinpoints() { localStorage.setItem(pinpointStorageKey, JSON.stringify(pinpoints)); }
       function sumPoints(items) { return items.reduce((sum, q) => sum + Number(q.points || 0), 0); }
       function cssEscape(value) {
@@ -688,8 +767,8 @@
           <div class="questionHead">
             <div class="questionNo">${String(number).padStart(2, "0")}</div>
             <div>
-              <p class="questionPrompt">${escapeHtml(q.prompt)}</p>
-              ${q.description ? `<p class="questionDesc">${escapeHtml(q.description)}</p>` : ""}
+              <div class="questionPrompt" id="prompt-${escapeHtml(q.id)}">${renderRichText(q.prompt)}</div>
+              ${q.description ? `<div class="questionDesc">${renderRichText(q.description)}</div>` : ""}
             </div>
           </div>
           <div class="questionMeta">
@@ -698,6 +777,7 @@
             ${required ? `<span>필수</span>` : `<span>선택</span>`}
           </div>
           <div class="answerControl">${renderAnswerControl(q)}</div>
+          <div class="questionError hidden" id="error-${escapeHtml(q.id)}" role="alert">필수 문항입니다. 답변을 입력하세요.</div>
           ${renderConstraints(q)}
           ${renderRubric(q)}
           <div class="questionFeedback hidden" data-feedback-for="${escapeHtml(q.id)}"></div>
@@ -711,7 +791,7 @@
           return `<div class="choices">${options.map((option, index) => {
             const opt = normalizeOption(option, index);
             return `<label class="choice">
-              <input type="${inputType}" name="answer-${escapeHtml(q.id)}" value="${escapeHtml(opt.id)}" data-answer-input="${escapeHtml(q.id)}" />
+              <input type="${inputType}" name="answer-${escapeHtml(q.id)}" value="${escapeHtml(opt.id)}" data-answer-input="${escapeHtml(q.id)}" aria-labelledby="prompt-${escapeHtml(q.id)}" />
               <span><span class="choiceLabel">${escapeHtml(opt.label)}</span>${escapeHtml(opt.text)}</span>
             </label>`;
           }).join("")}</div>`;
@@ -719,7 +799,19 @@
         const rows = type === "essay" ? 8 : (type === "code" || type === "sql" ? 9 : 4);
         const klass = type === "code" || type === "sql" ? "codeInput" : "";
         const placeholder = q.placeholder || (type === "essay" ? "근거와 함께 답하세요." : "답변을 입력하세요.");
-        return `<textarea class="${klass}" rows="${rows}" data-answer-input="${escapeHtml(q.id)}" placeholder="${escapeHtml(placeholder)}"></textarea>`;
+        return `<label class="srOnly" for="answer-${escapeHtml(q.id)}">${escapeHtml(q.prompt)} 답변</label><textarea id="answer-${escapeHtml(q.id)}" class="${klass}" rows="${rows}" data-answer-input="${escapeHtml(q.id)}" aria-describedby="error-${escapeHtml(q.id)}" placeholder="${escapeHtml(placeholder)}"></textarea>`;
+      }
+      function renderRichText(value) {
+        const source = String(value ?? "");
+        const parts = source.split(/```([\w+-]*)\n([\s\S]*?)```/g);
+        return parts.map((part, index) => {
+          if (index % 3 === 1) return "";
+          if (index % 3 === 2) {
+            const lang = parts[index - 1] || "text";
+            return `<pre><code data-language="${escapeHtml(lang)}">${escapeHtml(part.replace(/\n$/, ""))}</code></pre>`;
+          }
+          return escapeHtml(part).replace(/\n/g, "<br>");
+        }).join("");
       }
       function normalizeOption(option, index) {
         if (typeof option === "string") return { id: String.fromCharCode(65 + index), label: String.fromCharCode(65 + index), text: option };
@@ -752,6 +844,8 @@
         answers[q.id] = readAnswerFromDom(q);
         saveAnswers();
         updateProgress();
+        window.clearTimeout(handleInput.statusTimer);
+        handleInput.statusTimer = window.setTimeout(() => updateProgress(), 1100);
       }
       function readAnswerFromDom(q) {
         const inputs = Array.from(document.querySelectorAll(`[data-answer-input="${cssEscape(q.id)}"]`));
@@ -764,28 +858,31 @@
         if (Array.isArray(value)) return value.length > 0;
         return String(value ?? "").trim().length > 0;
       }
+      function setInputsDisabled(disabled) {
+        document.querySelectorAll("[data-answer-input]").forEach(input => { input.disabled = disabled; });
+      }
       function updateProgress(markMissing) {
         const answered = questions.filter(isAnswered).length;
         const requiredMissing = questions.filter(q => q.required !== false && !isAnswered(q));
         const percent = questions.length ? Math.round((answered / questions.length) * 100) : 0;
         if (body.dataset.state !== "results") els.progressFill.style.width = `${percent}%`;
+        els.progressTrack?.setAttribute("aria-valuenow", String(percent));
         els.progressLabel.textContent = `${answered}/${questions.length}`;
         els.dockStatus.textContent = requiredMissing.length ? `${requiredMissing.length}개 필수 문항이 남았습니다.` : `${answered}/${questions.length} 답변 완료`;
         questions.forEach(q => {
           const node = byId(`q-${q.id}`);
           if (!node) return;
-          node.classList.toggle("missing", Boolean(markMissing && q.required !== false && !isAnswered(q)));
+          const missing = Boolean(markMissing && q.required !== false && !isAnswered(q));
+          node.classList.toggle("missing", missing);
+          byId(`error-${q.id}`)?.classList.toggle("hidden", !missing);
+          const input = node.querySelector("[data-answer-input]");
+          if (input) input.setAttribute("aria-invalid", missing ? "true" : "false");
         });
       }
 
       function wireControls() {
         els.submitBtn.addEventListener("click", submitAnswers);
-        els.copySubmitBtn.addEventListener("click", async () => copyText(els.submissionOutput.value, els.manualStatus));
-        els.loadGradeBtn.addEventListener("click", () => {
-          const parsed = parseJsonFromText(els.gradeInput.value);
-          if (!parsed) return setManualStatus("채점 JSON을 읽지 못했습니다.", "bad");
-          renderGrade(parsed);
-        });
+        els.retrySubmitBtn.addEventListener("click", submitAnswers);
         els.copyWeaknessBtn.addEventListener("click", async () => copyText(buildWeaknessSummary(), els.resultsDockStatus));
         els.continueBtn.addEventListener("click", acknowledgeResults);
       }
@@ -793,15 +890,17 @@
         updateProgress(true);
         const firstMissing = questions.find(q => q.required !== false && !isAnswered(q));
         if (firstMissing) {
-          byId(`q-${firstMissing.id}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
+          byId(`q-${firstMissing.id}`)?.scrollIntoView({ behavior: prefersReducedMotion() ? "auto" : "smooth", block: "center" });
           els.dockStatus.textContent = "필수 문항을 먼저 채워주세요.";
+          byId(`q-${firstMissing.id}`)?.querySelector("[data-answer-input]")?.focus();
           return;
         }
         const payload = buildSubmissionPayload();
+        setInputsDisabled(true);
         const submitUrl = getSubmitUrl();
-        els.submissionOutput.value = buildSubmissionText(payload);
         if (!submitUrl) {
-          showManualFallback("자동 제출 연결이 없습니다. 제출 패키지를 복사해 Pi 채팅에 붙여넣으세요.");
+          setInputsDisabled(false);
+          showManualFallback("자동 제출 연결이 없습니다. extension을 다시 로드한 뒤 재시도하세요.");
           return;
         }
         setPhase("waiting");
@@ -812,15 +911,16 @@
           if (result && result.grade) return renderGrade(result.grade);
           const resultUrl = getResultUrl();
           if (resultUrl) startResultPolling(resultUrl);
-          else showManualFallback("제출은 완료됐지만 결과 polling 주소가 없습니다. AI 응답의 채점 JSON을 붙여넣으세요.");
+          else showManualFallback("제출은 완료됐지만 결과 연결 주소가 없습니다. `/reload` 후 다시 시도하세요.");
         } catch (error) {
-          showManualFallback(`자동 제출 실패: ${error.message}. 제출 패키지를 복사해 Pi 채팅에 붙여넣으세요.`);
+          setInputsDisabled(false);
+          showManualFallback(`자동 제출 실패: ${error.message}. extension을 확인한 뒤 다시 제출하세요.`);
         }
       }
       function setPhase(phase) {
         body.dataset.state = phase;
         if (phase === "assess") {
-          els.dockTitle.textContent = "진단 중";
+          els.dockTitle.textContent = metadata.assessmentKind === "test" ? `테스트 · ${metadata.attempt}차` : "진단 중";
           els.submitBtn.disabled = false;
           els.submitBtn.textContent = "제출하기";
         } else if (phase === "waiting") {
@@ -834,8 +934,9 @@
       }
       function showManualFallback(message) {
         setPhase("assess");
+        setInputsDisabled(false);
         els.manualFallback.classList.remove("hidden");
-        els.manualFallback.scrollIntoView({ behavior: "smooth", block: "start" });
+        els.manualFallback.scrollIntoView({ behavior: prefersReducedMotion() ? "auto" : "smooth", block: "start" });
         setManualStatus(message, "warn");
       }
       function setManualStatus(message, kind) {
@@ -845,11 +946,13 @@
 
       function buildSubmissionPayload() {
         return {
-          kind: "study-diagnosis-submission",
+          kind: config.submissionKind || `study-${metadata.assessmentKind}-submission`,
           submittedAt: new Date().toISOString(),
           metadata,
           exam: {
             totalPoints: data.totalPoints || sumPoints(questions),
+            passScore: data.passScore ?? null,
+            attempt: metadata.attempt,
             instructions: data.instructions || "",
             sections: sections.map(s => ({ id: s.id, title: s.title, questionIds: questionsForSection(s).map(q => q.id) }))
           },
@@ -866,41 +969,32 @@
           })),
           gradingRequest: {
             language: "ko",
-            returnFormat: "DIAGNOSIS_GRADE_JSON",
-            instruction: "채점 후 점수, 오답/부분정답, 약점 분야, 권장 학습 깊이, 문항별 정답과 해설을 JSON으로 반환하세요."
+            returnFormat: config.returnFormat,
+            instruction: metadata.assessmentKind === "test"
+              ? "채점 후 통과 여부, 점수, 오답/부분정답, 약점 분야, 문항별 정답과 해설을 JSON으로 반환하세요."
+              : "채점 후 점수, 오답/부분정답, 약점 분야, 권장 학습 깊이, 문항별 정답과 해설을 JSON으로 반환하세요."
           }
         };
       }
-      function buildSubmissionText(payload) {
-        return [
-          "# DIAGNOSIS_SUBMISSION",
-          "아래 JSON을 기준으로 사전진단을 채점하세요.",
-          "",
-          "```json",
-          JSON.stringify(payload, null, 2),
-          "```"
-        ].join("\n");
-      }
-
       function getSubmitUrl() {
         const params = new URLSearchParams(location.search);
-        return params.get("submitUrl") || window.DIAGNOSIS_SUBMIT_URL || "";
+        return params.get("submitUrl") || window.ASSESSMENT_SUBMIT_URL || window.DIAGNOSIS_SUBMIT_URL || window.TEST_SUBMIT_URL || "";
       }
       function getResultUrl() {
         const params = new URLSearchParams(location.search);
-        return params.get("resultUrl") || window.DIAGNOSIS_RESULT_URL || "";
+        return params.get("resultUrl") || window.ASSESSMENT_RESULT_URL || window.DIAGNOSIS_RESULT_URL || window.TEST_RESULT_URL || "";
       }
       function getAckUrl() {
         const params = new URLSearchParams(location.search);
-        return params.get("ackUrl") || window.DIAGNOSIS_ACK_URL || "";
+        return params.get("ackUrl") || window.ASSESSMENT_ACK_URL || window.DIAGNOSIS_ACK_URL || window.TEST_ACK_URL || "";
       }
       function buildWeaknessSummary() {
-        if (!gradeResults) return "진단 결과 요약이 없습니다.";
+        if (!gradeResults) return "평가 결과 요약이 없습니다.";
         const score = gradeResults.totalScore ?? "?";
         const max = gradeResults.maxScore ?? "?";
         const level = gradeResults.level ? ` (${gradeResults.level})` : "";
         const weaknesses = Array.isArray(gradeResults.weaknesses) ? gradeResults.weaknesses : [];
-        const lines = [`사전진단 결과: ${score}/${max}${level}`];
+        const lines = [`${config.title || "평가"} 결과: ${score}/${max}${level}`];
         if (weaknesses.length) lines.push(`취약 분야: ${weaknesses.join(", ")}`);
         const learnerPinpoints = buildLearnerPinpoints();
         if (learnerPinpoints.length) {
@@ -917,12 +1011,16 @@
           els.continueBtn.disabled = true;
           return;
         }
+        const passed = metadata.assessmentKind === "test" ? resolveTestPassed(gradeResults) : null;
         const payload = {
           score: gradeResults.totalScore ?? null,
           maxScore: gradeResults.maxScore ?? null,
+          passScore: gradeResults.passScore ?? data.passScore ?? null,
+          passed,
+          nextAction: metadata.assessmentKind === "test" ? (passed ? "review" : "relearn") : "concept",
           level: gradeResults.level ?? null,
           weaknesses: Array.isArray(gradeResults.weaknesses) ? gradeResults.weaknesses : [],
-          learnerPinpoints: buildLearnerPinpoints()
+          learnerPinpoints: metadata.assessmentKind === "diagnosis" ? buildLearnerPinpoints() : []
         };
         els.continueBtn.disabled = true;
         els.continueBtn.textContent = "전송 중…";
@@ -930,20 +1028,25 @@
           const res = await fetch(ackUrl, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
           if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
           els.continueBtn.textContent = "✓ 완료";
-          els.resultsDockStatus.textContent = "Pi로 넘겼습니다. 3초 뒤 종료 화면으로 전환합니다.";
+          els.resultsDockStatus.textContent = "Pi로 넘겼습니다. 잠시 뒤 종료 화면으로 전환합니다.";
           startCloseCountdown();
         } catch (error) {
           els.continueBtn.disabled = false;
-          els.continueBtn.textContent = "Pi에서 개념 학습 시작 →";
+          els.continueBtn.textContent = config.continueLabel || "Pi에서 계속 →";
           els.resultsDockStatus.textContent = `전송 실패: ${error.message}. Pi 터미널에서 직접 진행해 주세요.`;
         }
       }
       function startCloseCountdown() {
-        let remaining = 3;
+        let remaining = prefersReducedMotion() ? 0 : 3;
         els.closedCountdown.textContent = String(remaining);
         els.closedTitle.textContent = "Pi로 넘겼습니다";
-        els.closedMessage.textContent = "개념 학습은 Pi에서 이어집니다.";
+        els.closedMessage.textContent = config.continueMessage || "학습은 Pi에서 이어집니다.";
         body.dataset.state = "closed";
+        if (remaining === 0) {
+          els.closedCountdown.textContent = "✓";
+          try { window.close(); } catch {}
+          return;
+        }
         const timer = setInterval(() => {
           remaining -= 1;
           els.closedCountdown.textContent = String(Math.max(remaining, 0));
@@ -959,7 +1062,7 @@
         if (!resultUrl) return;
         try {
           const data = await fetchResult(resultUrl);
-          if (data && data.status === "graded" && data.grade) renderGrade(data.grade);
+          if (data && (data.status === "graded" || data.status === "acknowledged") && data.grade) renderGrade(data.grade);
         } catch {}
       }
       function startResultPolling(url) {
@@ -969,7 +1072,7 @@
           attempts++;
           try {
             const data = await fetchResult(url);
-            if (data && data.status === "graded" && data.grade) {
+            if (data && (data.status === "graded" || data.status === "acknowledged") && data.grade) {
               clearInterval(pollTimer);
               pollTimer = null;
               renderGrade(data.grade);
@@ -978,7 +1081,7 @@
           if (attempts > 600) {
             clearInterval(pollTimer);
             pollTimer = null;
-            showManualFallback("채점 대기 시간이 초과했습니다. AI 응답의 채점 JSON을 붙여넣으세요.");
+            showManualFallback("채점 대기 시간이 초과했습니다. Pi 세션 상태를 확인한 뒤 다시 시도하세요.");
           }
         };
         tick();
@@ -990,12 +1093,10 @@
         return safeJson(res);
       }
       async function safeJson(res) { try { return await res.json(); } catch { return null; } }
-      function parseJsonFromText(text) {
-        const trimmed = text.trim();
-        if (!trimmed) return null;
-        const marker = trimmed.match(/<!--DIAGNOSIS_GRADE_JSON_START-->[\s\S]*?```(?:json)?\s*([\s\S]*?)```[\s\S]*?<!--DIAGNOSIS_GRADE_JSON_END-->/i);
-        const block = marker ? marker[1] : (trimmed.match(/```(?:json)?\s*([\s\S]*?)```/i)?.[1] || trimmed);
-        try { return JSON.parse(block.trim()); } catch { return null; }
+      function prefersReducedMotion() { return window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches; }
+      function resolveTestPassed(grade) {
+        if (typeof grade.passed === "boolean") return grade.passed;
+        return Number(grade.totalScore ?? 0) >= Number(grade.passScore ?? data.passScore ?? 0);
       }
 
       function renderGrade(grade) {
@@ -1006,17 +1107,32 @@
         const maxScore = Number(grade.maxScore ?? data.totalPoints ?? sumPoints(questions));
         const pct = maxScore ? Math.round((score / maxScore) * 100) : 0;
         els.progressFill.style.width = `${Math.max(0, Math.min(100, pct))}%`;
-        els.progressFill.style.background = pct >= 70 ? "var(--success)" : pct >= 40 ? "var(--warning)" : "var(--danger)";
+        const thresholdPct = metadata.assessmentKind === "test" && maxScore ? (Number(grade.passScore ?? data.passScore ?? 0) / maxScore) * 100 : 70;
+        els.progressFill.style.background = pct >= thresholdPct ? "var(--success)" : pct >= 40 ? "var(--warning)" : "var(--danger)";
         els.progressLabel.textContent = `${score}/${maxScore}`;
+        els.progressTrack?.setAttribute("aria-valuenow", String(Math.max(0, Math.min(100, pct))));
         els.scoreLabel.textContent = grade.level || "결과";
         els.gradeSummary.classList.remove("hidden");
+        setInputsDisabled(true);
         const weaknesses = Array.isArray(grade.weaknesses) ? grade.weaknesses : [];
+        const isTest = metadata.assessmentKind === "test";
+        const passed = isTest ? resolveTestPassed(grade) : null;
+        const passScore = grade.passScore ?? data.passScore ?? null;
+        if (isTest) {
+          els.continueBtn.textContent = passed ? "Pi에서 복습 시작 →" : "Pi에서 부족한 개념 재학습 →";
+          config.continueMessage = passed ? "복습은 Pi에서 이어집니다." : "부족한 개념 재학습은 Pi에서 이어집니다.";
+          els.resultsDockStatus.textContent = passed
+            ? "통과했습니다. 결과를 확인한 뒤 복습으로 이동하세요."
+            : "통과 기준에 미달했습니다. 틀린 개념만 다시 학습합니다.";
+        }
         els.gradeSummary.innerHTML = `<div class="gradeSummaryTop">
           <div>
             <div class="scoreBig">${escapeHtml(score)}<span style="font-size:.42em;color:var(--muted)">/${escapeHtml(maxScore)}</span></div>
           </div>
           <div>
-            <h2>${escapeHtml(grade.summary || "진단 결과")}</h2>
+            ${isTest ? `<span class="passBadge ${passed ? "passed" : "failed"}">${passed ? "통과" : "미통과"}</span>` : ""}
+            <h2>${escapeHtml(grade.summary || `${config.title || "평가"} 결과`)}</h2>
+            ${isTest && passScore != null ? `<p>통과 기준 ${escapeHtml(passScore)}점</p>` : ""}
             <p>${escapeHtml(grade.recommendation || "결과를 확인하고 약한 문항부터 보완하세요.")}</p>
           </div>
         </div>
@@ -1043,11 +1159,13 @@
           </div>
           <div class="resultBlock"><label>해설</label><div>${escapeHtml(result.explanation || "제공 없음")}</div></div>
           <div class="resultBlock"><label>보완</label><div>${escapeHtml(result.advice || "제공 없음")}</div></div>
-          ${renderPinpointControl(q, result)}`;
+          ${metadata.assessmentKind === "diagnosis" ? renderPinpointControl(q, result) : ""}`;
         });
-        wirePinpointControls(resultById);
-        updatePinpointCount();
-        window.scrollTo({ top: 0, behavior: "smooth" });
+        if (metadata.assessmentKind === "diagnosis") {
+          wirePinpointControls(resultById);
+          updatePinpointCount();
+        }
+        window.scrollTo({ top: 0, behavior: prefersReducedMotion() ? "auto" : "smooth" });
       }
       function renderPinpointControl(q, result) {
         const saved = pinpoints[q.id] || {};
@@ -1112,7 +1230,7 @@
           }));
       }
       function updatePinpointCount() {
-        if (body.dataset.state !== "results") return;
+        if (body.dataset.state !== "results" || metadata.assessmentKind !== "diagnosis") return;
         const count = buildLearnerPinpoints().length;
         els.resultsDockStatus.textContent = count
           ? `강조한 pinpoint: ${count}개`

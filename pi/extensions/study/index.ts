@@ -1,11 +1,10 @@
 /**
- * study extension — 인터랙티브 학습 사전진단 브라우저 세션.
+ * study extension — 인터랙티브 학습 assessment 브라우저 세션.
  *
  * - `prompts/` 디렉토리를 resources_discover로 노출 → `/study-init`, `/study-chapter`, `/study-review`.
- * - `study_diagnosis_open` tool: HTML 생성 + 로컬 서버 시작 + 브라우저 자동 open.
- * - 브라우저에서 제출하면 POST handler가 현재 Pi 세션으로 답안을 주입(pi.sendUserMessage).
- * - message_end에서 DIAGNOSIS_GRADE_JSON을 추출해 session에 저장.
- * - 브라우저는 /result를 polling해 채점 결과(정답/해설)를 자동 렌더링.
+ * - `study_diagnosis_open` / `study_test_open`: 공통 assessment HTML 생성 + 브라우저 자동 open.
+ * - 브라우저 제출을 현재 Pi 세션으로 전달하고 assistant grade marker를 정확한 session에 연결.
+ * - 브라우저는 /result를 polling해 정답/해설과 diagnosis/test별 다음 행동을 렌더링.
  *
  * Plannotator 패턴을 축소 적용: 로컬 HTTP server + self-contained browser UI + 명시적 제출.
  */
@@ -18,6 +17,20 @@ import { fileURLToPath } from "node:url";
 import { spawn } from "node:child_process";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
+import {
+	canAcknowledge,
+	canSubmit,
+	DIAGNOSIS_GRADE_END,
+	DIAGNOSIS_GRADE_START,
+	extractMarkedJson,
+	resolvePassed,
+	resolveTestNextAction,
+	TEST_GRADE_END,
+	TEST_GRADE_START,
+	validateAssessmentQuestionSet,
+	type AssessmentStatus,
+	type TestQuestionSet,
+} from "./assessment-core.ts";
 
 type DiagnosisSession = {
 	id: string;
@@ -26,7 +39,21 @@ type DiagnosisSession = {
 	chapterTitle: string;
 	diagnosisMdPath: string | null;
 	createdAt: number;
-	status: "open" | "submitted" | "graded" | "acknowledged";
+	status: AssessmentStatus;
+	submission: unknown;
+	grade: unknown;
+};
+
+type TestSession = {
+	id: string;
+	htmlPath: string;
+	chapterSlug: string;
+	chapterTitle: string;
+	testMdPath: string;
+	passScore: number;
+	attempt: number;
+	createdAt: number;
+	status: AssessmentStatus;
 	submission: unknown;
 	grade: unknown;
 };
@@ -40,18 +67,17 @@ type CurriculumSession = {
 	status: "open" | "reviewed" | "revision_requested";
 };
 
-const GRADE_START = "<!--DIAGNOSIS_GRADE_JSON_START-->";
-const GRADE_END = "<!--DIAGNOSIS_GRADE_JSON_END-->";
 const MAX_PAYLOAD = 5 * 1024 * 1024;
 
 export default function (pi: ExtensionAPI) {
 	const sessions = new Map<string, DiagnosisSession>();
+	const testSessions = new Map<string, TestSession>();
 	const curriculumSessions = new Map<string, CurriculumSession>();
 	let server: Server | null = null;
 	let serverPort: number | null = null;
 
 	const moduleDir = dirname(fileURLToPath(import.meta.url));
-	const templatePath = join(moduleDir, "assets", "diagnosis-template.html");
+	const templatePath = join(moduleDir, "assets", "assessment-template.html");
 	const curriculumTemplatePath = join(moduleDir, "assets", "curriculum-template.html");
 	const promptsDir = join(moduleDir, "prompts");
 
@@ -103,7 +129,22 @@ export default function (pi: ExtensionAPI) {
 			const session = sessions.get(diagnosisMatch[1]);
 			if (!session) return sendJson(res, 404, { error: "Unknown diagnosis session" });
 			const base = `http://127.0.0.1:${serverPort ?? 0}`;
-			const inject = `<script>window.DIAGNOSIS_ID=${JSON.stringify(session.id)};window.DIAGNOSIS_SUBMIT_URL=${JSON.stringify(`${base}/api/study-diagnosis/${session.id}/submit`)};window.DIAGNOSIS_RESULT_URL=${JSON.stringify(`${base}/api/study-diagnosis/${session.id}/result`)};window.DIAGNOSIS_ACK_URL=${JSON.stringify(`${base}/api/study-diagnosis/${session.id}/ack`)};window.DIAGNOSIS_MODE="bridge";</script>`;
+			const inject = `<script>window.ASSESSMENT_ID=${JSON.stringify(session.id)};window.ASSESSMENT_SUBMIT_URL=${JSON.stringify(`${base}/api/study-diagnosis/${session.id}/submit`)};window.ASSESSMENT_RESULT_URL=${JSON.stringify(`${base}/api/study-diagnosis/${session.id}/result`)};window.ASSESSMENT_ACK_URL=${JSON.stringify(`${base}/api/study-diagnosis/${session.id}/ack`)};window.DIAGNOSIS_ID=window.ASSESSMENT_ID;window.DIAGNOSIS_MODE="bridge";</script>`;
+			let html = await readFile(session.htmlPath, "utf8");
+			if (/<head[^>]*>/i.test(html)) html = html.replace(/<head[^>]*>/i, (m) => `${m}\n${inject}`);
+			else html = inject + html;
+			res.writeHead(200, { "Content-Type": "text/html; charset=utf-8", ...corsHeaders() });
+			res.end(html);
+			return;
+		}
+
+		// GET /test/:id → serve HTML with injected bridge endpoints
+		const testMatch = url.pathname.match(/^\/test\/([^/]+)$/);
+		if (testMatch && method === "GET") {
+			const session = testSessions.get(testMatch[1]);
+			if (!session) return sendJson(res, 404, { error: "Unknown test session" });
+			const base = `http://127.0.0.1:${serverPort ?? 0}`;
+			const inject = `<script>window.ASSESSMENT_ID=${JSON.stringify(session.id)};window.ASSESSMENT_SUBMIT_URL=${JSON.stringify(`${base}/api/study-test/${session.id}/submit`)};window.ASSESSMENT_RESULT_URL=${JSON.stringify(`${base}/api/study-test/${session.id}/result`)};window.ASSESSMENT_ACK_URL=${JSON.stringify(`${base}/api/study-test/${session.id}/ack`)};window.TEST_ID=window.ASSESSMENT_ID;window.TEST_MODE="bridge";</script>`;
 			let html = await readFile(session.htmlPath, "utf8");
 			if (/<head[^>]*>/i.test(html)) html = html.replace(/<head[^>]*>/i, (m) => `${m}\n${inject}`);
 			else html = inject + html;
@@ -163,6 +204,45 @@ export default function (pi: ExtensionAPI) {
 			return sendJson(res, 200, { ok: true, status: "revision_requested", message: "Pi 세션으로 방향 조정 요청을 보냈습니다." });
 		}
 
+		// GET /api/study-test/:id/result
+		const testResultMatch = url.pathname.match(/^\/api\/study-test\/([^/]+)\/result$/);
+		if (testResultMatch && method === "GET") {
+			const session = testSessions.get(testResultMatch[1]);
+			if (!session) return sendJson(res, 404, { error: "Unknown test session" });
+			return sendJson(res, 200, { status: session.status, grade: session.grade });
+		}
+
+		// POST /api/study-test/:id/submit
+		const testSubmitMatch = url.pathname.match(/^\/api\/study-test\/([^/]+)\/submit$/);
+		if (testSubmitMatch && method === "POST") {
+			const session = testSessions.get(testSubmitMatch[1]);
+			if (!session) return sendJson(res, 404, { error: "Unknown test session" });
+			if (!canSubmit(session.status)) return sendJson(res, 409, { ok: false, status: session.status, error: "Test already submitted" });
+			const body = await readBody(req);
+			let payload: unknown;
+			try { payload = JSON.parse(body); } catch { return sendJson(res, 400, { error: "Invalid JSON payload" }); }
+			session.submission = payload;
+			session.status = "submitted";
+			deliverTestToAgent(session, payload);
+			return sendJson(res, 200, { ok: true, status: "submitted", message: "Pi 세션으로 전송했습니다. 채점을 기다리세요." });
+		}
+
+		// POST /api/study-test/:id/ack
+		const testAckMatch = url.pathname.match(/^\/api\/study-test\/([^/]+)\/ack$/);
+		if (testAckMatch && method === "POST") {
+			const session = testSessions.get(testAckMatch[1]);
+			if (!session) return sendJson(res, 404, { error: "Unknown test session" });
+			if (!canAcknowledge(session.status)) return sendJson(res, 409, { ok: false, status: session.status, error: "Test results already acknowledged or not graded" });
+			const body = await readBody(req);
+			let payload: unknown = {};
+			if (body.trim()) {
+				try { payload = JSON.parse(body); } catch { return sendJson(res, 400, { error: "Invalid JSON payload" }); }
+			}
+			session.status = "acknowledged";
+			deliverTestReviewToAgent(session, payload);
+			return sendJson(res, 200, { ok: true, status: "acknowledged", message: "Pi 세션으로 테스트 결과 확인 신호를 보냈습니다." });
+		}
+
 		// GET /api/study-diagnosis/:id/result
 		const resultMatch = url.pathname.match(/^\/api\/study-diagnosis\/([^/]+)\/result$/);
 		if (resultMatch && method === "GET") {
@@ -176,6 +256,7 @@ export default function (pi: ExtensionAPI) {
 		if (submitMatch && method === "POST") {
 			const session = sessions.get(submitMatch[1]);
 			if (!session) return sendJson(res, 404, { error: "Unknown diagnosis session" });
+			if (!canSubmit(session.status)) return sendJson(res, 409, { ok: false, status: session.status, error: "Diagnosis already submitted" });
 			const body = await readBody(req);
 			let payload: unknown;
 			try {
@@ -194,6 +275,7 @@ export default function (pi: ExtensionAPI) {
 		if (ackMatch && method === "POST") {
 			const session = sessions.get(ackMatch[1]);
 			if (!session) return sendJson(res, 404, { error: "Unknown diagnosis session" });
+			if (!canAcknowledge(session.status)) return sendJson(res, 409, { ok: false, status: session.status, error: "Diagnosis results already acknowledged or not graded" });
 			const body = await readBody(req);
 			let payload: unknown = {};
 			if (body.trim()) {
@@ -248,7 +330,7 @@ export default function (pi: ExtensionAPI) {
 				: "4. 사전진단 결과를 기록.",
 			"5. 응답 끝에 반드시 아래 마커로 DIAGNOSIS_GRADE_JSON을 포함. diagnosisId 필드는 반드시 채울 것:",
 			"",
-			GRADE_START,
+			DIAGNOSIS_GRADE_START,
 			"```json",
 			JSON.stringify(
 				{
@@ -266,7 +348,7 @@ export default function (pi: ExtensionAPI) {
 				2,
 			),
 			"```",
-			GRADE_END,
+			DIAGNOSIS_GRADE_END,
 			"",
 			"6. 채점과 diagnosis.md 기록까지만 하고 멈추세요. 개념 학습으로 자동으로 넘어가지 마세요 — 학습자가 브라우저에서 결과를 충분히 확인한 뒤 DIAGNOSIS_RESULTS_REVIEWED 신호가 올 때까지 대기합니다.",
 			"",
@@ -276,6 +358,73 @@ export default function (pi: ExtensionAPI) {
 			"```",
 		);
 		return lines.join("\n");
+	}
+
+	function deliverTestToAgent(session: TestSession, payload: unknown) {
+		const prompt = buildTestGradingPrompt(session, payload);
+		try { pi.sendUserMessage(prompt); return; } catch { /* queue as follow-up */ }
+		try { pi.sendUserMessage(prompt, { deliverAs: "followUp" }); } catch (err) { console.warn("[study] failed to deliver test submission:", err); }
+	}
+
+	function buildTestGradingPrompt(session: TestSession, payload: unknown): string {
+		const answers = JSON.stringify(extractAnswers(payload), null, 2);
+		return [
+			"# TEST_SUBMISSION_RECEIVED",
+			"",
+			`- testId: ${session.id}`,
+			`- chapterSlug: ${session.chapterSlug}`,
+			`- chapterTitle: ${session.chapterTitle}`,
+			`- attempt: ${session.attempt}`,
+			`- passScore: ${session.passScore}`,
+			`- testMdPath: ${session.testMdPath}`,
+			"",
+			"학습자가 브라우저 테스트에서 답안을 제출했습니다.",
+			"1. rubric과 챕터 concept/lab 범위를 기준으로 문항별 score/status/correctAnswer/explanation/advice를 산출하세요.",
+			"2. totalScore, maxScore, passScore, passed, summary, weaknesses, recommendation을 산출하세요.",
+			`3. \`${session.testMdPath}\`에 Attempt ${session.attempt}의 문제 스냅샷, 학습자 답안, 문항별 채점·해설·보완점, 총점과 통과 여부를 기록하세요. 기존 attempt를 덮어쓰지 마세요.`,
+			"4. 응답 끝에 반드시 아래 TEST_GRADE_JSON을 포함하고 testId/attempt를 그대로 유지하세요.",
+			"",
+			TEST_GRADE_START,
+			"```json",
+			JSON.stringify({ kind: "study-test-grade", testId: session.id, attempt: session.attempt, totalScore: 0, maxScore: 100, passScore: session.passScore, passed: false, summary: "", weaknesses: [], recommendation: "", results: [] }, null, 2),
+			"```",
+			TEST_GRADE_END,
+			"",
+			"5. 채점과 test.md 기록까지만 하고 멈추세요. 학습자가 브라우저에서 결과를 확인하고 TEST_RESULTS_REVIEWED를 보낼 때까지 다음 단계로 넘어가지 마세요.",
+			"",
+			"학습자 답안:",
+			"```json",
+			answers,
+			"```",
+		].join("\n");
+	}
+
+	function deliverTestReviewToAgent(session: TestSession, payload: unknown) {
+		const data = (payload && typeof payload === "object" ? payload : {}) as { score?: number; maxScore?: number; passScore?: number; passed?: boolean; weaknesses?: string[]; nextAction?: string };
+		const stored = (session.grade && typeof session.grade === "object" ? session.grade : {}) as { totalScore?: number; maxScore?: number; passScore?: number; passed?: boolean; weaknesses?: string[] };
+		const passed = resolvePassed({ totalScore: Number(stored.totalScore ?? data.score ?? 0), passScore: session.passScore, passed: typeof stored.passed === "boolean" ? stored.passed : undefined });
+		const nextAction = resolveTestNextAction(passed);
+		const weaknesses = Array.isArray(stored.weaknesses) ? stored.weaknesses : Array.isArray(data.weaknesses) ? data.weaknesses : [];
+		const prompt = [
+			"# TEST_RESULTS_REVIEWED",
+			"",
+			`- testId: ${session.id}`,
+			`- chapterSlug: ${session.chapterSlug}`,
+			`- chapterTitle: ${session.chapterTitle}`,
+			`- attempt: ${session.attempt}`,
+			`- 총점: ${stored.totalScore ?? data.score ?? "?"}/${stored.maxScore ?? data.maxScore ?? "?"}`,
+			`- 통과 기준: ${session.passScore}`,
+			`- passed: ${passed}`,
+			`- nextAction: ${nextAction}`,
+			...(weaknesses.length ? [`- 취약 분야: ${weaknesses.join(", ")}`] : []),
+			`- testMdPath: ${session.testMdPath}`,
+			"",
+			passed
+				? "학습자가 테스트 결과를 확인했습니다. 이 챕터 테스트를 통과했으므로 /study-review 흐름으로 복습을 시작하세요."
+				: "학습자가 테스트 결과를 확인했습니다. 전체 개념이나 lab을 반복하지 말고 weaknesses와 오답 문항에 해당하는 가장 작은 개념만 재학습하세요. 재학습 후에는 같은 문제를 재사용하지 말고 attempt를 1 올린 새 변형 TestQuestionSet을 만들어 study_test_open으로 다시 여세요.",
+		].join("\n");
+		try { pi.sendUserMessage(prompt); return; } catch { /* queue as follow-up */ }
+		try { pi.sendUserMessage(prompt, { deliverAs: "followUp" }); } catch (err) { console.warn("[study] failed to deliver test review ack:", err); }
 	}
 
 	function extractAnswers(payload: unknown): unknown {
@@ -537,12 +686,26 @@ export default function (pi: ExtensionAPI) {
 			} catch (err) {
 				throw new Error(`questionsJson이 올바른 JSON이 아닙니다: ${err instanceof Error ? err.message : err}`);
 			}
-			validateQuestionComposition(parsedQuestions);
+			validateAssessmentQuestionSet(parsedQuestions, "diagnosis");
 
+			const assessmentConfig = JSON.stringify({
+				kind: "diagnosis",
+				title: "사전진단",
+				submissionKind: "study-diagnosis-submission",
+				submissionHeading: "DIAGNOSIS_SUBMISSION",
+				returnFormat: "DIAGNOSIS_GRADE_JSON",
+				markerStart: DIAGNOSIS_GRADE_START,
+				markerEnd: DIAGNOSIS_GRADE_END,
+				continueLabel: "Pi에서 개념 학습 시작 →",
+				continueMessage: "개념 학습은 Pi에서 이어집니다.",
+			});
 			const html = template
 				.replace(/{{CHAPTER_SLUG}}/g, escapeForHtml(slug))
 				.replace(/{{CHAPTER_TITLE}}/g, escapeForHtml(params.chapterTitle))
 				.replace(/{{PHASE}}/g, escapeForHtml(phase))
+				.replace(/{{ASSESSMENT_KIND}}/g, "diagnosis")
+				.replace(/{{ASSESSMENT_TITLE}}/g, "사전진단")
+				.replace("{{ASSESSMENT_CONFIG_JSON}}", assessmentConfig)
 				// QUESTIONS_JSON must be replaced only in the data script tag.
 				// Do not use /g: template JS may mention the placeholder as a literal guard.
 				.replace("{{QUESTIONS_JSON}}", params.questionsJson);
@@ -592,16 +755,77 @@ export default function (pi: ExtensionAPI) {
 	});
 
 	// ------------------------------------------------------------------
+	// tool: study_test_open
+	// ------------------------------------------------------------------
+	pi.registerTool({
+		name: "study_test_open",
+		label: "Study Test Open",
+		description: "lab 이후 학습 완료 테스트를 인터랙티브 HTML로 생성하고 브라우저에서 자동으로 엽니다. 제출 답안은 현재 Pi 세션으로 전달되고, 채점 결과와 통과/미달별 다음 행동이 같은 화면에 표시됩니다.",
+		promptSnippet: "Open interactive chapter test in browser; bridge submission, grading, and score-based handoff",
+		promptGuidelines: ["/study-chapter test 단계에서 TestQuestionSet JSON을 만든 직후 호출하세요. test.md 직접 편집을 학습자에게 요구하지 마세요."],
+		parameters: Type.Object({
+			chapterSlug: Type.String({ description: "챕터 디렉토리 slug. {chapterSlug}/test.html이 생성됩니다." }),
+			chapterTitle: Type.String({ description: "챕터 제목" }),
+			phase: Type.Optional(Type.String({ description: "Phase 라벨. 기본값 Phase 4 / test" })),
+			questionsJson: Type.String({ description: "passScore와 attempt를 포함한 TestQuestionSet JSON 문자열" }),
+			testMdPath: Type.Optional(Type.String({ description: "시도별 문제·답안·채점 결과를 기록할 test.md 경로" })),
+		}),
+		async execute(_toolCallId, params, signal, _onUpdate, ctx) {
+			const cwd = ctx?.cwd ?? process.cwd();
+			const slug = params.chapterSlug;
+			const htmlPath = resolve(cwd, slug, "test.html");
+			const testMdPath = params.testMdPath ?? join(slug, "test.md");
+			let template: string;
+			try { template = await readFile(templatePath, "utf8"); }
+			catch (err) { throw new Error(`평가 템플릿을 찾을 수 없습니다: ${templatePath} (${err instanceof Error ? err.message : err})`); }
+			let parsed: unknown;
+			try { parsed = JSON.parse(params.questionsJson); }
+			catch (err) { throw new Error(`questionsJson이 올바른 JSON이 아닙니다: ${err instanceof Error ? err.message : err}`); }
+			validateAssessmentQuestionSet(parsed, "test");
+			const testSet = parsed as TestQuestionSet;
+			const phase = params.phase ?? testSet.phase ?? "Phase 4 / test";
+			const config = JSON.stringify({
+				kind: "test", title: "학습 완료 테스트", submissionKind: "study-test-submission", submissionHeading: "TEST_SUBMISSION",
+				returnFormat: "TEST_GRADE_JSON", markerStart: TEST_GRADE_START, markerEnd: TEST_GRADE_END,
+				continueLabel: "Pi에서 계속 →", continueMessage: "다음 학습 단계는 Pi에서 이어집니다.",
+			});
+			const html = template
+				.replace(/{{CHAPTER_SLUG}}/g, escapeForHtml(slug))
+				.replace(/{{CHAPTER_TITLE}}/g, escapeForHtml(params.chapterTitle))
+				.replace(/{{PHASE}}/g, escapeForHtml(phase))
+				.replace(/{{ASSESSMENT_KIND}}/g, "test")
+				.replace(/{{ASSESSMENT_TITLE}}/g, "학습 완료 테스트")
+				.replace("{{ASSESSMENT_CONFIG_JSON}}", config)
+				.replace("{{QUESTIONS_JSON}}", params.questionsJson);
+			await mkdir(dirname(htmlPath), { recursive: true });
+			await writeFile(htmlPath, html, "utf8");
+			const port = await startServer();
+			const id = randomUUID().replace(/-/g, "").slice(0, 12);
+			const session: TestSession = { id, htmlPath, chapterSlug: slug, chapterTitle: params.chapterTitle, testMdPath, passScore: testSet.passScore, attempt: testSet.attempt, createdAt: Date.now(), status: "open", submission: null, grade: null };
+			testSessions.set(id, session);
+			const browserUrl = `http://127.0.0.1:${port}/test/${id}`;
+			openBrowser(browserUrl);
+			if (signal?.aborted) return { content: [{ type: "text", text: "취소됨" }] };
+			return { content: [{ type: "text", text: [`✅ 학습 완료 테스트 브라우저 세션을 열었습니다.`, `URL: ${browserUrl}`, `생성 파일: ${htmlPath}`, `결과 기록: ${testMdPath}`, `시도: ${testSet.attempt}차 · 통과 기준: ${testSet.passScore}/${testSet.totalPoints}`, "", `학습자는 브라우저에서 답안을 제출하고 같은 화면에서 채점 결과를 확인한 뒤, 점수에 따라 복습 또는 부족한 개념 재학습으로 이동합니다.`].join("\n") }], details: { url: browserUrl, id, htmlPath, testMdPath, passScore: testSet.passScore, attempt: testSet.attempt, port } };
+		},
+	});
+
+	// ------------------------------------------------------------------
 	// grade extraction from assistant messages
 	// ------------------------------------------------------------------
 	pi.on("message_end", async (event) => {
 		const message = (event as any)?.message;
 		if (!message || message.role !== "assistant") return;
 		const text = extractAssistantText(message.content);
-		if (!text || !text.includes(GRADE_START)) return;
-		const grade = extractGrade(text);
-		if (!grade) return;
-		assignGrade(grade);
+		if (!text) return;
+		if (text.includes(DIAGNOSIS_GRADE_START)) {
+			const grade = extractMarkedJson(text, DIAGNOSIS_GRADE_START, DIAGNOSIS_GRADE_END);
+			if (grade) assignDiagnosisGrade(grade);
+		}
+		if (text.includes(TEST_GRADE_START)) {
+			const grade = extractMarkedJson(text, TEST_GRADE_START, TEST_GRADE_END);
+			if (grade) assignTestGrade(grade);
+		}
 	});
 
 	function extractAssistantText(content: unknown): string {
@@ -612,39 +836,27 @@ export default function (pi: ExtensionAPI) {
 			.join("\n");
 	}
 
-	function extractGrade(text: string): unknown | null {
-		const startIdx = text.indexOf(GRADE_START);
-		if (startIdx < 0) return null;
-		const endIdx = text.indexOf(GRADE_END, startIdx + GRADE_START.length);
-		if (endIdx < 0) return null;
-		const segment = text.slice(startIdx + GRADE_START.length, endIdx);
-		const fence = segment.match(/```(?:json)?\s*([\s\S]*?)```/);
-		const candidate = (fence ? fence[1] : segment).trim();
-		try {
-			return JSON.parse(candidate);
-		} catch {
-			return null;
-		}
-	}
-
-	function assignGrade(grade: unknown) {
+	function assignDiagnosisGrade(grade: unknown) {
 		if (!grade || typeof grade !== "object") return;
 		const id = (grade as any).diagnosisId;
 		if (typeof id === "string" && sessions.has(id)) {
 			const session = sessions.get(id)!;
+			if (session.status !== "submitted") return;
 			session.grade = grade;
 			session.status = "graded";
-			return;
 		}
-		// fallback: most recent submitted session still waiting for a grade
-		const candidates = [...sessions.values()]
-			.filter((s) => s.status === "submitted" && !s.grade)
-			.sort((a, b) => b.createdAt - a.createdAt);
-		const target = candidates[0];
-		if (target) {
-			target.grade = grade;
-			target.status = "graded";
-		}
+	}
+
+	function assignTestGrade(grade: unknown) {
+		if (!grade || typeof grade !== "object") return;
+		const id = (grade as any).testId;
+		if (typeof id !== "string") return;
+		const session = testSessions.get(id);
+		if (!session || session.status !== "submitted") return;
+		if (Number((grade as any).attempt) !== session.attempt) return;
+		const normalized = { ...(grade as any), passScore: session.passScore, passed: resolvePassed({ totalScore: Number((grade as any).totalScore ?? 0), passScore: session.passScore, passed: typeof (grade as any).passed === "boolean" ? (grade as any).passed : undefined }) };
+		session.grade = normalized;
+		session.status = "graded";
 	}
 
 	// ------------------------------------------------------------------
@@ -659,6 +871,7 @@ export default function (pi: ExtensionAPI) {
 		server = null;
 		serverPort = null;
 		sessions.clear();
+		testSessions.clear();
 		curriculumSessions.clear();
 	});
 
@@ -712,36 +925,6 @@ export default function (pi: ExtensionAPI) {
 		} catch {
 			/* best-effort */
 		}
-	}
-}
-
-function validateQuestionComposition(payload: unknown): void {
-	if (!payload || typeof payload !== "object" || !Array.isArray((payload as any).questions)) {
-		throw new Error("questionsJson.questions 배열이 필요합니다.");
-	}
-
-	const questions = (payload as any).questions as Array<{ type?: string }>;
-	const total = questions.length;
-	if (total < 10) {
-		throw new Error(`사전진단은 최소 10문항이어야 합니다. 현재 ${total}문항입니다.`);
-	}
-
-	const objective = questions.filter((q) => q.type === "single-choice" || q.type === "multiple-choice").length;
-	const shortAnswer = questions.filter((q) => q.type === "short-answer" || q.type === "code" || q.type === "sql").length;
-	const essay = questions.filter((q) => q.type === "essay").length;
-
-	const expectedObjective = Math.round(total * 0.7);
-	const expectedShortAnswer = Math.round(total * 0.2);
-	const expectedEssay = total - expectedObjective - expectedShortAnswer;
-	const tolerance = total === 10 ? 0 : 1;
-	const within = (actual: number, expected: number) => Math.abs(actual - expected) <= tolerance;
-
-	if (!within(objective, expectedObjective) || !within(shortAnswer, expectedShortAnswer) || !within(essay, expectedEssay)) {
-		throw new Error(
-			`사전진단 문항 비중은 객관식 약 70%, 주관식 약 20%, 서술형 약 10%여야 합니다. ` +
-				`현재: 총 ${total}문항 / 객관식 ${objective} / 주관식 ${shortAnswer} / 서술형 ${essay}. ` +
-				`권장: 객관식 ${expectedObjective} / 주관식 ${expectedShortAnswer} / 서술형 ${expectedEssay}.`,
-		);
 	}
 }
 

@@ -19,8 +19,11 @@ argument-hint: "[챕터명] [단계]"
 1. **diagnosis**: `ch-{slug}/diagnosis.md`가 없거나 비어있으면 → 사전평가부터
 2. **개념 학습**: diagnosis.md에 결과 기록이 있으면 → 사전평가 완료. 개념 학습 시작
 3. **lab**: `ch-{slug}/lab/`에 산출물이 있으면 → 실습 완료
-4. **test**: `ch-{slug}/test.md`에 채점 기록이 없으면 → 테스트 진행
-5. **review**: `ch-{slug}/review/schedule.md`에 최근 반복 기록이 없으면 → 복습 시작
+4. **test 상태는 `ch-{slug}/test.md`의 최신 Attempt를 기준으로 판단한다.**
+   - test.md가 없거나 최신 Attempt가 `진행 중`/`미채점`이면 → 현재 테스트 진행
+   - 최신 Attempt가 `미통과 — 재학습 필요`이면 → 기록된 weaknesses만 재학습한 뒤 attempt를 1 올린 새 변형 테스트 진행
+   - 최신 Attempt가 `통과`이면 → 테스트 완료, review로 전환
+5. **review**: test 최신 Attempt가 통과했고 `ch-{slug}/review/schedule.md`에 최근 반복 기록이 없으면 → 복습 시작
 
 ## 사전진단 흐름 (study extension 기반)
 
@@ -39,9 +42,9 @@ argument-hint: "[챕터명] [단계]"
 
 > 학습자에게 "브라우저로 직접 여세요" / "복사해서 붙여넣으세요" 라고 안내하지 마라. 그건 tool이 다 한다.
 
-## 문항 JSON schema
+## 공통 Assessment 문항 JSON schema
 
-`study_diagnosis_open`의 `questionsJson`에는 아래 schema를 따르는 JSON object를 **문자열로** 넘긴다. 새 챕터마다 이 JSON만 바꾼다.
+`study_diagnosis_open`과 `study_test_open`의 `questionsJson`은 아래 공통 schema를 따른다. diagnosis는 `DiagnosisQuestionSet`, test는 여기에 `passScore`, `attempt`를 추가한 `TestQuestionSet`을 **문자열로** 넘긴다.
 
 ### 문항 구성 규칙
 
@@ -96,18 +99,25 @@ argument-hint: "[챕터명] [단계]"
 ```
 
 ```ts
-type DiagnosisQuestionSet = {
+type AssessmentQuestionSet = {
   version: "1.0";
   chapterSlug: string;
   chapterTitle: string;
   phase: string;                 // e.g. "Phase 1 / diagnosis"
   instructions: string;          // 학습자에게 보이는 안내문
   totalPoints: number;           // 보통 100
-  sections: DiagnosisSection[];
-  questions: DiagnosisQuestion[];
+  sections: AssessmentSection[];
+  questions: AssessmentQuestion[];
 };
 
-type DiagnosisSection = {
+type DiagnosisQuestionSet = AssessmentQuestionSet;
+
+type TestQuestionSet = AssessmentQuestionSet & {
+  passScore: number;             // 보통 70
+  attempt: number;               // 1부터 시작, 재시험마다 +1
+};
+
+type AssessmentSection = {
   id: string;
   title: string;
   description?: string;
@@ -115,7 +125,7 @@ type DiagnosisSection = {
   questionIds: string[];
 };
 
-type DiagnosisQuestion = {
+type AssessmentQuestion = {
   id: string;
   type: "single-choice" | "multiple-choice" | "short-answer" | "essay" | "code" | "sql";
   sectionId: string;
@@ -123,13 +133,13 @@ type DiagnosisQuestion = {
   description?: string;
   points: number;
   required?: boolean;            // default true
-  options?: DiagnosisOption[];   // choice 타입에만 사용
+  options?: AssessmentOption[];  // choice 타입에만 사용
   placeholder?: string;          // text/code/sql/essay 입력 힌트
   rubric?: string[];             // 학습자에게 공개 가능한 채점 기준
   constraints?: string[] | Record<string, string | number | boolean>;
 };
 
-type DiagnosisOption = {
+type AssessmentOption = {
   id: string;                    // e.g. "A"
   label?: string;                // 화면 표시용. 없으면 id 사용
   text: string;
@@ -536,14 +546,131 @@ before → step 1 → step 2 → after 순서로 중간 상태를 생략하지 �
 - 주제에 맞는 증거: 실행 로그, 쿼리 결과, 문서 초안, 녹음/대본, 스크린샷 등
 ```
 
-### test (테스트)
-- `test.md`에 학습 완료 확인 문제를 출제한다.
+### test (테스트) — 인터랙티브 브라우저 세션
+
+테스트는 markdown 답안란을 편집하게 하지 않는다. **`study_test_open` tool로 인터랙티브 브라우저 세션을 연다.** `test.md`는 문제지 UI가 아니라 시도별 문제·답안·채점 결과의 canonical 기록이다.
+
+#### 출제 규칙
+
 - diagnosis보다 한 단계 높은 난이도로 구성한다.
-- lab에서 본 예시를 그대로 반복하지 말고, 조건/상황/입력/표현을 바꾼 변형 문제로 낸다.
+- 보통 **5~8문항, 100점, 통과 기준 70점**으로 한다. 챕터 특성상 다른 기준이 필요하면 `passScore`에 명시한다.
+- lab에서 본 예시를 그대로 반복하지 말고 조건/상황/입력/표현을 바꾼 변형 문제로 낸다.
 - 기억에서 꺼내고 판단하게 만든다. 힌트나 바로 직전 예시 의존을 줄인다.
-- 헷갈리는 개념 쌍이 있으면 비교/구분 문제를 포함한다.
-- 통과 기준을 명시하고, 미달 시 부족한 개념만 다시 학습하도록 안내한다.
-- 결과를 `test.md`에 기록한다.
+- 헷갈리는 개념 쌍의 비교/구분, 원인 판단, 다른 조건에서의 적용을 포함한다.
+- `single-choice`, `multiple-choice`, `short-answer`, `essay`, `code`, `sql` 타입을 목적에 맞게 사용한다. test에는 diagnosis의 최소 10문항/70:20:10 비율을 적용하지 않는다.
+- `questionsJson`에는 answerKey, 모범답안 전문, 해설 전문을 넣지 않는다. 채점 기준은 공개 가능한 rubric만 넣고 정답은 Pi 컨텍스트에서 유지한다.
+- 재시험은 같은 문제를 재사용하지 않는다. 약점은 같아도 조건/표현/입력을 바꾼 새 변형 문제를 만들고 `attempt`를 1 올린다.
+
+#### 정상 진행
+
+1. `concept.md`, lab 산출물, 챕터 README의 학습 목표를 읽는다.
+2. `test.md`의 기존 Attempt를 읽어 새 attempt 번호를 결정한다. 파일이 없으면 attempt 1이다.
+3. `TestQuestionSet` JSON을 구성한다. 예:
+
+```json
+{
+  "version": "1.0",
+  "chapterSlug": "ch-01-cache-basics",
+  "chapterTitle": "캐시란 무엇인가",
+  "phase": "Phase 4 / test",
+  "instructions": "lab 예시를 보지 말고 기억에서 꺼내 답하세요. 모르면 모른다고 적어도 됩니다.",
+  "totalPoints": 100,
+  "passScore": 70,
+  "attempt": 1,
+  "sections": [
+    { "id": "apply", "title": "변형 적용", "questionIds": ["t1", "t2", "t3"] },
+    { "id": "reason", "title": "판단과 설명", "questionIds": ["t4", "t5"] }
+  ],
+  "questions": []
+}
+```
+
+4. **`study_test_open` tool을 반드시 호출한다.**
+   - `chapterSlug`: 챕터 디렉토리 slug
+   - `chapterTitle`: 챕터 제목
+   - `phase`: `Phase 4 / test`
+   - `questionsJson`: TestQuestionSet JSON 문자열
+   - `testMdPath`: `ch-{slug}/test.md`
+5. tool이 `test.html` 생성 + 브라우저 자동 open을 끝내면 다음처럼만 안내한다.
+   - "브라우저에 학습 완료 테스트를 열었습니다. 답안을 제출하면 같은 화면에서 점수·정답·해설을 확인할 수 있습니다."
+   - 학습자에게 test.md 편집, 파일 직접 열기, 복사/붙여넣기를 요구하지 않는다.
+6. 학습자가 제출하면 `# TEST_SUBMISSION_RECEIVED`가 현재 Pi 세션에 들어온다. 그때:
+   - rubric과 concept/lab 범위를 기준으로 채점한다.
+   - 문항별 `score`, `status`, `correctAnswer`, `explanation`, `advice`를 만든다.
+   - 총점과 `passScore`를 비교해 `passed`를 결정한다.
+   - `test.md`에 아래 Attempt 형식으로 **문제 스냅샷 + 학습자 답안 + 채점 결과**를 누적 기록한다. 기존 Attempt를 덮어쓰지 않는다.
+   - 응답 끝에 `TEST_GRADE_JSON` marker를 반드시 포함한다.
+7. 채점 직후 자동으로 review/relearn을 시작하지 않는다. 학습자가 같은 브라우저에서 결과를 확인하고 CTA를 누를 때까지 대기한다.
+8. `# TEST_RESULTS_REVIEWED`를 받으면:
+   - `passed: true`, `nextAction: review` → `/study-review` 흐름으로 전환한다.
+   - `passed: false`, `nextAction: relearn` → weaknesses/오답 문항에 해당하는 가장 작은 개념만 재학습한다. 전체 concept/lab 반복 금지. 재학습 후 새 변형 TestQuestionSet으로 다음 attempt를 연다.
+9. tool 호출 실패나 tool 부재 시 `/reload`, 필요하면 `bash pi/install.sh --restore`를 안내한다. 수동 test.md 답안 작성 fallback을 제공하지 않는다.
+
+#### TEST_GRADE_JSON 계약
+
+````md
+<!--TEST_GRADE_JSON_START-->
+```json
+{
+  "kind": "study-test-grade",
+  "testId": "<제출 프롬프트의 testId 그대로>",
+  "attempt": 1,
+  "totalScore": 72,
+  "maxScore": 100,
+  "passScore": 70,
+  "passed": true,
+  "summary": "변형 상황에서도 핵심 원리를 적용할 수 있습니다.",
+  "weaknesses": ["TTL 갱신 규칙"],
+  "recommendation": "복습에서 TTL 덮어쓰기 규칙을 한 번 더 회상하세요.",
+  "results": [
+    {
+      "id": "t1",
+      "score": 12,
+      "maxScore": 15,
+      "status": "partial",
+      "correctAnswer": "정답 또는 모범 답안",
+      "explanation": "채점 해설",
+      "advice": "보완할 점"
+    }
+  ]
+}
+```
+<!--TEST_GRADE_JSON_END-->
+````
+
+#### `test.md` Attempt 기록 형식
+
+```md
+# 테스트 기록 — {챕터 제목}
+
+- 최신 상태: 통과 | 미통과 — 재학습 필요 | 진행 중
+- 통과 기준: 70/100
+- 최신 Attempt: 2
+
+## Attempt 1 — YYYY-MM-DD HH:mm
+
+- 상태: 미통과 — 재학습 필요
+- 점수: 62/100
+- 통과 기준: 70/100
+- 취약 개념: TTL 갱신 규칙, 캐시 무효화
+
+### 문제와 학습자 답안
+
+#### T1. {문제} (15점)
+- 유형: single-choice
+- 공개 채점 기준: ...
+- 학습자 답안: B
+
+### 채점 결과
+
+#### T1 — 부분 정답 (10/15)
+- 정답: ...
+- 해설: ...
+- 보완: ...
+
+### 다음 행동
+틀린 개념만 재학습한 뒤 새 변형 문제로 Attempt 2를 진행한다.
+```
 
 ### review (복습)
 - 복습은 `/study-review` 커맨드로 위임한다. 에이전트는 Verifier/Reinforcer/Curious Student/Anchorer/Scheduler 역할로 5단계(blank-recall → gap-fill → self-lecture → analogy-lock → schedule)를 진행한다.
