@@ -22,6 +22,9 @@ export type AssessmentQuestion = {
   type: QuestionType;
   sectionId: string;
   prompt: string;
+  context?: string;
+  assumptions?: string[];
+  learningObjective?: string;
   description?: string;
   points: number;
   required?: boolean;
@@ -118,6 +121,12 @@ export function validateAssessmentQuestionSet(payload: unknown, kind: Assessment
     if (!isQuestionType(question.type)) throw new Error(`${id}의 type이 올바르지 않습니다.`);
     if (typeof question.prompt !== "string" || !question.prompt.trim()) throw new Error(`${id}의 prompt가 필요합니다.`);
     if (typeof question.sectionId !== "string" || !question.sectionId.trim()) throw new Error(`${id}의 sectionId가 필요합니다.`);
+    if (question.context != null && (typeof question.context !== "string" || !question.context.trim())) throw new Error(`${id}의 context는 비어있지 않은 문자열이어야 합니다.`);
+    if (question.assumptions != null && (!Array.isArray(question.assumptions) || question.assumptions.some((item) => typeof item !== "string" || !item.trim()))) throw new Error(`${id}의 assumptions는 비어있지 않은 문자열 배열이어야 합니다.`);
+    if (question.learningObjective != null && (typeof question.learningObjective !== "string" || !question.learningObjective.trim())) throw new Error(`${id}의 learningObjective는 비어있지 않은 문자열이어야 합니다.`);
+    if ((question.type === "short-answer" || question.type === "code" || question.type === "sql") && /(왜|설명하|비교하|판단하|근거)/.test(question.prompt)) {
+      throw new Error(`${id} 단답형 문항은 설명·비교·판단을 요구하면 안 됩니다. essay로 바꾸세요.`);
+    }
     const points = Number(question.points);
     if (!Number.isFinite(points) || points <= 0) throw new Error(`${id}의 points는 0보다 커야 합니다.`);
     sum += points;

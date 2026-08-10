@@ -1,7 +1,8 @@
 /**
  * study extension — 인터랙티브 학습 assessment 브라우저 세션.
  *
- * - `prompts/` 디렉토리를 resources_discover로 노출 → `/study-init`, `/study-chapter`, `/study-review`.
+ * - `prompts/` 디렉토리를 resources_discover로 노출 → `/study-init`, `/study-review`.
+ * - `/study-chapter`는 registered command로 상태 기반 다음 phase를 실행.
  * - `study_diagnosis_open` / `study_test_open`: 공통 assessment HTML 생성 + 브라우저 자동 open.
  * - 브라우저 제출을 현재 Pi 세션으로 전달하고 assistant grade marker를 정확한 session에 연결.
  * - 브라우저는 /result를 polling해 정답/해설과 diagnosis/test별 다음 행동을 렌더링.
@@ -28,16 +29,26 @@ import {
 	TEST_GRADE_END,
 	TEST_GRADE_START,
 	validateAssessmentQuestionSet,
+	type AssessmentQuestionSet,
 	type AssessmentStatus,
 	type TestQuestionSet,
 } from "./assessment-core.ts";
+import { persistDiagnosisRecord, persistTestRecord, validateDiagnosisGrade, validateTestGrade } from "./assessment-grade.ts";
+import { findStudyProjectRoot, registerStudyChapterCommand, type StudyChapterTarget } from "./study-command.ts";
+import { loadStudyState, saveStudyState, updatePhaseState, type StudyPhase } from "./study-state.ts";
+import { manifestFromCurriculum, saveProjectManifest } from "./project-manifest.ts";
+import { runStudyPreflight } from "./preflight.ts";
+import { loadLabManifest, saveLabManifest, updateLabStep, verifyLabStep } from "./lab-core.ts";
+import { projectPath } from "./project-path.ts";
 
 type DiagnosisSession = {
 	id: string;
 	htmlPath: string;
+	projectRoot: string;
 	chapterSlug: string;
 	chapterTitle: string;
 	diagnosisMdPath: string | null;
+	questionSet: AssessmentQuestionSet;
 	createdAt: number;
 	status: AssessmentStatus;
 	submission: unknown;
@@ -47,9 +58,11 @@ type DiagnosisSession = {
 type TestSession = {
 	id: string;
 	htmlPath: string;
+	projectRoot: string;
 	chapterSlug: string;
 	chapterTitle: string;
 	testMdPath: string;
+	questionSet: TestQuestionSet;
 	passScore: number;
 	attempt: number;
 	createdAt: number;
@@ -75,16 +88,58 @@ export default function (pi: ExtensionAPI) {
 	const curriculumSessions = new Map<string, CurriculumSession>();
 	let server: Server | null = null;
 	let serverPort: number | null = null;
+	let activeChapterTarget: StudyChapterTarget | null = null;
+	let assessmentOpenObserved = false;
+	let correctiveFollowUpSent = false;
 
 	const moduleDir = dirname(fileURLToPath(import.meta.url));
 	const templatePath = join(moduleDir, "assets", "assessment-template.html");
 	const curriculumTemplatePath = join(moduleDir, "assets", "curriculum-template.html");
 	const promptsDir = join(moduleDir, "prompts");
 
-	// --- expose prompts/ so Pi registers /study-init, /study-chapter, /study-review ---
+	// /study-init and /study-review remain prompt resources. /study-chapter is promoted
+	// from the old prompt to a registered command with structured state resolution.
 	pi.on("resources_discover", async () => ({
 		promptPaths: [promptsDir],
 	}));
+
+	registerStudyChapterCommand(pi, (target) => {
+		activeChapterTarget = target;
+		assessmentOpenObserved = false;
+		correctiveFollowUpSent = false;
+	});
+
+	pi.on("tool_execution_end", (event) => {
+		const toolName = (event as any)?.toolName ?? (event as any)?.name;
+		if (toolName === "study_diagnosis_open" || toolName === "study_test_open") assessmentOpenObserved = true;
+	});
+
+	pi.on("turn_end", () => {
+		if (!activeChapterTarget || correctiveFollowUpSent || assessmentOpenObserved) return;
+		if (activeChapterTarget.phase !== "diagnosis" && activeChapterTarget.phase !== "test") return;
+		correctiveFollowUpSent = true;
+		const tool = activeChapterTarget.phase === "diagnosis" ? "study_diagnosis_open" : "study_test_open";
+		pi.sendUserMessage(
+			`# STUDY_ASSESSMENT_OPEN_REQUIRED\n\n- chapterSlug: ${activeChapterTarget.chapterSlug}\n- phase: ${activeChapterTarget.phase}\n\n이 단계는 브라우저 assessment가 필수입니다. 문항 JSON을 구성한 뒤 반드시 ${tool}을 호출하세요. markdown 직접 답안 방식으로 진행하지 마세요.`,
+			{ deliverAs: "followUp" },
+		);
+	});
+
+	async function updateProjectPhase(
+		projectRoot: string,
+		chapterSlug: string,
+		phase: StudyPhase,
+		status: Parameters<typeof updatePhaseState>[3]["status"],
+		patch: Omit<Parameters<typeof updatePhaseState>[3], "status"> = {},
+	): Promise<void> {
+		try {
+			const state = await loadStudyState(projectRoot);
+			updatePhaseState(state, chapterSlug, phase, { status, ...patch });
+			await saveStudyState(projectRoot, state);
+		} catch (error) {
+			console.warn("[study] failed to persist phase state:", error);
+		}
+	}
 
 	// ------------------------------------------------------------------
 	// local HTTP server (lazy, session-scoped)
@@ -223,6 +278,7 @@ export default function (pi: ExtensionAPI) {
 			try { payload = JSON.parse(body); } catch { return sendJson(res, 400, { error: "Invalid JSON payload" }); }
 			session.submission = payload;
 			session.status = "submitted";
+			await updateProjectPhase(session.projectRoot, session.chapterSlug, "test", "awaiting_grade", { attempt: session.attempt, sessionId: session.id });
 			deliverTestToAgent(session, payload);
 			return sendJson(res, 200, { ok: true, status: "submitted", message: "Pi 세션으로 전송했습니다. 채점을 기다리세요." });
 		}
@@ -239,6 +295,14 @@ export default function (pi: ExtensionAPI) {
 				try { payload = JSON.parse(body); } catch { return sendJson(res, 400, { error: "Invalid JSON payload" }); }
 			}
 			session.status = "acknowledged";
+			const grade = session.grade as any;
+			await updateProjectPhase(
+				session.projectRoot,
+				session.chapterSlug,
+				"test",
+				grade?.passed ? "completed" : "relearn_required",
+				{ attempt: session.attempt, score: Number(grade?.totalScore ?? 0), maxScore: Number(grade?.maxScore ?? session.questionSet.totalPoints), sessionId: session.id },
+			);
 			deliverTestReviewToAgent(session, payload);
 			return sendJson(res, 200, { ok: true, status: "acknowledged", message: "Pi 세션으로 테스트 결과 확인 신호를 보냈습니다." });
 		}
@@ -266,6 +330,7 @@ export default function (pi: ExtensionAPI) {
 			}
 			session.submission = payload;
 			session.status = "submitted";
+			await updateProjectPhase(session.projectRoot, session.chapterSlug, "diagnosis", "awaiting_grade", { sessionId: session.id });
 			deliverToAgent(session, payload);
 			return sendJson(res, 200, { ok: true, status: "submitted", message: "Pi 세션으로 전송했습니다. 채점을 기다리세요." });
 		}
@@ -286,6 +351,12 @@ export default function (pi: ExtensionAPI) {
 				}
 			}
 			session.status = "acknowledged";
+			const grade = session.grade as any;
+			await updateProjectPhase(session.projectRoot, session.chapterSlug, "diagnosis", "completed", {
+				score: Number(grade?.totalScore ?? 0),
+				maxScore: Number(grade?.maxScore ?? session.questionSet.totalPoints),
+				sessionId: session.id,
+			});
 			deliverReviewToAgent(session, payload);
 			return sendJson(res, 200, { ok: true, status: "acknowledged", message: "Pi 세션으로 리뷰 완료 신호를 보냈습니다." });
 		}
@@ -324,10 +395,8 @@ export default function (pi: ExtensionAPI) {
 			"",
 			"1. 객관식/복수선택/주관식/서술형/코드·SQL 문항을 rubric과 비교해 채점.",
 			"2. 문항별 score, status(correct|partial|wrong|unanswered), correctAnswer, explanation, advice 산출.",
-			"3. totalScore, maxScore, level(slow|normal|fast), summary, weaknesses, recommendation 산출.",
-			session.diagnosisMdPath
-				? `4. \`${session.diagnosisMdPath}\` 하단에 사전진단 결과(점수/약점/권장 학습 깊이)를 기록.`
-				: "4. 사전진단 결과를 기록.",
+			"3. totalScore, maxScore, level(slow|normal|fast), summary, weaknesses, recommendation 산출. 약점은 fact_gap/concept_gap/transfer_gap/execution_gap/ambiguous_question 관점으로 중립적으로 설명하고, 학습자를 복사·불성실로 단정하지 마세요.",
+			"4. 파일은 직접 수정하지 마세요. extension이 검증된 grade를 diagnosis.md와 .study/assessments에 자동 기록합니다.",
 			"5. 응답 끝에 반드시 아래 마커로 DIAGNOSIS_GRADE_JSON을 포함. diagnosisId 필드는 반드시 채울 것:",
 			"",
 			DIAGNOSIS_GRADE_START,
@@ -380,8 +449,8 @@ export default function (pi: ExtensionAPI) {
 			"",
 			"학습자가 브라우저 테스트에서 답안을 제출했습니다.",
 			"1. rubric과 챕터 concept/lab 범위를 기준으로 문항별 score/status/correctAnswer/explanation/advice를 산출하세요.",
-			"2. totalScore, maxScore, passScore, passed, summary, weaknesses, recommendation을 산출하세요.",
-			`3. \`${session.testMdPath}\`에 Attempt ${session.attempt}의 문제 스냅샷, 학습자 답안, 문항별 채점·해설·보완점, 총점과 통과 여부를 기록하세요. 기존 attempt를 덮어쓰지 마세요.`,
+			"2. totalScore, maxScore, passScore, passed, summary, weaknesses, recommendation을 산출하세요. 약점은 fact_gap/concept_gap/transfer_gap/execution_gap/ambiguous_question 관점으로 중립적으로 설명하고, 학습자를 복사·불성실로 단정하지 마세요.",
+			"3. 파일은 직접 수정하지 마세요. extension이 검증된 attempt를 test.md와 .study/assessments에 자동 누적합니다.",
 			"4. 응답 끝에 반드시 아래 TEST_GRADE_JSON을 포함하고 testId/attempt를 그대로 유지하세요.",
 			"",
 			TEST_GRADE_START,
@@ -400,7 +469,7 @@ export default function (pi: ExtensionAPI) {
 	}
 
 	function deliverTestReviewToAgent(session: TestSession, payload: unknown) {
-		const data = (payload && typeof payload === "object" ? payload : {}) as { score?: number; maxScore?: number; passScore?: number; passed?: boolean; weaknesses?: string[]; nextAction?: string };
+		const data = (payload && typeof payload === "object" ? payload : {}) as { score?: number; maxScore?: number; passScore?: number; passed?: boolean; weaknesses?: string[]; nextAction?: string; learningPreference?: "ready_to_continue" | "explain_first" | "practice_more" | "feels_guessed" };
 		const stored = (session.grade && typeof session.grade === "object" ? session.grade : {}) as { totalScore?: number; maxScore?: number; passScore?: number; passed?: boolean; weaknesses?: string[] };
 		const passed = resolvePassed({ totalScore: Number(stored.totalScore ?? data.score ?? 0), passScore: session.passScore, passed: typeof stored.passed === "boolean" ? stored.passed : undefined });
 		const nextAction = resolveTestNextAction(passed);
@@ -416,12 +485,15 @@ export default function (pi: ExtensionAPI) {
 			`- 통과 기준: ${session.passScore}`,
 			`- passed: ${passed}`,
 			`- nextAction: ${nextAction}`,
+			`- learningPreference: ${data.learningPreference ?? "ready_to_continue"}`,
 			...(weaknesses.length ? [`- 취약 분야: ${weaknesses.join(", ")}`] : []),
 			`- testMdPath: ${session.testMdPath}`,
 			"",
-			passed
-				? "학습자가 테스트 결과를 확인했습니다. 이 챕터 테스트를 통과했으므로 /study-review 흐름으로 복습을 시작하세요."
-				: "학습자가 테스트 결과를 확인했습니다. 전체 개념이나 lab을 반복하지 말고 weaknesses와 오답 문항에 해당하는 가장 작은 개념만 재학습하세요. 재학습 후에는 같은 문제를 재사용하지 말고 attempt를 1 올린 새 변형 TestQuestionSet을 만들어 study_test_open으로 다시 여세요.",
+			data.learningPreference === "explain_first"
+				? "학습자가 먼저 설명을 요청했습니다. 같은 답을 다시 요구하지 말고 오답/취약 개념을 직접 설명한 뒤 다음 행동으로 이어가세요."
+				: passed
+					? "학습자가 테스트 결과를 확인했습니다. 이 챕터 테스트를 통과했으므로 /study-review 흐름으로 복습을 시작하세요."
+					: "학습자가 테스트 결과를 확인했습니다. 전체 개념이나 lab을 반복하지 말고 weaknesses와 오답 문항에 해당하는 가장 작은 개념만 재학습하세요. 재학습 후에는 같은 문제를 재사용하지 말고 attempt를 1 올린 새 변형 TestQuestionSet을 만들어 study_test_open으로 다시 여세요.",
 		].join("\n");
 		try { pi.sendUserMessage(prompt); return; } catch { /* queue as follow-up */ }
 		try { pi.sendUserMessage(prompt, { deliverAs: "followUp" }); } catch (err) { console.warn("[study] failed to deliver test review ack:", err); }
@@ -526,6 +598,7 @@ export default function (pi: ExtensionAPI) {
 			score?: number;
 			maxScore?: number;
 			level?: string;
+			learningPreference?: "ready_to_continue" | "explain_first" | "practice_more" | "feels_guessed";
 			weaknesses?: string[];
 			learnerPinpoints?: Array<{
 				id?: string;
@@ -547,6 +620,7 @@ export default function (pi: ExtensionAPI) {
 			`- 총점: ${grade.score ?? "?"}/${grade.maxScore ?? "?"}`,
 		];
 		if (grade.level) lines.push(`- level: ${grade.level}`);
+		if (grade.learningPreference) lines.push(`- learningPreference: ${grade.learningPreference}`);
 		if (weaknesses.length) lines.push(`- 취약 분야: ${weaknesses.join(", ")}`);
 		if (learnerPinpoints.length) {
 			lines.push("- 학습자가 강조한 pinpoint:");
@@ -561,11 +635,86 @@ export default function (pi: ExtensionAPI) {
 		lines.push(
 			"",
 			"학습자가 브라우저에서 진단 결과(점수·정답·해설·보완 포인트)를 모두 확인했습니다.",
-			"이제 diagnosis.md의 결과와 챕터 README의 학습 목표를 기준으로 개념 학습을 시작하세요.",
+			grade.learningPreference === "explain_first"
+				? "학습자가 먼저 설명을 요청했습니다. 같은 회상 질문을 다시 요구하지 말고 쉬운 설명→예시→중간 상태→원리 순서로 설명하세요. 이해 확인은 이후 변형 문제에서 하세요."
+				: "이제 diagnosis.md의 결과와 챕터 README의 학습 목표를 기준으로 개념 학습을 시작하세요.",
 			"학습자가 강조한 pinpoint는 학습 범위 변경이나 우선순위 override가 아니라 비중 조절 신호입니다. 전체 개념 흐름은 유지하고, pinpoint와 연결된 개념의 설명 밀도·예시·확인 질문만 조금 늘립니다.",
 		);
 		return lines.join("\n");
 	}
+
+	// ------------------------------------------------------------------
+	// tools: study_lab_verify / study_lab_step_update
+	// ------------------------------------------------------------------
+	pi.registerTool({
+		name: "study_lab_verify",
+		label: "Study Lab Verify",
+		description: "lab/manifest.json의 현재 step에 지정된 파일, 산출물, 검증 명령, 실제 테스트 수를 확인합니다.",
+		promptSnippet: "Verify a structured lab step using its manifest evidence",
+		parameters: Type.Object({
+			chapterSlug: Type.String({ description: "챕터 slug" }),
+			stepId: Type.String({ description: "lab manifest step id" }),
+		}),
+		async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
+			const projectRoot = await findStudyProjectRoot(ctx?.cwd ?? process.cwd());
+			const result = await verifyLabStep(projectRoot, params.chapterSlug, params.stepId, async (command, args, cwd) => {
+				const executed = await pi.exec(command, args, { cwd });
+				return { code: executed.code ?? 1, stdout: executed.stdout ?? "", stderr: executed.stderr ?? "" };
+			});
+			if (result.passed) {
+				const manifest = await loadLabManifest(projectRoot, params.chapterSlug);
+				updateLabStep(manifest, params.stepId, manifest.steps.find((step) => step.id === params.stepId)?.status === "skipped_understood" ? "skipped_understood" : "completed");
+				await saveLabManifest(projectRoot, manifest);
+				const finished = manifest.steps.every((step) => step.status === "completed" || step.status === "skipped_understood");
+				await updateProjectPhase(projectRoot, params.chapterSlug, "lab", finished ? "completed" : "in_progress", { evidence: [join(params.chapterSlug, "lab", "manifest.json")] });
+			}
+			return { content: [{ type: "text", text: result.passed ? `✅ lab step 검증 통과: ${params.stepId}` : `❌ lab step 검증 실패: ${result.messages.join("; ")}` }], details: result };
+		},
+	});
+
+	pi.registerTool({
+		name: "study_lab_step_update",
+		label: "Study Lab Step Update",
+		description: "lab step을 in_progress 또는 skipped_understood로 갱신합니다. 스킵은 근거가 필수입니다.",
+		promptSnippet: "Update a lab step status, including evidence-backed understood skips",
+		parameters: Type.Object({
+			chapterSlug: Type.String(),
+			stepId: Type.String(),
+			status: Type.Union([Type.Literal("in_progress"), Type.Literal("skipped_understood"), Type.Literal("blocked")]),
+			reason: Type.Optional(Type.String()),
+		}),
+		async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
+			const projectRoot = await findStudyProjectRoot(ctx?.cwd ?? process.cwd());
+			const manifest = await loadLabManifest(projectRoot, params.chapterSlug);
+			updateLabStep(manifest, params.stepId, params.status, params.reason);
+			await saveLabManifest(projectRoot, manifest);
+			await updateProjectPhase(projectRoot, params.chapterSlug, "lab", params.status === "blocked" ? "blocked" : "in_progress", { reason: params.reason });
+			return { content: [{ type: "text", text: `lab step ${params.stepId} → ${params.status}` }], details: { chapterSlug: params.chapterSlug, stepId: params.stepId, status: params.status } };
+		},
+	});
+
+	// ------------------------------------------------------------------
+	// tool: study_preflight
+	// ------------------------------------------------------------------
+	pi.registerTool({
+		name: "study_preflight",
+		label: "Study Preflight",
+		description: "학습 프로젝트 manifest를 기준으로 Java/Gradle/Docker/전용 서비스 포트를 검사합니다. lab 시작 전에 실행하세요.",
+		promptSnippet: "Verify the study project's runtime, build tool, Docker, and dedicated services before lab",
+		parameters: Type.Object({
+			projectRoot: Type.Optional(Type.String({ description: "학습 프로젝트 루트. 생략하면 현재 cwd에서 찾습니다." })),
+		}),
+		async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
+			const cwd = ctx?.cwd ?? process.cwd();
+			const projectRoot = params.projectRoot ? resolve(cwd, params.projectRoot) : await findStudyProjectRoot(cwd);
+			const checks = await runStudyPreflight(projectRoot, async (command, args, commandCwd) => {
+				const result = await pi.exec(command, args, { cwd: commandCwd });
+				return { code: result.code ?? 1, stdout: result.stdout ?? "", stderr: result.stderr ?? "" };
+			});
+			const lines = checks.map((check) => `[${check.status.toUpperCase()}] ${check.summary}${check.evidence ? `\n  evidence: ${check.evidence.trim()}` : ""}${check.remediation ? `\n  해결: ${check.remediation}` : ""}`);
+			return { content: [{ type: "text", text: lines.join("\n") }], details: { projectRoot, checks, passed: !checks.some((check) => check.status === "fail") } };
+		},
+	});
 
 	// ------------------------------------------------------------------
 	// tool: study_curriculum_open
@@ -596,11 +745,13 @@ export default function (pi: ExtensionAPI) {
 				throw new Error(`커리큘럼 템플릿을 찾을 수 없습니다: ${curriculumTemplatePath} (${err instanceof Error ? err.message : err})`);
 			}
 
+			let curriculumPayload: unknown;
 			try {
-				JSON.parse(params.curriculumJson);
+				curriculumPayload = JSON.parse(params.curriculumJson);
 			} catch (err) {
 				throw new Error(`curriculumJson이 올바른 JSON이 아닙니다: ${err instanceof Error ? err.message : err}`);
 			}
+			await saveProjectManifest(resolve(cwd, projectSlug), manifestFromCurriculum(curriculumPayload, projectSlug, params.topic));
 
 			const html = template
 				.replace(/{{PROJECT_SLUG}}/g, escapeForHtml(projectSlug))
@@ -666,8 +817,9 @@ export default function (pi: ExtensionAPI) {
 		}),
 		async execute(_toolCallId, params, signal, _onUpdate, ctx) {
 			const cwd = ctx?.cwd ?? process.cwd();
+			const projectRoot = await findStudyProjectRoot(cwd);
 			const slug = params.chapterSlug;
-			const htmlPath = resolve(cwd, slug, "diagnosis.html");
+			const htmlPath = projectPath(projectRoot, slug, "diagnosis.html");
 			const diagnosisMdPath = params.diagnosisMdPath ?? join(slug, "diagnosis.md");
 
 			let template: string;
@@ -718,15 +870,19 @@ export default function (pi: ExtensionAPI) {
 			const session: DiagnosisSession = {
 				id,
 				htmlPath,
+				projectRoot,
 				chapterSlug: slug,
 				chapterTitle: params.chapterTitle,
 				diagnosisMdPath,
+				questionSet: parsedQuestions as AssessmentQuestionSet,
 				createdAt: Date.now(),
 				status: "open",
 				submission: null,
 				grade: null,
 			};
 			sessions.set(id, session);
+			assessmentOpenObserved = true;
+			await updateProjectPhase(projectRoot, slug, "diagnosis", "awaiting_submission", { sessionId: id });
 
 			const browserUrl = `http://127.0.0.1:${port}/diagnosis/${id}`;
 			openBrowser(browserUrl);
@@ -772,8 +928,9 @@ export default function (pi: ExtensionAPI) {
 		}),
 		async execute(_toolCallId, params, signal, _onUpdate, ctx) {
 			const cwd = ctx?.cwd ?? process.cwd();
+			const projectRoot = await findStudyProjectRoot(cwd);
 			const slug = params.chapterSlug;
-			const htmlPath = resolve(cwd, slug, "test.html");
+			const htmlPath = projectPath(projectRoot, slug, "test.html");
 			const testMdPath = params.testMdPath ?? join(slug, "test.md");
 			let template: string;
 			try { template = await readFile(templatePath, "utf8"); }
@@ -801,8 +958,10 @@ export default function (pi: ExtensionAPI) {
 			await writeFile(htmlPath, html, "utf8");
 			const port = await startServer();
 			const id = randomUUID().replace(/-/g, "").slice(0, 12);
-			const session: TestSession = { id, htmlPath, chapterSlug: slug, chapterTitle: params.chapterTitle, testMdPath, passScore: testSet.passScore, attempt: testSet.attempt, createdAt: Date.now(), status: "open", submission: null, grade: null };
+			const session: TestSession = { id, htmlPath, projectRoot, chapterSlug: slug, chapterTitle: params.chapterTitle, testMdPath, questionSet: testSet, passScore: testSet.passScore, attempt: testSet.attempt, createdAt: Date.now(), status: "open", submission: null, grade: null };
 			testSessions.set(id, session);
+			assessmentOpenObserved = true;
+			await updateProjectPhase(projectRoot, slug, "test", "awaiting_submission", { attempt: testSet.attempt, sessionId: id });
 			const browserUrl = `http://127.0.0.1:${port}/test/${id}`;
 			openBrowser(browserUrl);
 			if (signal?.aborted) return { content: [{ type: "text", text: "취소됨" }] };
@@ -820,11 +979,11 @@ export default function (pi: ExtensionAPI) {
 		if (!text) return;
 		if (text.includes(DIAGNOSIS_GRADE_START)) {
 			const grade = extractMarkedJson(text, DIAGNOSIS_GRADE_START, DIAGNOSIS_GRADE_END);
-			if (grade) assignDiagnosisGrade(grade);
+			if (grade) await assignDiagnosisGrade(grade);
 		}
 		if (text.includes(TEST_GRADE_START)) {
 			const grade = extractMarkedJson(text, TEST_GRADE_START, TEST_GRADE_END);
-			if (grade) assignTestGrade(grade);
+			if (grade) await assignTestGrade(grade);
 		}
 	});
 
@@ -836,27 +995,40 @@ export default function (pi: ExtensionAPI) {
 			.join("\n");
 	}
 
-	function assignDiagnosisGrade(grade: unknown) {
+	async function assignDiagnosisGrade(grade: unknown) {
 		if (!grade || typeof grade !== "object") return;
 		const id = (grade as any).diagnosisId;
-		if (typeof id === "string" && sessions.has(id)) {
-			const session = sessions.get(id)!;
-			if (session.status !== "submitted") return;
-			session.grade = grade;
+		if (typeof id !== "string") return;
+		const session = sessions.get(id);
+		if (!session || session.status !== "submitted") return;
+		try {
+			const validated = validateDiagnosisGrade(grade, session.id, session.questionSet);
+			await persistDiagnosisRecord({ projectRoot: session.projectRoot, mdPath: session.diagnosisMdPath ?? join(session.chapterSlug, "diagnosis.md"), questionSet: session.questionSet, submission: session.submission, grade: validated });
+			session.grade = validated;
 			session.status = "graded";
+			await updateProjectPhase(session.projectRoot, session.chapterSlug, "diagnosis", "awaiting_review", { score: validated.totalScore, maxScore: validated.maxScore, sessionId: session.id });
+		} catch (error) {
+			const message = error instanceof Error ? error.message : String(error);
+			pi.sendUserMessage(`# STUDY_GRADE_REPAIR_REQUIRED\n\n- kind: diagnosis\n- diagnosisId: ${session.id}\n\n채점 JSON 검증에 실패했습니다: ${message}\n원래 문항 배점과 모든 문항 ID를 기준으로 DIAGNOSIS_GRADE_JSON만 수정해 다시 응답하세요.`, { deliverAs: "followUp" });
 		}
 	}
 
-	function assignTestGrade(grade: unknown) {
+	async function assignTestGrade(grade: unknown) {
 		if (!grade || typeof grade !== "object") return;
 		const id = (grade as any).testId;
 		if (typeof id !== "string") return;
 		const session = testSessions.get(id);
 		if (!session || session.status !== "submitted") return;
-		if (Number((grade as any).attempt) !== session.attempt) return;
-		const normalized = { ...(grade as any), passScore: session.passScore, passed: resolvePassed({ totalScore: Number((grade as any).totalScore ?? 0), passScore: session.passScore, passed: typeof (grade as any).passed === "boolean" ? (grade as any).passed : undefined }) };
-		session.grade = normalized;
-		session.status = "graded";
+		try {
+			const validated = validateTestGrade(grade, session.id, session.questionSet);
+			await persistTestRecord({ projectRoot: session.projectRoot, mdPath: session.testMdPath, questionSet: session.questionSet, submission: session.submission, grade: validated });
+			session.grade = validated;
+			session.status = "graded";
+			await updateProjectPhase(session.projectRoot, session.chapterSlug, "test", "awaiting_review", { attempt: session.attempt, score: validated.totalScore, maxScore: validated.maxScore, sessionId: session.id });
+		} catch (error) {
+			const message = error instanceof Error ? error.message : String(error);
+			pi.sendUserMessage(`# STUDY_GRADE_REPAIR_REQUIRED\n\n- kind: test\n- testId: ${session.id}\n- attempt: ${session.attempt}\n\n채점 JSON 검증에 실패했습니다: ${message}\n원래 문항 배점과 모든 문항 ID를 기준으로 TEST_GRADE_JSON만 수정해 다시 응답하세요.`, { deliverAs: "followUp" });
+		}
 	}
 
 	// ------------------------------------------------------------------

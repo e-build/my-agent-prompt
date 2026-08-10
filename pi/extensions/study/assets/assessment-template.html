@@ -325,6 +325,13 @@
     textarea.codeInput { min-height: 170px; font-family: var(--mono); font-size: 13px; tab-size: 2; }
     .rubric { margin: 10px 0 0 40px; color: var(--muted); font-size: 12px; }
     .constraints { margin: 8px 0 0 40px; color: var(--muted); font-size: 12px; font-family: var(--mono); }
+    .questionContext { margin: 0 0 12px; padding: 12px 14px; border-left: 3px solid var(--accent); background: #eef2ff; border-radius: 0 12px 12px 0; color: #3730a3; font-size: 13px; }
+    .questionContext strong { display: block; margin: 4px 0; }
+    .questionContext ul { margin: 6px 0 0; padding-left: 20px; }
+    .learningObjective { margin-top: 6px; color: var(--muted); font-size: 12px; }
+    .learningPreference { display: grid; gap: 6px; min-width: 190px; }
+    .learningPreference label { font-size: 11px; font-weight: 760; }
+    .learningPreference select { min-height: 40px; border: 1px solid var(--line-strong); border-radius: 10px; background: var(--surface); padding: 0 10px; }
 
     .questionFeedback {
       margin: 16px 0 0 40px;
@@ -597,6 +604,15 @@
         <div class="dockStatus" id="resultsDockStatus" role="status" aria-live="polite">결과를 확인한 뒤 다음 단계로 이동하세요.</div>
       </div>
       <div class="dockActions">
+        <div class="learningPreference">
+          <label for="learningPreference">다음 진행 방식</label>
+          <select id="learningPreference">
+            <option value="ready_to_continue">준비됨 — 계속 진행</option>
+            <option value="explain_first">먼저 설명이 필요함</option>
+            <option value="practice_more">연습을 조금 더 하고 싶음</option>
+            <option value="feels_guessed">맞혔지만 감으로 답함</option>
+          </select>
+        </div>
         <button class="btn" type="button" id="copyWeaknessBtn">취약점 요약 복사</button>
         <button class="btn primary" type="button" id="continueBtn">Pi에서 계속 →</button>
       </div>
@@ -680,6 +696,7 @@
         resultsDockStatus: byId("resultsDockStatus"),
         copyWeaknessBtn: byId("copyWeaknessBtn"),
         continueBtn: byId("continueBtn"),
+        learningPreference: byId("learningPreference"),
         closedCountdown: byId("closedCountdown"),
         closedTitle: byId("closedTitle"),
         closedMessage: byId("closedMessage")
@@ -767,8 +784,10 @@
           <div class="questionHead">
             <div class="questionNo">${String(number).padStart(2, "0")}</div>
             <div>
+              ${renderQuestionContext(q)}
               <div class="questionPrompt" id="prompt-${escapeHtml(q.id)}">${renderRichText(q.prompt)}</div>
               ${q.description ? `<div class="questionDesc">${renderRichText(q.description)}</div>` : ""}
+              ${q.learningObjective ? `<div class="learningObjective">학습 목표: ${escapeHtml(q.learningObjective)}</div>` : ""}
             </div>
           </div>
           <div class="questionMeta">
@@ -783,6 +802,15 @@
           <div class="questionFeedback hidden" data-feedback-for="${escapeHtml(q.id)}"></div>
         </article>`;
       }
+      function renderQuestionContext(q) {
+        const assumptions = Array.isArray(q.assumptions) ? q.assumptions : [];
+        if (!q.context && !assumptions.length) return "";
+        return `<div class="questionContext">
+          ${q.context ? `<strong>상황</strong><div>${renderRichText(q.context)}</div>` : ""}
+          ${assumptions.length ? `<strong>전제</strong><ul>${assumptions.map(item => `<li>${escapeHtml(item)}</li>`).join("")}</ul>` : ""}
+        </div>`;
+      }
+
       function renderAnswerControl(q) {
         const type = q.type || "short-answer";
         if (type === "single-choice" || type === "multiple-choice") {
@@ -1020,7 +1048,8 @@
           nextAction: metadata.assessmentKind === "test" ? (passed ? "review" : "relearn") : "concept",
           level: gradeResults.level ?? null,
           weaknesses: Array.isArray(gradeResults.weaknesses) ? gradeResults.weaknesses : [],
-          learnerPinpoints: metadata.assessmentKind === "diagnosis" ? buildLearnerPinpoints() : []
+          learnerPinpoints: metadata.assessmentKind === "diagnosis" ? buildLearnerPinpoints() : [],
+          learningPreference: els.learningPreference?.value || "ready_to_continue"
         };
         els.continueBtn.disabled = true;
         els.continueBtn.textContent = "전송 중…";

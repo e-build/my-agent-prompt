@@ -335,11 +335,25 @@
 
       els.summaryText.textContent = data.summary || "전체 학습 목차와 방향을 확인한 뒤 시작합니다.";
       const brief = data.brief || {};
+      const environment = data.environment || {};
+      const environmentSummary = [
+        environment.language,
+        environment.framework,
+        environment.buildTool,
+        environment.runtimeVersion,
+        environment.sharedWorkspace ? `workspace: ${environment.sharedWorkspace}` : ""
+      ].filter(Boolean).join(" · ");
+      const serviceSummary = asArray(environment.services).map(service => {
+        const port = service.hostPort ? `:${service.hostPort}` : "";
+        return `${service.name || "service"}${port}`;
+      }).join(", ");
       const summaryItems = [
         ["목적/성공 기준", brief.purpose || data.purpose],
         ["현재 수준", brief.level || data.level],
         ["범위/규모", brief.scope || data.scope],
-        ["참고 출처/환경", brief.sources || brief.stack || data.sources]
+        ["참고 출처/환경", brief.sources || brief.stack || data.sources],
+        ["공통 실습 환경", environmentSummary],
+        ["전용 서비스", serviceSummary]
       ].filter(([, value]) => text(value, "") !== "");
       els.summaryGrid.innerHTML = summaryItems.map(([label, value]) => `
         <div class="summaryRow"><dt>${escapeHtml(label)}</dt><dd>${escapeHtml(value)}</dd></div>
@@ -459,6 +473,12 @@
     function renderChapter(chapter) {
       const goals = asArray(chapter.goals || chapter.learningGoals).slice(0, 3);
       const concepts = asArray(chapter.concepts || chapter.terms).slice(0, 8);
+      const lab = chapter.lab || {};
+      const labMeta = [
+        lab.mode ? `mode: ${lab.mode}` : "",
+        lab.workspace ? `workspace: ${lab.workspace}` : "",
+        lab.package ? `package: ${lab.package}` : ""
+      ].filter(Boolean);
       return `<article class="chapter">
         <div class="chapterHead">
           <span class="chapterSlug">${escapeHtml(chapter.slug || chapter.id || "ch")}</span>
@@ -473,6 +493,7 @@
             <label>다룰 개념</label>
             ${concepts.length ? `<div class="concepts">${concepts.map(c => `<span class="concept">${escapeHtml(c)}</span>`).join("")}</div>` : `<div class="phaseGoal">챕터 README에서 확인</div>`}
           </div>
+          ${labMeta.length ? `<div class="miniBlock"><label>실습 방식</label><div class="concepts">${labMeta.map(item => `<span class="concept">${escapeHtml(item)}</span>`).join("")}</div></div>` : ""}
         </div>
       </article>`;
     }

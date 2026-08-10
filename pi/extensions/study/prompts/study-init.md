@@ -189,6 +189,19 @@ type CurriculumPreview = {
     sources?: string;
     stack?: string;
   };
+  environment?: {
+    language?: string;           // 예: Kotlin
+    framework?: string;          // 예: Spring Boot
+    buildTool?: string;          // 예: Gradle
+    runtimeVersion?: string;     // 예: JDK 17
+    sharedWorkspace?: string;    // 예: app
+    services?: Array<{
+      name: string;              // 예: study-redis
+      hostPort?: number;         // 예: 6380
+      containerPort?: number;    // 예: 6379
+      image?: string;            // 예: redis:7
+    }>;
+  };
   rationale: string[];           // "왜 이 순서인가" 3~5개
   phases: Array<{
     title: string;               // 예: "Phase 1 — 기초 모델"
@@ -198,6 +211,12 @@ type CurriculumPreview = {
       title: string;
       goals: string[];           // 1~3개
       concepts: string[];        // 3~8개
+      lab?: {
+        mode: "cli" | "application" | "document" | "mixed";
+        workspace?: string;      // 공통 app/ 등
+        package?: string;        // com.example.study.ch02 등
+        evidence?: Array<"command" | "test" | "artifact" | "log" | "document">;
+      };
     }>;
   }>;
   conceptMapMermaid: string;     // README의 전체 개념 의존성 지도
@@ -208,6 +227,9 @@ type CurriculumPreview = {
 1. 학습 설계 브리프 확인 후 파일을 생성한다.
 2. README/SETUP/챕터 README를 만든다.
 3. README 내용을 바탕으로 `CurriculumPreview` JSON을 만든다.
+   - 기술 주제면 `environment`에 실제 언어/프레임워크/빌드 도구/런타임 버전/공통 workspace/전용 서비스를 넣는다.
+   - 각 챕터의 학습 목표를 보고 `lab.mode`를 결정한다. 명령 자체가 목표면 `cli`, 애플리케이션 구조가 목표면 `application`, 문서 산출물이 목표면 `document`, 둘 다 필요하면 `mixed`다.
+   - 공통 코드 프로젝트가 필요하면 챕터별 별도 프로젝트 대신 `environment.sharedWorkspace` 하나를 재사용한다.
 4. `study_curriculum_open` tool을 호출한다. 필수 인자:
    - `projectSlug`: 학습 프로젝트 디렉토리 slug (예: `study-backend-caching`)
    - `topic`: 학습 주제 전체

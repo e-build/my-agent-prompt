@@ -88,6 +88,15 @@ test("requires question points to equal totalPoints", () => {
   assert.throws(() => validateAssessmentQuestionSet(payload, "test"), /배점 합계/);
 });
 
+test("accepts context metadata and rejects explanatory short-answer prompts", () => {
+  const payload = testPayload();
+  Object.assign(payload.questions[0], { context: "Shopl read-only cache", assumptions: ["refresh 실패"], learningObjective: "무기한 stale 구분" });
+  assert.doesNotThrow(() => validateAssessmentQuestionSet(payload, "test"));
+  const invalid = testPayload();
+  invalid.questions[3].prompt = "왜 위험한지 설명하시오";
+  assert.throws(() => validateAssessmentQuestionSet(invalid, "test"), /essay로 바꾸세요/);
+});
+
 test("extracts diagnosis and test marker JSON independently", () => {
   const diagnosis = extractMarkedJson(`${DIAGNOSIS_GRADE_START}\n\`\`\`json\n{"diagnosisId":"d1"}\n\`\`\`\n${DIAGNOSIS_GRADE_END}`, DIAGNOSIS_GRADE_START, DIAGNOSIS_GRADE_END);
   const grade = extractMarkedJson(`${TEST_GRADE_START}\n{"testId":"t1"}\n${TEST_GRADE_END}`, TEST_GRADE_START, TEST_GRADE_END);
