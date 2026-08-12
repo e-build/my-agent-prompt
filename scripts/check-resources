@@ -1,0 +1,124 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Structural integrity checker for this repo.
+# Verifies that adapter references point to existing canonical resources.
+#
+# Usage:
+#   bash scripts/check-resources          # check all
+#   bash scripts/check-resources --quiet  # exit code only (0=ok, 1=issues)
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+QUIET=0
+ISSUES=0
+
+[[ "${1:-}" == "--quiet" ]] && QUIET=1
+
+report() {
+  [[ "$QUIET" == "0" ]] && echo "$1"
+}
+
+fail() {
+  report "  ✗ $1"
+  ISSUES=$((ISSUES + 1))
+}
+
+ok() {
+  report "  ✓ $1"
+}
+
+echo "Checking resource integrity..."
+echo ""
+
+# --- 1. Adapter commands → canonical resource exists ---
+echo "1. Adapter → canonical resource references"
+
+# Pi adapters
+for f in "$ROOT/adapters/pi/commands/"*.md; do
+  [[ -f "$f" ]] || continue
+  base="$(basename "$f" .md)"
+  if [[ -f "$ROOT/resources/commands/${base}.md" ]]; then
+    ok "pi/$base → resources/commands/$base.md"
+  else
+    # optimize-es-log-skill is standalone (no canonical body)
+    if [[ "$base" == "optimize-es-log-skill" ]]; then
+      ok "pi/$base → standalone (no canonical body expected)"
+    else
+      fail "pi/$base → resources/commands/${base}.md NOT FOUND"
+    fi
+  fi
+done
+
+# OpenCode adapters
+for f in "$ROOT/adapters/opencode/commands/"*.md; do
+  [[ -f "$f" ]] || continue
+  base="$(basename "$f" .md)"
+  if [[ -f "$ROOT/resources/commands/${base}.md" ]]; then
+    ok "opencode/$base → resources/commands/$base.md"
+  else
+    fail "opencode/$base → resources/commands/${base}.md NOT FOUND"
+  fi
+done
+
+# --- 2. zz-workflow bodies reference correct template path ---
+echo ""
+echo "2. Workflow template references"
+for f in "$ROOT/resources/commands/zz-workflow-"*.md; do
+  [[ -f "$f" ]] || continue
+  base="$(basename "$f" .md)"
+  if grep -q 'resources/templates/feature-workflow' "$f" 2>/dev/null; then
+    ok "$base → references resources/templates/feature-workflow/"
+  elif grep -q 'docs/feature-workflow' "$f" 2>/dev/null; then
+    fail "$base → still references old docs/feature-workflow/ path"
+  else
+    ok "$base → no template reference (may not need one)"
+  fi
+done
+
+# --- 3. SKILL.md frontmatter (name + description) ---
+echo ""
+echo "3. Skill frontmatter"
+for skill in $(find "$ROOT/resources/skills" -name SKILL.md -not -path '*/external/*'); do
+  skill_dir="$(dirname "$skill")"
+  skill_name="$(basename "$skill_dir")"
+  if grep -q '^name:' "$skill" && grep -q '^description:' "$skill"; then
+    ok "skills/$skill_name — frontmatter valid"
+  else
+    fail "skills/$skill_name — missing name or description"
+  fi
+done
+
+# --- 4. No legacy path references (excluding AGENTS.md, scripts) ---
+echo ""
+echo "4. Legacy path references"
+LEGACY=$(grep -rn 'bodies/\|docs/feature-workflow' \
+  --include='*.md' --include='*.sh' --include='*.ts' \
+  --exclude='AGENTS.md' --exclude='scripts/*' --exclude='PLAN.md' \
+  "$ROOT" 2>/dev/null | grep -v '.git/' | grep -v 'node_modules' || true)
+if [[ -z "$LEGACY" ]]; then
+  ok "no legacy path references found"
+else
+  echo "$LEGACY" | while IFS= read -r line; do
+    fail "legacy ref: $line"
+  done
+fi
+
+# --- 5. Template directory exists ---
+echo ""
+echo "5. Template resource directory"
+if [[ -d "$ROOT/resources/templates/feature-workflow" ]]; then
+  count=$(find "$ROOT/resources/templates/feature-workflow" -type f | wc -l | tr -d ' ')
+  ok "resources/templates/feature-workflow/ exists ($count files)"
+else
+  fail "resources/templates/feature-workflow/ NOT FOUND"
+fi
+
+# --- Summary ---
+echo ""
+if [[ "$ISSUES" == "0" ]]; then
+  echo "✅ All checks passed."
+  exit 0
+else
+  echo "❌ $ISSUES issue(s) found."
+  exit 1
+fi

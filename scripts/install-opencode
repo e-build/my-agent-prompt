@@ -1,0 +1,61 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Install OpenCode resources from this repo to ~/.config/opencode
+#
+# Resources:
+#   adapters/opencode/commands/ → ~/.config/opencode/commands/   (slash commands)
+#   adapters/opencode/agents/   → ~/.config/opencode/agents/     (subagent definitions)
+#   resources/skills/           → ~/.config/opencode/skills/      (Agent Skills)
+#   runtime/opencode/plugins/   → ~/.config/opencode/plugins/     (OpenCode plugins)
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+OC="${OPENCODE_HOME:-$HOME/.config/opencode}"
+
+usage() {
+  cat <<'EOF'
+Usage:
+  bash scripts/install-opencode    # install all OpenCode resources
+  bash scripts/install-opencode -h # show this help
+EOF
+}
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    -h|--help) usage; exit 0 ;;
+    *) echo "error: unknown argument: $1" >&2; usage; exit 1 ;;
+  esac
+done
+
+echo "Installing OpenCode resources → $OC"
+mkdir -p "$OC"/{commands,agents,skills,plugins}
+
+# 1. Command adapters
+for f in "$ROOT/adapters/opencode/commands/"*.md; do
+  [[ -f "$f" ]] || continue
+  ln -sfn "$f" "$OC/commands/$(basename "$f")"
+done
+echo "  ✓ command adapters → commands/"
+
+# 2. Agent definitions
+for f in "$ROOT/adapters/opencode/agents/"*.md; do
+  [[ -f "$f" ]] || continue
+  ln -sfn "$f" "$OC/agents/$(basename "$f")"
+done
+echo "  ✓ agent definitions → agents/"
+
+# 3. Agent Skills
+for d in $(find "$ROOT/resources/skills" -name SKILL.md -exec dirname {} \;); do
+  ln -sfn "$d" "$OC/skills/$(basename "$d")"
+done
+echo "  ✓ skills → skills/"
+
+# 4. Plugins (cliproxyapi-sync)
+if [[ -d "$ROOT/runtime/opencode/plugins/cliproxyapi-sync" ]]; then
+  ln -sfn "$ROOT/runtime/opencode/plugins/cliproxyapi-sync/cliproxyapi-sync.ts" \
+          "$OC/plugins/cliproxyapi-sync.ts"
+  echo "  ✓ cliproxyapi-sync → plugins/"
+fi
+
+echo ""
+echo "✅ OpenCode install complete."

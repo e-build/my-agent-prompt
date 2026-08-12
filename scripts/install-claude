@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Install Claude Code resources from this repo.
+#
+# Claude Code support is not yet fully implemented.
+# Currently, the shared resources in this repo serve as canonical source
+# that can be manually referenced or symlinked as needed.
+#
+# Planned paths:
+#   adapters/claude/commands/ → ~/.claude/commands/
+#   resources/skills/         → ~/.claude/skills/
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
+echo "Claude Code adapter support is not yet implemented."
+echo ""
+echo "Available shared resources in this repo:"
+echo "  resources/skills/     — Agent Skills (canonical source)"
+echo "  resources/commands/   — Shared command bodies"
+echo "  resources/references/ — Reusable rules and guides"
+echo ""
+echo "To use with Claude Code, manually symlink or copy the resources"
+echo "you need to ~/.claude/skills/ or ~/.claude/commands/."
+echo ""
+echo "To add proper adapter support, create adapters/claude/commands/"
+echo "with Claude Code-compatible wrapper files."

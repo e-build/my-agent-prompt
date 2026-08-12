@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Install Codex resources from this repo.
+#
+# Codex support is not yet fully implemented.
+# Codex uses AGENTS.md at the project root as its primary instruction source.
+# The integrations/cliproxyapi/ directory contains Codex connection guides.
+#
+# Planned paths:
+#   adapters/codex/commands/  → Codex-specific command adapters
+#   AGENTS.md                 → Project root instruction file
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
+echo "Codex adapter support is not yet implemented."
+echo ""
+echo "Codex integration points:"
+echo "  AGENTS.md                    — Project root instruction (already present)"
+echo "  integrations/cliproxyapi/    — CLI Proxy API setup guides for Codex"
+echo ""
+echo "To add proper adapter support, create adapters/codex/commands/"
+echo "with Codex-compatible wrapper files."

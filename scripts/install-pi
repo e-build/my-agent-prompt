@@ -1,0 +1,106 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Install Pi resources from this repo to ~/.pi/agent
+#
+# Resources:
+#   adapters/pi/commands/   → ~/.pi/agent/prompts/        (slash commands)
+#   resources/commands/     → ~/.pi/agent/commands/        (shared command bodies)
+#   resources/skills/       → ~/.pi/agent/skills/          (Agent Skills)
+#   runtime/pi/extensions/  → ~/.pi/agent/extensions/      (Pi extensions)
+#   runtime/pi/themes/      → ~/.pi/agent/themes/          (Pi themes)
+#   runtime/pi/bin/pi       → ~/.local/bin/pi              (compact launcher)
+#   runtime/pi/config/      → ~/.pi/agent/ (settings/mcp, with --copy-config)
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+PI_HOME="${PI_HOME:-$HOME/.pi/agent}"
+COPY_CONFIG=0
+RESTORE=0
+
+usage() {
+  cat <<'EOF'
+Usage:
+  bash scripts/install-pi                          # compact launcher only
+  bash scripts/install-pi --restore                # commands + skills + extensions + themes + bodies
+  bash scripts/install-pi --copy-config            # also copy example settings/mcp
+  bash scripts/install-pi --restore --copy-config  # full install
+EOF
+}
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --copy-config) COPY_CONFIG=1; shift ;;
+    --restore)     RESTORE=1; shift ;;
+    -h|--help)     usage; exit 0 ;;
+    *) echo "error: unknown argument: $1" >&2; usage; exit 1 ;;
+  esac
+done
+
+mkdir -p "$PI_HOME"
+
+if [[ "$RESTORE" == "1" ]]; then
+  echo "Installing Pi resources → $PI_HOME"
+
+  # 1. Pi command adapters → prompts/
+  mkdir -p "$PI_HOME/prompts"
+  for f in "$ROOT/adapters/pi/commands/"*.md; do
+    ln -sfn "$f" "$PI_HOME/prompts/$(basename "$f")"
+  done
+  echo "  ✓ command adapters → prompts/"
+
+  # 2. Shared command bodies → commands/ (for Read fallback)
+  if [[ -d "$ROOT/resources/commands" ]]; then
+    ln -sfn "$ROOT/resources/commands" "$PI_HOME/commands"
+    echo "  ✓ command bodies → commands/"
+  fi
+
+  # 3. Agent Skills → skills/
+  mkdir -p "$PI_HOME/skills"
+  for d in $(find "$ROOT/resources/skills" -name SKILL.md -exec dirname {} \;); do
+    ln -sfn "$d" "$PI_HOME/skills/$(basename "$d")"
+  done
+  echo "  ✓ skills installed"
+
+  # 4. Pi extensions → extensions/ (skip docs/tests/config)
+  if [[ -d "$ROOT/runtime/pi/extensions" ]]; then
+    mkdir -p "$PI_HOME/extensions"
+    for item in "$ROOT/runtime/pi/extensions"/*; do
+      base="$(basename "$item")"
+      [[ "$base" == *.md || "$base" == *.test.ts || "$base" == *.example.* ]] && continue
+      ln -sfn "$item" "$PI_HOME/extensions/$base"
+    done
+    echo "  ✓ extensions → extensions/"
+  fi
+
+  # 5. Pi themes → themes/ (copy, not symlink)
+  if [[ -d "$ROOT/runtime/pi/themes" ]]; then
+    mkdir -p "$PI_HOME/themes"
+    cp -R "$ROOT/runtime/pi/themes"/. "$PI_HOME/themes/" 2>/dev/null || true
+    echo "  ✓ themes → themes/"
+  fi
+
+else
+  echo "Skipping resource install. Use --restore for full install."
+fi
+
+# Copy example config
+if [[ "$COPY_CONFIG" == "1" ]]; then
+  echo "Copying example config → $PI_HOME/"
+  [[ -f "$ROOT/runtime/pi/config/settings.example.json" ]] && \
+    cp "$ROOT/runtime/pi/config/settings.example.json" "$PI_HOME/settings.json" && \
+    echo "  ✓ settings.json (edit model info after install!)"
+  [[ -f "$ROOT/runtime/pi/config/mcp.example.json" ]] && \
+    cp "$ROOT/runtime/pi/config/mcp.example.json" "$PI_HOME/mcp.json" && \
+    echo "  ✓ mcp.json"
+fi
+
+# Compact launcher
+if [[ -f "$ROOT/runtime/pi/bin/pi" ]]; then
+  mkdir -p "$HOME/.local/bin"
+  cp "$ROOT/runtime/pi/bin/pi" "$HOME/.local/bin/pi"
+  chmod +x "$HOME/.local/bin/pi"
+  echo "  ✓ compact launcher → ~/.local/bin/pi"
+fi
+
+echo ""
+echo "✅ Pi install complete. Run /reload or restart Pi."

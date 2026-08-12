@@ -11,14 +11,9 @@ build/
 out/
 *.js.map
 
-# Tracked OpenCode plugin build artifact
-!opencode-plugins/forge-plugin/dist/
-
 # cliproxyapi runtime (실제 API 키 포함 — 커밋 금지)
-cliproxyapi/config.yaml
-cliproxyapi/cliproxy.log
-!opencode-plugins/forge-plugin/dist/**/
-!opencode-plugins/forge-plugin/dist/**
+integrations/cliproxyapi/config.yaml
+integrations/cliproxyapi/cliproxy.log
 
 # Git worktrees
 .worktrees/
@@ -48,3 +43,7 @@ yarn-error.log*
 
 # Agent runtime state
 .pi/
+.pi-subagents/
+
+# Temp planning files
+PLAN.md
