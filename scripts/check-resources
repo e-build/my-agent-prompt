@@ -15,7 +15,10 @@ ISSUES=0
 [[ "${1:-}" == "--quiet" ]] && QUIET=1
 
 report() {
-  [[ "$QUIET" == "0" ]] && echo "$1"
+  if [[ "$QUIET" == "0" ]]; then
+    echo "$1"
+  fi
+  return 0
 }
 
 fail() {

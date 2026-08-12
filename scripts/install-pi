@@ -38,6 +38,41 @@ done
 
 mkdir -p "$PI_HOME"
 
+# Remove only links made invalid by pre-refactor paths. Do not touch valid
+# user-managed links or non-symlink files in the Pi runtime directory.
+cleanup_legacy_links() {
+  local legacy_roots=(
+    "$ROOT/bodies"
+    "$ROOT/skills"
+    "$ROOT/pi"
+  )
+  local dir link target root
+
+  for dir in "$PI_HOME/prompts" "$PI_HOME/skills" "$PI_HOME/extensions"; do
+    [[ -d "$dir" ]] || continue
+    for link in "$dir"/*; do
+      [[ -L "$link" ]] || continue
+      target="$(readlink "$link")"
+      for root in "${legacy_roots[@]}"; do
+        if [[ "$target" == "$root" || "$target" == "$root"/* ]]; then
+          rm -f "$link"
+          echo "  removed stale link: $link"
+          break
+        fi
+      done
+    done
+  done
+
+  # Shared command bodies used to be installed under ~/.pi/agent/bodies.
+  # The new canonical location is ~/.pi/agent/commands.
+  if [[ -L "$PI_HOME/bodies" ]]; then
+    rm -f "$PI_HOME/bodies"
+    echo "  removed stale link: $PI_HOME/bodies"
+  fi
+}
+
+cleanup_legacy_links
+
 if [[ "$RESTORE" == "1" ]]; then
   echo "Installing Pi resources → $PI_HOME"
 
