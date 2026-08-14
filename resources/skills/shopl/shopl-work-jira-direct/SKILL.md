@@ -32,6 +32,12 @@ Load credentials from the user's shell environment:
 - If the user wants child tickets, linked tickets under an epic, or names of subtasks/children, use `scripts/get-children.js`.
 - Return concise summaries unless the user asks for raw JSON.
 
+## QA 버그 리포트 본문
+
+- Shopl Jira의 QA task/버그 이슈 본문은 `description`이 아니라 **`버그 리포트`(`customfield_10037`)**에 저장될 수 있다.
+- QA/버그 티켓의 내용 요약 전에는 `description,customfield_10037,comment`를 함께 조회한다.
+- `description: null`만으로 본문이 없다고 결론 내리지 않는다. `customfield_10037`도 비어 있을 때만 본문 없음으로 안내한다.
+
 ## Commands
 
 ### Get one issue
@@ -40,10 +46,11 @@ Load credentials from the user's shell environment:
 node /Users/jimmylee/IdeaProjects/e-build/my-agent-prompt/resources/skills/shopl/shopl-work-jira-direct/scripts/get-issue.js SH-18398
 ```
 
-Optional fields:
+QA/버그 티켓 내용 조회:
 
 ```bash
-node /Users/jimmylee/IdeaProjects/e-build/my-agent-prompt/resources/skills/shopl/shopl-work-jira-direct/scripts/get-issue.js SH-18398 summary,status,assignee,parent,subtasks
+node /Users/jimmylee/IdeaProjects/e-build/my-agent-prompt/resources/skills/shopl/shopl-work-jira-direct/scripts/get-issue.js \
+  SH-18398 summary,status,assignee,parent,description,customfield_10037,comment
 ```
 
 ### Get child issues under a parent/epic
