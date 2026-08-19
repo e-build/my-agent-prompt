@@ -52,7 +52,7 @@ app-order/
 │   └── infrastructure/
 │       ├── PaymentClient          # 다른 도메인 조회용 클라이언트
 │       ├── InventoryClient        # core 모듈 사용
-│       └── OrderRepository        # infra 모듈 인터페이스
+│       └── OrderRepository        # 영속성 port (interface) — infra-jpa가 구현
 │
 ├── delivery/                      # 배송 도메인
 │   ├── api/
@@ -144,12 +144,12 @@ flowchart TB
 - **의존 규칙:** infrastructure 레이어만 의존
 
 #### infrastructure 레이어
-- **역할:** 외부 시스템 연동 어댑터
+- **역할:** 외부 시스템 연동 어댑터 (인터페이스 정의 포함)
 - **구성요소:**
   - core 모듈 클라이언트 (NotificationClient 등)
-  - infra 모듈 인터페이스 (Repository 등)
+  - 영속성 port (Repository interface — 구현은 infra-jpa 모듈)
   - 다른 도메인 조회 클라이언트 (InternalApi 호출)
-- **의존 규칙:** 외부 모듈(core, infra) 의존
+- **의존 규칙:** 외부 모듈(core) 의존. 단 infra 모듈 구현체를 직접 의존하지 않음 (헥사고널 — 구현은 app-boot가 런타임 조립)
 
 ---
 
@@ -434,35 +434,75 @@ sequenceDiagram
 
 ## JPA Entity 분리 전략
 
-**핵심 원칙:** Entity ≠ Domain Model
+**핵심 원칙:** Entity ≠ Domain Model — **헥사고널(포트·어댑터) 기준으로 배치한다.**
 
 | 구분 | 위치 | 역할 |
 |------|------|------|
 | Domain Model | `app/{도메인}/domain/model/` | 순수 비즈니스 객체 (Kotlin) |
+| Repository **port** (interface) | `app/{도메인}/infrastructure/` | 영속성 인터페이스 (구현 없음) |
 | Entity | `infra-jpa/` | JPA 영속성 객체 (@Entity) |
 | EntityMapper | `infra-jpa/` | Entity ↔ Domain Model 변환 |
+| Repository **구현** | `infra-jpa/` | JpaRepository + port 구현체 |
 
 ```mermaid
-flowchart LR
-    subgraph app["app 모듈"]
+flowchart TB
+    subgraph app["app 모듈 (도메인)"]
         DomainModel["Domain Model<br/>(순수 Kotlin)"]
+        Port["Repository port<br/>(interface)"]
     end
-    
+
     subgraph infra-jpa["infra-jpa 모듈"]
-        Entity["@Entity<br/>(JPA 영속성)"]
+        Adapter["RepositoryImpl<br/>(port 구현)"]
+        Entity["@Entity"]
         Mapper["EntityMapper"]
-        Repository["JpaRepository"]
+        JpaRepo["JpaRepository"]
     end
-    
-    DomainModel <-->|변환| Mapper
+
+    subgraph boot["app-boot 모듈"]
+        Assemble["런타임 조립<br/>(runtimeOnly)"]
+    end
+
+    Port -.->|구현| Adapter
+    DomainModel <-.->|변환| Mapper
     Mapper --> Entity
-    Entity --> Repository
+    Entity --> JpaRepo --> Adapter
+    infra-jpa -.->|"compileOnly(project(app))<br/>컴파일 시점 타입 참조만"| app
+    Assemble -->|runtimeOnly| infra-jpa
 ```
+
+### Gradle 의존 규칙 (핵심)
+
+```kotlin
+// app/{domain}/build.gradle.kts — infra를 모름 (순수 도메인)
+dependencies {
+    implementation(project(":core:core-web"))
+    // infra-jpa 의존 없음
+}
+
+// infra-jpa/build.gradle.kts — app을 compileOnly로만 참조
+dependencies {
+    compileOnly(project(":app:app-{domain}"))  // Domain Model + port 타입
+    api("org.springframework.boot:spring-boot-starter-data-jpa")
+}
+
+// app-boot/build.gradle.kts — 런타임 조립
+dependencies {
+    implementation(project(":app:app-{domain}"))
+    runtimeOnly(project(":infrastructure:infra-jpa"))
+}
+```
+
+**"infra → app 금지"와 모순 아닌 이유:**
+
+- `compileOnly`는 컴파일 시점 타입 참조만 제공하고, infra-jpa의 **소비자(app-boot 등)에게 app 의존이 전이되지 않는다.**
+- 런타임 의존 방향은 app-boot가 infra-jpa를 조립하는 방향(`runtimeOnly`)으로 유지된다.
+- 즉, `implementation(infra → app)` 같은 전이 노출은 금지이되, **매핑을 위한 `compileOnly`는 헥사고널 표준 예외**다.
+- 반대로 app 모듈이 `implementation(infra-jpa)`로 Entity를 직접 참조하는 것이 진짜 위반이다 (Domain Model 오염).
 
 이 분리를 통해:
 - **Domain Model은 JPA에 의존하지 않음** — 순수 Kotlin 객체로 유지
 - **테스트 시 JPA 없이 도메인 로직 테스트 가능** — 빠른 단위 테스트
-- **영속성 기술 교체 시 app 모듈 수정 불필요** — infra-jpa를 infra-mongodb로 교체해도 Domain Model은 변경 없음
+- **영속성 기술 교체 시 app 모듈 수정 불필요** — infra-jpa를 infra-mongodb로 교체해도 Domain Model/port는 변경 없음
 
 ### 변환 예시
 

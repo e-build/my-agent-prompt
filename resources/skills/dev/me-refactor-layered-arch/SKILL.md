@@ -45,17 +45,19 @@ Java/Kotlin Gradle 백엔드 프로젝트에 적용하는 개인 표준 아키�
 
 ```text
 app -> core -> infra -> support
-app -> infra
 app -> support
+app -> infra는 컴파일 시점 금지 (런타임 조립은 app-boot의 runtimeOnly)
+infra -> app은 compileOnly 매핑 의존만 예외 허용
 ```
 
 금지 기준:
 
 - `core -> app` 금지
-- `infra -> app` 금지
+- `infra -> app` 금지 — 단, 매핑용 `compileOnly` 의존은 예외 (EntityMapper가 app의 Domain Model/port 타입을 컴파일 시점에만 참조)
 - `infra -> core` 금지
 - `infra -> infra` 금지
 - `support -> app/core/infra` 금지
+- `app -> infra` 컴파일 시점 금지 (헥사고널) — app은 port interface만 알고, app-boot가 런타임에 infra를 조립
 
 ### 2. app 모듈 내부 구조
 
@@ -108,14 +110,15 @@ api -> application -> domain -> infrastructure
 - 경량 공통 값: `common/domain/model`에 Value Object 공유 가능
 - 복합 조회 응답: 필요 시 Controller/API 조합 허용하되 도메인 경계 훼손 금지
 
-### 5. JPA Entity 분리
+### 5. JPA Entity 분리 (헥사고널)
 
-기본 원칙은 `Entity != Domain Model`.
+기본 원칙은 `Entity != Domain Model`이며, 배치 기준은 다음과 같다.
 
-- Domain Model: `app/{domain}/domain/model/`
-- JPA Entity: `infra-jpa/`
-- EntityMapper: `infra-jpa/`
+- Domain Model + **Repository port(interface)**: `app/{domain}/domain/model/`, `app/{domain}/infrastructure/`
+- JPA Entity / EntityMapper / **Repository 구현체**: `infra-jpa/`
+- Gradle: **`infra-jpa → app`은 `compileOnly`만 허용** (매핑을 위한 컴파일 시점 타입 참조, 런타임 전이 없음). app 모듈은 infra-jpa를 의존하지 않고, app-boot가 `runtimeOnly(infra-jpa)`로 런타임 조립한다.
 - Domain Model은 JPA annotation, Spring persistence 기술에 의존하지 않음
+- 반대로 app 모듈이 `implementation(infra-jpa)`로 Entity를 직접 참조하는 것은 위반 (Domain Model 오염)
 
 ### 6. DTO/Enum 계층 분리 및 Mapper 변환
 
@@ -199,7 +202,11 @@ Facade는 유즈케이스 오케스트레이션(Reader/Service 호출 순서 조
    - 패키지 레이어 방향
    - 트랜잭션 경계 위치
    - 도메인 간 직접 참조 여부
-   - Entity/Domain Model 분리 여부
+   - Entity/Domain Model 분리 여부 (infra-jpa → app이 `compileOnly`인지, app이 infra-jpa를 의존하지 않는지)
+5. **빌드/기동 검증 — 문서만 고치고 끝내지 않는다**
+   - `./gradlew build` 성공 확인 (전체 모듈)
+   - boot 모듈 `./gradlew :app:app-boot:bootRun` 기동 확인 (조립 오류는 컴파일에서 안 터지고 기동에서 터진다)
+   - `./gradlew` 실행 시 "Unable to locate a Java Runtime"이면 JDK 17+ 설치 + `JAVA_HOME` 지정 후 재시도 (`jvmToolchain`은 빌드 JVM을 찾은 뒤에만 동작)
 
 ### Java 프로젝트에 적용할 때
 
@@ -208,6 +215,18 @@ Facade는 유즈케이스 오케스트레이션(Reader/Service 호출 순서 조
 - `data class` 예시는 Java record/class로 변환
 - Kotlin top-level/object 예시는 Java class/static factory로 변환
 - Spring annotation, Gradle 멀티모듈, 레이어/모듈 의존 규칙은 동일하게 유지
+
+## 실전 함정 (시행착오 기반 — 상세는 refs 참조)
+
+| 함정 | 한 줄 규칙 | 상세 |
+|---|---|---|
+| Entity 배치 모순 | Entity/매퍼/리포지토리 구현은 infra-jpa, port는 app, infra→app은 `compileOnly`만 | [application-architecture.md](refs/application-architecture.md) "JPA Entity 분리 전략" |
+| 비-boot 모듈 BOM | 루트에서 `implementation(platform(...))` 주입, `DependencyManagementExtension` 쓰지 않음 | [module-architecture.md](refs/module-architecture.md) "루트 build.gradle.kts" |
+| devtools 버전 미해결 | boot 모듈에서 `developmentOnly { extendsFrom(implementation) }` | [module-architecture.md](refs/module-architecture.md) "app-boot" |
+| 모듈 리네임 | `project(...).name=` 금지 — 경로까지 바뀌어 참조가 전부 깨짐. 디렉터리명을 바꾼다 | [module-architecture.md](refs/module-architecture.md) "모듈 디렉터리 계층화" |
+| 접두 방향 | 모듈명은 항상 그룹 접두 포함 (`app-boot`, `core-web`, `infra-jpa`), 디렉터리 경로 = 모듈 경로 | [module-architecture.md](refs/module-architecture.md) "네이밍 컨벤션" |
+| app-boot 중복 의존 | boot = `implementation(app)` + `runtimeOnly(infra)` + 프레임워크 직접 선언 | [module-architecture.md](refs/module-architecture.md) "app-boot" |
+| JAVA_HOME | `./gradlew` 실패 시 JDK 17+ / `JAVA_HOME` 먼저 확인 | [module-architecture.md](refs/module-architecture.md) "루트 build.gradle.kts" |
 
 ## 응답 형식
 

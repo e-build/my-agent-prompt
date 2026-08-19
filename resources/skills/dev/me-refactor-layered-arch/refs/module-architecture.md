@@ -82,7 +82,8 @@ flowchart TB
     app-boot --> app-product
     app-boot --> app-payment
     app-order --> core
-    app-order --> infra
+    app-product --> core
+    app-payment --> core
     core --> infra
     app --> support
     core --> support
@@ -91,16 +92,18 @@ flowchart TB
 
 모듈 그룹 간 의존성은 **위에서 아래로 단방향**으로만 흐른다.
 
+> **헥사고널 전제:** app 비즈니스 모듈은 infra를 컴파일 시점에 의존하지 않는다 (port·어댑터 분리). infra 모듈이 app 타입을 참조해야 할 때는 `compileOnly`만 허용한다. 런타임 조립은 app-boot가 `runtimeOnly`로 담당한다.
+
 ```mermaid
 flowchart LR
     app-boot --> app-order
     app-order --> core
-    app-order --> infra
     core --> infra
     app-boot --> support
     app-order --> support
     core --> support
-    infra --> support
+    infra -.->|compileOnly 예외| app-order
+    app-boot -.->|runtimeOnly 조립| infra
 ```
 
 ---
@@ -109,7 +112,7 @@ flowchart LR
 
 ### app 모듈 그룹
 
-**성격:** 비즈니스 로직. 각 app은 독립된 배포 단위. core, infra, support 모두 의존 가능.
+**성격:** 비즈니스 로직. 각 app은 독립된 배포 단위. core, support 의존 가능. **infra는 컴파일 시점 비의존** (헥사고널) — 런타임에 app-boot가 조립한다.
 
 | 모듈 | 성격 | 포함 내용 |
 |------|------|----------|
@@ -172,21 +175,24 @@ flowchart LR
 
 | From | To | 허용 | 설명 |
 |------|----|:----:|------|
-| app-boot | 전체 | O | 조립 전용, 모든 모듈 의존 |
+| app-boot | app | O | 조립 대상 비즈니스 모듈 (`implementation`) |
+| app-boot | infra | O | 런타임 조립 (`runtimeOnly`) |
+| app-boot | core · support | O | 조립 전용이므로 모두 의존 가능 |
 | app | core | O | 공통 컴포넌트 사용 (tx, resilience, notification, cache, event 등) |
-| app | infra | O | DB 등 직접 접근 가능 |
+| app | infra | **X** | 컴파일 시점 금지 (헥사고널). port interface만 알고 구현은 app-boot가 런타임 조립 |
 | app | support | O | 로깅 등 cross-cutting 유틸리티 |
 | core | infra | O | infra 조합해서 고수준 기능 제공 |
 | core | support | O | cross-cutting 유틸리티 |
 | core | app | **X** | **역방향 의존 금지** |
 | infra | support | O | cross-cutting 유틸리티 |
-| infra | app | **X** | **역방향 의존 금지** |
+| infra | app | **X** | **역방향 의존 금지 — 단, 매핑용 `compileOnly`는 예외** (EntityMapper가 Domain Model/port 타입을 컴파일 시점에만 참조, 런타임 전이 없음) |
 | infra | core | **X** | **역방향 의존 금지** |
 | infra | infra | **X** | **infra 간 의존 금지** |
 
 **핵심 원칙:**
 - **단방향 의존:** app → core → infra → support
-- **역방향 의존 금지:** 하위 모듈이 상위 모듈을 참조할 수 없음
+- **역방향 의존 금지:** 하위 모듈이 상위 모듈을 참조할 수 없음 (유일한 예외: infra → app `compileOnly` 매핑 의존)
+- **app은 infra를 컴파일 시점에 모름:** 영속성 구현은 port(interface)로 추상화하고 app-boot가 런타임 조립
 - **infra 간 의존 금지:** infra 모듈끼리 서로 참조 불가
 - **core 재사용:** core는 app을 모르므로 다른 프로젝트에서 재사용 가능
 
@@ -196,65 +202,131 @@ flowchart LR
 
 ## Gradle 의존성 설정
 
+### 루트 build.gradle.kts — 버전/BOM 관리 (모든 모듈의 기반)
+
+boot 플러그인이 없는 비-boot 모듈은 BOM을 상속받지 못하므로, **루트에서 `platform()`으로 일괄 주입**한다.
+
+```kotlin
+// 루트 build.gradle.kts
+plugins {
+    id("org.springframework.boot") version "3.4.4" apply false
+    kotlin("jvm") version "1.9.25" apply false
+    kotlin("plugin.spring") version "1.9.25" apply false
+    kotlin("plugin.jpa") version "1.9.25" apply false
+}
+
+val springBootVersion = "3.4.4"
+
+allprojects {
+    group = "com.example"
+    version = "0.0.1-SNAPSHOT"
+    repositories { mavenCentral() }
+}
+
+// 리프 모듈(실제 코드를 담은 모듈)에만 공통 적용
+configure(subprojects.filter { it.childProjects.isEmpty() }) {
+    apply(plugin = "org.jetbrains.kotlin.jvm")
+
+    dependencies {
+        // ⚠️ io.spring.gradle.dependency-management의
+        // configure<DependencyManagementExtension>는 boot 플러그인 미적용 모듈에서
+        // Unresolved reference가 난다 — platform()으로 BOM을 주입한다.
+        "implementation"(platform("org.springframework.boot:spring-boot-dependencies:$springBootVersion"))
+    }
+
+    configure<org.jetbrains.kotlin.gradle.dsl.KotlinJvmProjectExtension> {
+        jvmToolchain(17)
+    }
+}
+```
+
+> **함정 1 — BOM 미상속:** boot 플러그인이 없는 모듈에서 `org.springframework.boot:spring-boot-starter-web`을 버전 없이 쓰면 `Could not find ...` 오류가 난다. 루트의 `platform()` 주입으로 해결한다.
+>
+> **함정 2 — JAVA_HOME:** `./gradlew` 실행 시 "Unable to locate a Java Runtime"이면 JDK 17+ 설치 및 `JAVA_HOME` 지정이 필요하다. `jvmToolchain(17)`은 빌드 JVM은 찾은 뒤에만 동작한다.
+
 ### app-boot (조립 전용)
 
 ```kotlin
-// app-boot/build.gradle.kts
+// app/app-boot/build.gradle.kts
+plugins {
+    id("org.springframework.boot")
+    kotlin("plugin.spring")
+}
+
+configurations {
+    // 함정 3 — boot 플러그인의 developmentOnly는 BOM을 상속받지 않아
+    // devtools 버전이 미해결("Could not find ...:spring-boot-devtools:.")된다.
+    // implementation(→ platform 포함)을 상속시켜 버전을 푼다.
+    developmentOnly {
+        extendsFrom(configurations.implementation.get())
+    }
+}
+
 dependencies {
-    implementation(project(":app-order"))
-    implementation(project(":app-product"))
-    runtimeOnly(project(":core-notification"))
-    runtimeOnly(project(":core-event"))
-    runtimeOnly(project(":infra-jpa"))
-    runtimeOnly(project(":infra-kafka"))
-    implementation(project(":support-logging"))
+    // ① 비즈니스 모듈은 implementation (조립 대상)
+    implementation(project(":app:app-order"))
+    implementation(project(":app:app-product"))
+
+    // ② 인프라 선택은 runtimeOnly (런타임 조립 — 코드에서 참조 금지 강제)
+    runtimeOnly(project(":infrastructure:infra-jpa"))
+
+    // ③ 프레임워크 의존은 boot가 직접 선언 (app 모듈에 위임하지 않음)
+    implementation("org.springframework.boot:spring-boot-starter-web")
+
+    developmentOnly("org.springframework.boot:spring-boot-devtools")
+
+    testImplementation("org.springframework.boot:spring-boot-starter-test")
 }
 ```
 
-> `runtimeOnly`를 사용하면 app-boot의 컴파일 시점에는 해당 모듈을 참조하지 않으므로, 조립 전용이라는 역할을 코드 레벨에서 강제할 수 있다.
+> **app-boot 원칙 (헥사고널):**
+> - `implementation(app-*)` — 조립 대상 비즈니스 모듈
+> - `runtimeOnly(infra-*)` — 런타임에만 조립할 인프라 선택 (컴파일 시점 참조 차단)
+> - 프레임워크(starter-web 등)는 boot가 직접 선언 — app 비즈니스 모듈에 중복 선언하지 않음
+> - `runtimeOnly`는 "코드에서 타입을 쓰지 않는 순수 런타임 조각/인프라 선택" 전용. 타입을 참조해야 하면 `implementation`이다.
 
-### app-order (비즈니스 로직)
+### app-order (비즈니스 로직 — infra를 모름)
 
 ```kotlin
-// app-order/build.gradle.kts
+// app/app-order/build.gradle.kts
+plugins {
+    kotlin("plugin.spring")
+}
+
 dependencies {
-    implementation(project(":core-event"))
-    implementation(project(":core-notification"))
-    implementation(project(":infra-jpa"))       // DB 직접 접근
-    implementation(project(":support-logging"))
+    implementation(project(":core:core-web"))
+    implementation(project(":core:core-event"))
+    implementation(project(":support:support-logging"))
+    // ⚠️ infra-jpa 의존 금지 — Repository port(interface)만 알고,
+    // 구현은 app-boot가 runtimeOnly(infra-jpa)로 런타임 조립한다 (헥사고널).
 }
 ```
 
-### core-notification (공통 컴포넌트)
+### infra-jpa (외부 시스템 연동 — app을 compileOnly로만 참조)
 
 ```kotlin
-// core-notification/build.gradle.kts
-dependencies {
-    implementation(project(":infra-slack"))
-    implementation(project(":infra-email"))
-    implementation(project(":support-logging"))
-}
-```
+// infrastructure/infra-jpa/build.gradle.kts
+plugins {}
 
-### infra-* (외부 시스템 연동)
-
-```kotlin
-// infra-jpa/build.gradle.kts
 dependencies {
-    implementation(project(":support-logging"))
-    // 외부 라이브러리만 의존
-    implementation("org.springframework.boot:spring-boot-starter-data-jpa")
+    // 헥사고널: EntityMapper/RepositoryImpl이 app의 Domain Model + port 타입을
+    // 컴파일 시점에만 참조한다. implementation이면 app 의존이 소비자에게 전이되어
+    // "infra → app 금지" 위반이 된다.
+    compileOnly(project(":app:app-order"))
+
+    api("org.springframework.boot:spring-boot-starter-data-jpa")
     runtimeOnly("org.postgresql:postgresql")
 }
 ```
 
-### api() vs implementation() 사용 기준
+### api() vs implementation() vs compileOnly() 사용 기준
 
 | 스코프 | 용도 | 예시 |
 |--------|------|------|
-| `api()` | 전이적 인터페이스 노출이 필요할 때 | infra 모듈이 app 모듈의 인터페이스를 전이적으로 제공해야 할 때 |
-| `implementation()` | 내부 구현 의존 | 대부분의 모듈 간 의존 |
-| `runtimeOnly()` | 런타임에만 필요한 조립용 의존 | app-boot에서 자동구성 모듈 등록 |
+| `api()` | 전이적 인터페이스 노출이 필요할 때 | infra-jpa가 app 모듈의 인터페이스를 전이적으로 제공해야 할 때 |
+| `implementation()` | 내부 구현 의존 | 대부분의 모듈 간 의존, boot의 app 모듈 의존 |
+| `compileOnly()` | 컴파일 시점 타입 참조만 (런타임 전이 없음) | infra → app 매핑 의존 (EntityMapper가 Domain Model/port 참조) |
+| `runtimeOnly()` | 런타임에만 필요한 조립용 의존 | app-boot에서 인프라 모듈 등록 (순수 런타임 조각/인프라 선택 전용) |
 
 ---
 
@@ -268,6 +340,43 @@ dependencies {
 | core | core-web, core-notification, core-tx, core-event | 공통 컴포넌트 |
 | infra | infra-jpa, infra-redis, infra-kafka, infra-s3 | 외부 시스템 어댑터 |
 | support | support-logging, support-util, support-test | 횡단 관심사 |
+
+### 모듈 디렉터리 계층화 — 정답 레시피
+
+**규칙: Gradle 모듈 경로 = 디렉터리 경로, 디렉터리명 = 모듈명(접두 포함).** 별도 매핑 없이 `include`만 쓴다.
+
+```text
+backend/
+├── settings.gradle.kts
+├── app/                    # 그룹 디렉터리 (소문자)
+│   ├── app-boot/           # 모듈 디렉터리 = 모듈명
+│   └── app-order/
+├── core/
+│   └── core-web/
+├── infrastructure/         # 그룹 디렉터리는 예외적으로 풀네임 허용
+│   └── infra-jpa/
+└── support/
+    └── support-logging/
+```
+
+```kotlin
+// settings.gradle.kts — 경로가 디렉터리와 동일하므로 이것만으로 끝
+include(
+    ":app:app-boot",
+    ":app:app-order",
+    ":core:core-web",
+    ":infrastructure:infra-jpa",
+    ":support:support-logging",
+)
+```
+
+**금지 사항 (실제로 겪은 시행착오):**
+
+| 금지 | 이유 |
+|------|------|
+| `project(":core:web").name = "core-web"` 리네임 | Gradle에서 `.name` 변경은 **경로까지 변경**한다 (`:core:web` → `:core:core-web`). 기존 `project(":core:web")` 참조가 전부 깨진다. 이름을 바꾸려면 디렉터리명을 바꾸고 include 경로를 고친다. |
+| `projectDir` 매핑으로 이중 네이밍 (`:app:order` → 디렉터리 `app-order`) | 디렉터리명 ≠ 모듈명인 2중 네이밍이 생겨 혼란의 원인이 된다. 매핑이 필요하면 구조가 잘못된 것이다. |
+| 접두 제거로 "통일" (`:app:boot`) | 접두는 그룹 소속 식별자다. `app-boot`, `core-web`, `infra-jpa`처럼 **모듈명에는 항상 그룹 접두를 붙인다.** 그룹 디렉터리명(`infrastructure`)과 모듈 접두(`infra-`)가 다른 것은 허용한다. |
 
 ### 패키지 컨벤션
 
