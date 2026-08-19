@@ -92,7 +92,7 @@ flowchart TB
 
 모듈 그룹 간 의존성은 **위에서 아래로 단방향**으로만 흐른다.
 
-> **헥사고널 전제:** app 비즈니스 모듈은 infra를 컴파일 시점에 의존하지 않는다 (port·어댑터 분리). infra 모듈이 app 타입을 참조해야 할 때는 `compileOnly`만 허용한다. 런타임 조립은 app-boot가 `runtimeOnly`로 담당한다.
+> **헥사고널 전제 (자가완결형 도메인 모듈):** app 비즈니스 모듈은 infra를 컴파일 시점에 의존하지 않는다 (port·어댑터 분리). infra 모듈이 app 타입을 참조해야 할 때는 `compileOnly`만 허용한다. 각 app 도메인 모듈은 **자기 port의 구현 infra를 `runtimeOnly`로 직접 탑승**한다 (Spring Boot starter 방식) — infra는 소비자(app-boot)의 런타임 클래스패스로 전이되며, app-boot는 비즈니스 모듈만 `implementation`으로 조립한다.
 
 ```mermaid
 flowchart LR
@@ -103,7 +103,7 @@ flowchart LR
     app-order --> support
     core --> support
     infra -.->|compileOnly 예외| app-order
-    app-boot -.->|runtimeOnly 조립| infra
+    app-order -.->|runtimeOnly 자가완결 탑승| infra
 ```
 
 ---
@@ -112,7 +112,7 @@ flowchart LR
 
 ### app 모듈 그룹
 
-**성격:** 비즈니스 로직. 각 app은 독립된 배포 단위. core, support 의존 가능. **infra는 컴파일 시점 비의존** (헥사고널) — 런타임에 app-boot가 조립한다.
+**성격:** 비즈니스 로직. 각 app은 독립된 배포 단위. core, support 의존 가능. **infra는 컴파일 시점 비의존·런타임만 의존** (헥사고널 자가완결형) — 자기 port의 구현 infra를 `runtimeOnly`로 탑승하고, infra 쪽에서 `compileOnly`로 port를 구현한다.
 
 | 모듈 | 성격 | 포함 내용 |
 |------|------|----------|
@@ -176,10 +176,10 @@ flowchart LR
 | From | To | 허용 | 설명 |
 |------|----|:----:|------|
 | app-boot | app | O | 조립 대상 비즈니스 모듈 (`implementation`) |
-| app-boot | infra | O | 런타임 조립 (`runtimeOnly`) |
-| app-boot | core · support | O | 조립 전용이므로 모두 의존 가능 |
+| app-boot | infra | **X** (원칙) | infra 직접 선언 불가 — 각 app 모듈의 `runtimeOnly`가 런타임 클래스패스로 전이한다 (자가완결형) |
+| app-boot | core · support | O | 조립 전용이므로 core · support 의존 가능 (infra는 제외 — app 모듈이 전이) |
 | app | core | O | 공통 컴포넌트 사용 (tx, resilience, notification, cache, event 등) |
-| app | infra | **X** | 컴파일 시점 금지 (헥사고널). port interface만 알고 구현은 app-boot가 런타임 조립 |
+| app | infra | 런타임만 | **컴파일 시점 금지 (헥사고널)** — 자기 port의 구현 infra를 `runtimeOnly`로만 탑승 (타입 참조 불가, 기동 시 어댑터 제공). port당 구현 1개만 |
 | app | support | O | 로깅 등 cross-cutting 유틸리티 |
 | core | infra | O | infra 조합해서 고수준 기능 제공 |
 | core | support | O | cross-cutting 유틸리티 |
@@ -192,7 +192,7 @@ flowchart LR
 **핵심 원칙:**
 - **단방향 의존:** app → core → infra → support
 - **역방향 의존 금지:** 하위 모듈이 상위 모듈을 참조할 수 없음 (유일한 예외: infra → app `compileOnly` 매핑 의존)
-- **app은 infra를 컴파일 시점에 모름:** 영속성 구현은 port(interface)로 추상화하고 app-boot가 런타임 조립
+- **app은 infra를 컴파일 시점에 모름:** 영속성 구현은 port(interface)로 추상화하고, 각 app 도메인 모듈이 자기 구현 infra를 `runtimeOnly`로 자가완결 탑승
 - **infra 간 의존 금지:** infra 모듈끼리 서로 참조 불가
 - **core 재사용:** core는 app을 모르므로 다른 프로젝트에서 재사용 가능
 
@@ -267,8 +267,8 @@ dependencies {
     implementation(project(":app:app-order"))
     implementation(project(":app:app-product"))
 
-    // ② 인프라 선택은 runtimeOnly (런타임 조립 — 코드에서 참조 금지 강제)
-    runtimeOnly(project(":infrastructure:infra-jpa"))
+    // ② infra는 선언하지 않는다 (자가완결형) — 각 app 모듈의 runtimeOnly가
+    //    소비자(app-boot) 런타임 클래스패스로 전이한다
 
     // ③ 프레임워크 의존은 boot가 직접 선언 (app 모듈에 위임하지 않음)
     implementation("org.springframework.boot:spring-boot-starter-web")
@@ -279,13 +279,13 @@ dependencies {
 }
 ```
 
-> **app-boot 원칙 (헥사고널):**
+> **app-boot 원칙 (헥사고널 자가완결형):**
 > - `implementation(app-*)` — 조립 대상 비즈니스 모듈
-> - `runtimeOnly(infra-*)` — 런타임에만 조립할 인프라 선택 (컴파일 시점 참조 차단)
+> - infra 직접 선언 금지 — 각 app 모듈의 `runtimeOnly(infra-*)`가 런타임 클래스패스로 전이한다
 > - 프레임워크(starter-web 등)는 boot가 직접 선언 — app 비즈니스 모듈에 중복 선언하지 않음
-> - `runtimeOnly`는 "코드에서 타입을 쓰지 않는 순수 런타임 조각/인프라 선택" 전용. 타입을 참조해야 하면 `implementation`이다.
+> - 트레이드오프: 런타임 매니페스트가 boot 한 곳에 모이지 않는다 — "뭐가 탑승했는가"는 각 app 모듈 빌드 파일에서 확인한다. 대신 신규 도메인 추가 시 boot는 1줄(`implementation(app-x)`)로 끝난다.
 
-### app-order (비즈니스 로직 — infra를 모름)
+### app-order (비즈니스 로직 — infra를 컴파일 시점에 모름, 런타임 자가완결)
 
 ```kotlin
 // app/app-order/build.gradle.kts
@@ -297,8 +297,13 @@ dependencies {
     implementation(project(":core:core-web"))
     implementation(project(":core:core-event"))
     implementation(project(":support:support-logging"))
-    // ⚠️ infra-jpa 의존 금지 — Repository port(interface)만 알고,
-    // 구현은 app-boot가 runtimeOnly(infra-jpa)로 런타임 조립한다 (헥사고널).
+
+    // 자가완결형 (헥사고널): 내 port(Repository interface)의 구현 infra를
+    // runtimeOnly로 탑승 — 컴파일 시점 타입 참조는 없고, 기동 시 어댑터가
+    // 소비자(boot 포함) 런타임 클래스패스로 전이된다.
+    // ⚠️ implementation으로 바꾸면 Entity가 도메인으로 스며든다 (금지).
+    // ⚠️ 같은 port의 구현을 둘 이상 탑승하면 bean 충돌로 기동 실패 — port당 1개만.
+    runtimeOnly(project(":infrastructure:infra-jpa"))
 }
 ```
 
@@ -326,7 +331,7 @@ dependencies {
 | `api()` | 전이적 인터페이스 노출이 필요할 때 | infra-jpa가 app 모듈의 인터페이스를 전이적으로 제공해야 할 때 |
 | `implementation()` | 내부 구현 의존 | 대부분의 모듈 간 의존, boot의 app 모듈 의존 |
 | `compileOnly()` | 컴파일 시점 타입 참조만 (런타임 전이 없음) | infra → app 매핑 의존 (EntityMapper가 Domain Model/port 참조) |
-| `runtimeOnly()` | 런타임에만 필요한 조립용 의존 | app-boot에서 인프라 모듈 등록 (순수 런타임 조각/인프라 선택 전용) |
+| `runtimeOnly()` | 런타임에만 필요한 의존 (컴파일 시점 타입 참조 불가, 소비자 런타임 클래스패스로 전이) | app 도메인 모듈이 자기 port의 구현 infra 탑승 (자가완결형) |
 
 ---
 

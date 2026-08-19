@@ -149,7 +149,7 @@ flowchart TB
   - core 모듈 클라이언트 (NotificationClient 등)
   - 영속성 port (Repository interface — 구현은 infra-jpa 모듈)
   - 다른 도메인 조회 클라이언트 (InternalApi 호출)
-- **의존 규칙:** 외부 모듈(core) 의존. 단 infra 모듈 구현체를 직접 의존하지 않음 (헥사고널 — 구현은 app-boot가 런타임 조립)
+- **의존 규칙:** 외부 모듈(core) 의존. 단 infra 모듈 구현체를 컴파일 시점에 의존하지 않음 (헥사고널 — 구현 infra는 자기 모듈의 `runtimeOnly`로 탑승, 런타임 전이만)
 
 ---
 
@@ -458,25 +458,21 @@ flowchart TB
         JpaRepo["JpaRepository"]
     end
 
-    subgraph boot["app-boot 모듈"]
-        Assemble["런타임 조립<br/>(runtimeOnly)"]
-    end
-
     Port -.->|구현| Adapter
     DomainModel <-.->|변환| Mapper
     Mapper --> Entity
     Entity --> JpaRepo --> Adapter
     infra-jpa -.->|"compileOnly(project(app))<br/>컴파일 시점 타입 참조만"| app
-    Assemble -->|runtimeOnly| infra-jpa
+    app -.->|"runtimeOnly(infra-jpa)<br/>자가완결 탑승 (런타임 전이)"| infra-jpa
 ```
 
 ### Gradle 의존 규칙 (핵심)
 
 ```kotlin
-// app/{domain}/build.gradle.kts — infra를 모름 (순수 도메인)
+// app/{domain}/build.gradle.kts — infra는 컴파일 시점에 모름, 런타임만 자가완결 탑승
 dependencies {
     implementation(project(":core:core-web"))
-    // infra-jpa 의존 없음
+    runtimeOnly(project(":infrastructure:infra-jpa"))  // 내 port의 구현 — 타입 참조 없음
 }
 
 // infra-jpa/build.gradle.kts — app을 compileOnly로만 참조
@@ -485,17 +481,16 @@ dependencies {
     api("org.springframework.boot:spring-boot-starter-data-jpa")
 }
 
-// app-boot/build.gradle.kts — 런타임 조립
+// app-boot/build.gradle.kts — 비즈니스 모듈만 조립 (infra는 app 모듈에서 전이됨)
 dependencies {
     implementation(project(":app:app-{domain}"))
-    runtimeOnly(project(":infrastructure:infra-jpa"))
 }
 ```
 
 **"infra → app 금지"와 모순 아닌 이유:**
 
 - `compileOnly`는 컴파일 시점 타입 참조만 제공하고, infra-jpa의 **소비자(app-boot 등)에게 app 의존이 전이되지 않는다.**
-- 런타임 의존 방향은 app-boot가 infra-jpa를 조립하는 방향(`runtimeOnly`)으로 유지된다.
+- 런타임 의존은 app 도메인 모듈이 자기 port의 구현 infra를 `runtimeOnly`로 탑승하는 방향으로 유지되며, 소비자(app-boot) 런타임 클래스패스로 전이된다 (Spring Boot starter 방식).
 - 즉, `implementation(infra → app)` 같은 전이 노출은 금지이되, **매핑을 위한 `compileOnly`는 헥사고널 표준 예외**다.
 - 반대로 app 모듈이 `implementation(infra-jpa)`로 Entity를 직접 참조하는 것이 진짜 위반이다 (Domain Model 오염).
 
