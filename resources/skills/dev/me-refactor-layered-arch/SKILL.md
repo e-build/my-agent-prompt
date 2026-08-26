@@ -46,6 +46,7 @@ Java/Kotlin Gradle 백엔드 프로젝트에 적용하는 개인 표준 아키�
 ```text
 app -> core -> infra -> support
 app -> support
+app -> app은 읽기 전용 internal API 경유만 허용 (순환 금지 — 상세는 refs/module-architecture.md)
 app -> infra는 컴파일 시점 금지 — 자기 port의 구현을 runtimeOnly로 자가완결 탑승 (런타임 전이)
 infra -> app은 compileOnly 매핑 의존만 예외 허용
 ```
@@ -70,12 +71,22 @@ app-order/
 │   │   ├── http/
 │   │   └── internal/
 │   ├── application/
-│   ├── domain/
+│   ├── domain/            # 평평 구조 — Reader/Writer·일반 도메인 서비스가 루트에 위치
+│   │   ├── OrderReader.kt      # (예) Reader — DB 접근 도메인 서비스
+│   │   ├── OrderWriter.kt      # (예) Writer — DB 접근 도메인 서비스
+│   │   ├── PricingService.kt   # (예) 일반 도메인 서비스 — 순수 절차 로직
 │   │   ├── model/
-│   │   └── service/
+│   │   └── exception/          # 도메인 예외 (공통 BusinessException 상속 허용)
 │   └── infrastructure/
 └── common/
 ```
+
+**도메인 서비스 2종류 (domain/ 루트, 서로 의존 금지):**
+
+- **Reader/Writer**: DB에 의존하는 도메인 서비스가 반복·빈발하므로 별도 명명으로 구분 운영한다. 조회/저장을 port에 위임하는 얇은 래퍼. **Facade만 주입·호출**한다
+- **일반(절차) 도메인 서비스**: 복잡한 절차·정책의 순수 로직 담당 — **도메인 모델만 파라미터로 받아 처리**하며 Reader/Writer·Repository를 의존하지 않는다
+
+**Facade의 역할**: domain service·domain model을 활용해 로직의 절차를 가독성 있게 나열하는 레이어 — `Reader 로드 → 도메인 서비스/모델 메서드 호출 → Writer 저장`의 I/O 절차 조립 (§7 참조)
 
 레이어 의존 방향:
 
@@ -88,6 +99,7 @@ api -> application -> domain -> infrastructure
 - 역방향 의존 금지
 - 레이어 건너뛰기 금지
 - 다른 도메인의 동일 레이어 직접 참조 금지
+- **같은 도메인 내 동일 레이어 컴포넌트 간 의존 금지** — 도메인 서비스 → Reader/Writer 등 같은 계층 의존은 금지, 조립은 Facade가 한다. 단 infrastructure 구성요소(port·다른 도메인 조회 클라이언트) 의존은 정방향이므로 허용
 - Controller가 Domain Service/Repository 직접 호출 금지
 - Domain Model이 DTO/Command/View에 의존 금지
 - **application 계층(Facade, Command)이 api 계층의 Request/Response DTO에 직접 의존 금지** — Command는 domain model 타입만 참조한다. API DTO → Command 변환은 api 계층의 Mapper에서 끝낸다.
@@ -129,6 +141,7 @@ API 계층의 Request/Response DTO( Jackson 역직렬화, Swagger 문서화 전�
 - API request enum은 api 계층 전용. domain enum은 별도 존재.
 - Facade/Command는 domain enum만 참조.
 - API DTO → domain model 변환은 api 계층의 Mapper가 담당.
+- **비즈니스 필드 규칙(길이·형식 등)의 검증은 도메인 모델이 소유** — DTO Bean Validation(@NotBlank/@Size)을 비즈니스 규칙에 쓰면 계약 에러 코드 대신 공통 형식 오류로 떨어진다. DTO는 JSON 구조 검증만 담당 (상세: refs/application-architecture.md "DTO 검증 소유권")
 - 변환은 보통 `EnumType.valueOf(other.name)` 패턴 (상수명 동일 가정).
 
 **이름 충돌 해결 — nested API enum 패턴:**
@@ -157,13 +170,13 @@ enum class TableSortType { NAME, CODE, COUNT }  // top-level
 
 ### 7. Facade 헬퍼 추출 기준
 
-Facade는 유즈케이스 오케스트레이션(Reader/Service 호출 순서 조립)만 담당한다. 순수 로직이 Facade에 쌓이면 별도 서비스로 추출한다.
+Facade는 domain service·domain model을 활용해 유즈케이스 절차를 가독성 있게 나열하는 레이어다. I/O 조립(Reader 로드 → 순수 로직 → Writer 저장)은 Facade가 직접 수행하고, 순수 로직이 Facade에 쌓이면 도메인 서비스로 추출한다.
 
 **추출 대상 (Facade에 두지 않는 것):**
 
-- 순수 후처리 로직: filter / sort / paginate / merge / transform / map
-- 이 로직들이 DB/Repository/외부 의존 없이 입력→출력만 처리하면 **domain service**로 추출.
-- Reader/Repository 의존이 포함되면 **application service**로 추출.
+- 순수 후처리·절차 로직: filter / sort / paginate / merge / transform / 계산·정책 검증
+- 이 로직들이 **도메인 모델만 파라미터로 받아 처리하면 domain service로 추출** — Reader/Writer나 Repository를 의존하지 않는 순수 형태여야 한다
+- repo I/O 조립은 별도 서비스로 추출하지 않는다 — Facade가 Reader/Writer를 직접 호출한다 (Reader/Writer 자체가 DB 접근 도메인 서비스의 특화 명명 — §2 참조)
 
 **추출 신호:**
 
@@ -173,7 +186,7 @@ Facade는 유즈케이스 오케스트레이션(Reader/Service 호출 순서 조
 
 **이점:**
 
-- Facade는 파이프라인 조립만 남아 읽기 쉬워짐
+- Facade는 절차 나열만 남아 읽기 쉬워짐
 - 추출된 domain service는 순수 단위 테스트로 검증 가능 (DB 불필요)
 - 블록 간 재사용 가능 (예: 동일한 sort/pagination 로직)
 
@@ -245,6 +258,7 @@ Facade는 유즈케이스 오케스트레이션(Reader/Service 호출 순서 조
 - 표준과 다른 구조를 임의로 새로 발명하지 않음
 - `Service` 이름을 application orchestration과 domain logic에 혼용하지 않음
 - 편의를 위해 Controller에서 Repository/Domain Service 직접 호출하지 않음
+- **도메인 서비스끼리 의존하지 않음** — 도메인 서비스(Reader/Writer 포함)는 도메인 모델에만 의존한다. infra 구성요소(port·조회 클라이언트)는 정방향 의존이라 허용. 여러 서비스 조립이 필요하면 Facade가 한다
 - infra 모듈에 비즈니스 로직을 넣지 않음
 - support 모듈에 Spring application/domain 의존성을 넣지 않음
 - JPA Entity를 Domain Model처럼 app 내부에서 직접 사용하지 않음

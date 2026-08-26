@@ -179,6 +179,7 @@ flowchart LR
 | app-boot | infra | **X** (원칙) | infra 직접 선언 불가 — 각 app 모듈의 `runtimeOnly`가 런타임 클래스패스로 전이한다 (자가완결형) |
 | app-boot | core · support | O | 조립 전용이므로 core · support 의존 가능 (infra는 제외 — app 모듈이 전이) |
 | app | core | O | 공통 컴포넌트 사용 (tx, resilience, notification, cache, event 등) |
+| app | app | 읽기만 | **도메인 간 읽기 통신만 허용** — `implementation(app 모듈)`으로 상대 도메인의 `api/internal` InternalApi(읽기 전용 인터페이스)를 경유 조회할 때만. 순환 의존 금지, 상대 도메인 내부(domain/application/infra) 직접 참조 금지 |
 | app | infra | 런타임만 | **컴파일 시점 금지 (헥사고널)** — 자기 port의 구현 infra를 `runtimeOnly`로만 탑승 (타입 참조 불가, 기동 시 어댑터 제공). port당 구현 1개만 |
 | app | support | O | 로깅 등 cross-cutting 유틸리티 |
 | core | infra | O | infra 조합해서 고수준 기능 제공 |
@@ -191,7 +192,8 @@ flowchart LR
 
 **핵심 원칙:**
 - **단방향 의존:** app → core → infra → support
-- **역방향 의존 금지:** 하위 모듈이 상위 모듈을 참조할 수 없음 (유일한 예외: infra → app `compileOnly` 매핑 의존)
+- **app→app은 읽기 전용 internal API 경유만:** 다른 app 모듈을 의존할 수 있는 경우는 상대 도메인의 `api/internal` InternalApi(동기 조회)를 호출할 때뿐이다. 순환 의존 금지 — 통신 방향이 얽히면 소유 경계 재검토
+- **역방향 의존 금지:** 하위 모듈이 상위 모듈을 참조할 수 없음 (예외 2건: infra → app `compileOnly` 매핑 의존, app → app 읽기 internal API)
 - **app은 infra를 컴파일 시점에 모름:** 영속성 구현은 port(interface)로 추상화하고, 각 app 도메인 모듈이 자기 구현 infra를 `runtimeOnly`로 자가완결 탑승
 - **infra 간 의존 금지:** infra 모듈끼리 서로 참조 불가
 - **core 재사용:** core는 app을 모르므로 다른 프로젝트에서 재사용 가능

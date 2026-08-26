@@ -42,13 +42,16 @@ app-order/
 │   ├── application/
 │   │   ├── OrderFacade            # 유즈케이스 시작점
 │   │   └── OrderCommand
-│   ├── domain/
+│   ├── domain/                   # 평평 구조 — Reader/Writer·일반 도메인 서비스가 루트에 위치
+│   │   ├── OrderReader           # Reader — DB 접근 도메인 서비스 (port 래퍼)
+│   │   ├── OrderWriter           # Writer — DB 접근 도메인 서비스 (port 래퍼)
+│   │   ├── PricingService        # 일반 도메인 서비스 — 순수 절차 로직 (모델만 파라미터)
 │   │   ├── model/
 │   │   │   ├── Order
 │   │   │   └── view/
 │   │   │       └── OrderSummaryView
-│   │   └── service/
-│   │       └── OrderService
+│   │   └── exception/
+│   │       └── OrderExceptions   # 도메인 예외 (공통 BusinessException 상속 허용)
 │   └── infrastructure/
 │       ├── PaymentClient          # 다른 도메인 조회용 클라이언트
 │       ├── InventoryClient        # core 모듈 사용
@@ -120,16 +123,16 @@ flowchart TB
 - **구성요소:**
   - `http/`: 외부 클라이언트용 HTTP 엔드포인트
     - `Controller`: REST 엔드포인트 정의
-    - `Request`: 요청 DTO (validation 포함)
+    - `Request`: 요청 DTO — JSON 역직렬화 형태만 담당 (비즈니스 필드 규칙 검증은 도메인이 소유 — 아래 "DTO 검증 소유권" 참조)
     - `Response`: 응답 DTO
   - `internal/`: 다른 도메인용 내부 통신 인터페이스
     - `InternalApi`: 도메인 간 조회용 인터페이스
 - **의존 규칙:** application 레이어만 의존
 
 #### application 레이어
-- **역할:** 유즈케이스 오케스트레이션
+- **역할:** 유즈케이스 오케스트레이션 — domain service·domain model을 활용해 로직의 절차를 가독성 있게 나열하는 레이어
 - **구성요소:**
-  - `Facade`: 유즈케이스 진입점 (트랜잭션 경계, `@Transactional`)
+  - `Facade`: 유즈케이스 진입점 (트랜잭션 경계, `@Transactional`) — I/O 절차 조립: `Reader 로드 → 도메인 서비스/모델 메서드 호출 → Writer 저장`. Reader/Writer를 직접 주입·호출한다
   - `Command`: 유즈케이스 입력 데이터
 - **의존 규칙:** domain 레이어만 의존
 
@@ -138,10 +141,12 @@ flowchart TB
 #### domain 레이어
 - **역할:** 핵심 비즈니스 로직
 - **구성요소:**
+  - `Reader`/`Writer` (domain/ 루트): DB에 의존하는 도메인 서비스가 반복·빈발하므로 별도 명명으로 구분 운영 — 조회/저장을 port에 위임하는 얇은 래퍼. Facade만 주입·호출한다
+  - 일반 도메인 서비스 (domain/ 루트): 복잡한 절차·정책의 순수 로직 — 도메인 모델만 파라미터로 받아 처리 (Reader/Writer·Repository 의존 없음)
   - `model/`: 도메인 모델 (순수 Kotlin 객체, 프레임워크 의존 없음)
   - `model/view/`: 조회용 읽기 전용 모델 (`~View` 접미사)
-  - `service/`: 도메인 서비스 (복잡한 비즈니스 로직)
-- **의존 규칙:** infrastructure 레이어만 의존
+  - `exception/`: 도메인 예외 — 공통 예외 클래스(core-web `BusinessException`처럼 int status 등 프레임워크 타입 없이 상속 가능한 설계)를 상속 허용
+- **의존 규칙:** infrastructure 레이어만 의존. 단 같은 도메인 내 다른 도메인 서비스(Reader/Writer 포함) 의존 금지 — 조립은 Facade가 담당
 
 #### infrastructure 레이어
 - **역할:** 외부 시스템 연동 어댑터 (인터페이스 정의 포함)
@@ -170,6 +175,7 @@ flowchart LR
 |------|------|----------|
 | 역방향 의존 금지 | 하위 레이어가 상위 레이어 참조 불가 | domain → application (X) |
 | 레이어 건너뛰기 금지 | 한 단계씩만 의존 가능 | api → domain (X) |
+| 같은 도메인 내 동일 레이어 컴포넌트 의존 금지 | 도메인 서비스는 다른 도메인 서비스(Reader/Writer 포함)를 주입하지 않는다 — 조립은 Facade가. 단 infrastructure 구성요소(port·조회 클라이언트)는 정방향이므로 허용 | DomainService → Reader (X), DomainService → SomeClient(infra) (O) |
 | 동일 레이어 간 도메인 참조 금지 | 다른 도메인의 같은 레이어 참조 불가 | OrderFacade → DeliveryFacade (X) |
 
 > **왜 건너뛰기를 금지하는가?** Controller가 Service를 직접 호출하면 Facade의 트랜잭션 경계와 유즈케이스 조합이 무력화된다. 각 레이어가 다음 레이어만 호출하도록 강제해야 책임이 명확하게 유지된다.
@@ -238,7 +244,7 @@ class ProductClient(private val productInternalApi: ProductInternalApi) {
     }
 }
 
-// order/domain/service/OrderService.kt
+// order/domain/OrderService.kt — 일반 도메인 서비스 (domain 루트)
 @Component
 class OrderService(private val productClient: ProductClient) {
     fun createOrder(command: OrderCommand): Order {
@@ -252,7 +258,7 @@ class OrderService(private val productClient: ProductClient) {
 ```mermaid
 flowchart LR
     subgraph order["order 도메인"]
-        OrderService["domain/service/<br/>OrderService"]
+        OrderService["domain/<br/>OrderService"]
         ProductClient["infrastructure/<br/>ProductClient"]
     end
     
@@ -305,6 +311,19 @@ domain/model/
 | **특성** | 비즈니스 로직 포함, 불변식 보장 | 단순 데이터 홀더, 불변 |
 | **생성** | Entity에서 변환 | 쿼리 결과에서 직접 매핑 |
 
+**View 조립 규칙** — 공통 원칙: view는 도메인 모델만 참조해 조립한다.
+
+- 기본: view 모델 자체에 companion 팩토리(`from(도메인 모델...)`)를 정의
+- 조립 로직이 복잡하고 비즈니스 로직이 많이 정의되어야 한다면, 별도 팩토리 클래스를 **일반 도메인 서비스**로 정의해 사용 (Reader/Writer 의존 없이 도메인 모델만 입력)
+
+```kotlin
+data class OrderCreatedView(/* ... */) {
+    companion object {
+        fun from(order: Order, member: Member): OrderCreatedView = /* ... */
+    }
+}
+```
+
 ### 데이터 모델 간 참조 규칙
 
 ```mermaid
@@ -321,6 +340,28 @@ flowchart LR
 | View → Domain Model | O | OrderSummaryView → Order |
 | 상위 레이어 참조 | **X** | Domain Model → Command |
 | Domain Model → View | **X** | Order → OrderSummaryView |
+
+### DTO 검증 소유권
+
+비즈니스 필드 규칙(예: "trim 후 1~30자", "1~15자")의 검증 소유권은 도메인에 있다:
+
+- **도메인 모델 init 블록/팩토리**에서 필드 규칙을 검증하고, 도메인 예외(계약 에러 코드 — 예: `GROUP_NAME_INVALID`)로 발생시킨다
+- **DTO의 Bean Validation(`@NotBlank`/`@Size` 등)은 비즈니스 규칙에 사용하지 않는다** — 개입 시 도메인보다 먼저 떨어져 계약 에러 코드가 아닌 공통 형식 오류(예: `INVALID_REQUEST_FORMAT`)로 반환되고, raw 값 기준 길이 검사는 "trim 후" 같은 정규화 규칙과도 어긋난다
+- DTO가 담당하는 검증은 JSON 구조 수준만: 필드 누락·타입 불일치·enum 역직렬화 실패 (공통 핸들러가 형식 오류로 매핑)
+
+```kotlin
+// api — 구조만 담당
+data class CreateOrderRequest(val productName: String)
+
+// domain — 필드 규칙 소유
+data class Order(val productName: String) {
+    init {
+        if (productName.isBlank() || productName.length !in 1..30) {
+            throw OrderNameInvalidException() // 계약 에러 코드
+        }
+    }
+}
+```
 
 ---
 
@@ -350,50 +391,71 @@ class OrderController(
 
 ### Facade (application)
 
+도메인 서비스·도메인 모델을 활용해 절차를 가독성 있게 나열한다 — Reader로 로드 → 순수 도메인 서비스/모델 메서드 호출 → Writer 저장.
+
 ```kotlin
 @Component
 class OrderFacade(
-    private val orderService: OrderService  // domain 레이어만 의존
+    private val orderReader: OrderReader,       // Reader — DB 접근 도메인 서비스
+    private val orderWriter: OrderWriter,       // Writer — DB 접근 도메인 서비스
+    private val orderPolicy: OrderPolicyService // 일반 도메인 서비스 — 순수 절차 로직
 ) {
     @Transactional
-    fun createOrder(command: CreateOrderCommand): Order {
-        return orderService.create(command)
+    fun createOrder(command: CreateOrderCommand): OrderCreatedView {
+        val order = Order.create(              // 도메인 모델 팩토리 (필드 규칙 검증 포함)
+            userId = command.userId,
+            productId = command.productId,
+            quantity = command.quantity,
+        )
+        orderPolicy.validateCreation(order)    // 순수 정책 검증 (모델만 파라미터)
+        return OrderCreatedView.from(orderWriter.save(order))
     }
 
     @Transactional(readOnly = true)
-    fun getOrder(orderId: String): Order {
-        return orderService.getById(orderId)
-    }
+    fun getOrder(orderId: String): Order =
+        orderReader.getById(orderId)
 }
 ```
 
-### Service (domain)
+### Reader / Writer (domain — DB 접근 도메인 서비스)
+
+DB에 의존하는 도메인 서비스가 반복·빈발하므로 Reader/Writer 명으로 구분 운영한다.
+Facade만 주입·호출한다.
 
 ```kotlin
 @Component
-class OrderService(
-    private val productClient: ProductClient,    // infrastructure 레이어만 의존
+class OrderWriter(
+    private val orderRepository: OrderRepository  // 영속성 port (infrastructure)
+) {
+    fun save(order: Order): Order = orderRepository.save(order)
+}
+
+@Component
+class OrderReader(
     private val orderRepository: OrderRepository
 ) {
-    fun create(command: CreateOrderCommand): Order {
-        val stock = productClient.getStock(command.productId)
-        require(stock >= command.quantity) { "재고 부족: 요청=${command.quantity}, 현재=$stock" }
-
-        val order = Order.create(
-            userId = command.userId,
-            productId = command.productId,
-            quantity = command.quantity
-        )
-        return orderRepository.save(order)
-    }
-
-    fun getById(orderId: String): Order {
-        return orderRepository.findById(orderId)
-            ?: throw NoSuchElementException("주문을 찾을 수 없습니다: $orderId")
-    }
+    fun getById(orderId: String): Order =
+        orderRepository.findById(orderId)
+            ?: throw OrderNotFoundException()
 }
 ```
 
+### Service (domain — 일반 도메인 서비스, 순수 절차 로직)
+
+복잡한 절차·정책을 담되 **도메인 모델만 파라미터로 받아 처리**한다 — Reader/Writer·Repository를 의존하지 않는다.
+로드/저장은 Facade가 담당하므로 순수 함수처럼 동작(단위 테스트 가능)한다.
+
+```kotlin
+@Component
+class OrderPolicyService(
+    private val productClient: ProductClient,    // infrastructure 구성요소는 정방향 허용
+) {
+    fun validateCreation(order: Order) {
+        val stock = productClient.getStock(order.productId)
+        require(stock >= order.quantity) { "재고 부족: 요청=${order.quantity}, 현재=$stock" }
+    }
+}
+```
 ### Client (infrastructure)
 
 ```kotlin
