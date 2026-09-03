@@ -3,9 +3,14 @@ name: me-study-backlog
 description: 업무 중 자연 발생한 기술 학습 요구를 ~/IdeaProjects/study/backlog/ 백로그에 기록·조회·상태관리한다. Use when user says "백로그에 넣어", "나중에 공부해야겠다", "학습 주제로 남겨둬", "study backlog", mentions SB-#### items, asks to list or update the study backlog, or when a technical conversation reveals a learning topic worth saving (propose once, never write without user approval).
 ---
 
-# me-study-backlog — 기술 학습 백로그 캡처
+# me-study-backlog — 기술 학습 백로그 캡처·관리
 
-업무 대화 중 스쳐 지나가는 학습 요구를 수집한다. 나중에 `~/IdeaProjects/study` 하위의 심화 학습 프로젝트로 발전시키기 위한 원료를 모으는 것이 목적이다.
+업무 대화 중 스쳐 지나가는 학습 요구를 수집하고, 백로그 항목을 조회·상태관리한다. 나중에 `~/IdeaProjects/study` 하위의 심화 학습 프로젝트로 발전시키기 위한 원료를 모으는 것이 목적이다.
+
+## 범위
+
+- 포함: 학습 요구 캡처, 백로그 조회, 항목 상태 변경, INDEX 동기화, git 커밋
+- 제외: 백로그 항목을 실제 심화 학습 프로젝트로 승격하거나 `/study-init`을 실행하는 작업
 
 ## 원칙
 
@@ -76,10 +81,11 @@ status: raw
 2. 본업 답변에 이어 한 줄 제안: "이 주제 학습 백로그에 남겨둘까요?"
 3. 수락 시 명시적 캡처 2~3단계로 진행
 
-### 조회 / 유지보수
+### 조회 / 기본 관리
 - "백로그 보여줘" → INDEX 테이블 + 최근 항목 한 줄 요약
 - "SB-NNNN 드랍해줘" 등 상태 변경 → 확인 후 frontmatter + INDEX 갱신 + 커밋
-- **심화 학습으로의 승격(studying 전환, study-\<slug\> 프로젝트 생성)은 이 스킬 범위 밖.** 사용자가 진행하기로 하면 해당 엔트리 파일을 컨텍스트로 넘겨 /study-init 워크플로에서 진행한다.
+- 상태 변경은 백로그 기본 관리에 포함되지만, `studying` 전환이 실제 학습 시작을 의미하는 경우에는 사용자의 명시적 의사를 확인한다.
+- **심화 학습으로의 승격(study-\<slug\> 프로젝트 생성, `/study-init` 실행)은 이 스킬 범위 밖.** 사용자가 진행하기로 하면 해당 엔트리 파일을 컨텍스트로 넘겨 `/study-init` 워크플로에서 진행한다.
 
 ## git 커밋 규칙
 
