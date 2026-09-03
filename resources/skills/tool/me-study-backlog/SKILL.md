@@ -1,0 +1,93 @@
+---
+name: me-study-backlog
+description: 업무 중 자연 발생한 기술 학습 요구를 ~/IdeaProjects/study/backlog/ 백로그에 기록·조회·상태관리한다. Use when user says "백로그에 넣어", "나중에 공부해야겠다", "학습 주제로 남겨둬", "study backlog", mentions SB-#### items, asks to list or update the study backlog, or when a technical conversation reveals a learning topic worth saving (propose once, never write without user approval).
+---
+
+# me-study-backlog — 기술 학습 백로그 캡처
+
+업무 대화 중 스쳐 지나가는 학습 요구를 수집한다. 나중에 `~/IdeaProjects/study` 하위의 심화 학습 프로젝트로 발전시키기 위한 원료를 모으는 것이 목적이다.
+
+## 원칙
+
+1. **기록은 항상 사용자 허가 후.** 어떤 경로(명시적 요청, 에이전트 감지 제안)든 엔트리 초안을 보여주고 확인받은 뒤에만 파일을 쓴다. 감지 제안은 대화 흐름을 방해하지 않게 본업 응답에 이어 한 번만, 한두 줄로 한다. 거절하면 기록 없이 진행한다.
+2. **맥락을 인라인으로 담는다.** 세션 로그는 PC 로컬이라 다른 PC에서 안 열린다. 3개월 뒤 어느 PC에서 읽어도 주제를 이해할 수 있게 출처·동기·범위·핵심 발췌를 엔트리 안에 직접 요약한다. "그때 그 대화 참고" 같은 참조는 금지.
+3. **git으로 동기화한다.** 기록·변경 후 자동 커밋. push는 하지 않는다(사용자 몫). 다른 PC에서는 pull로 받는다.
+
+## 구조
+
+```
+~/IdeaProjects/study/backlog/
+├── INDEX.md                  # 전체 요약 테이블
+└── SB-0001-<kebab-slug>.md   # 항목별 파일
+```
+
+경로가 없으면(신규 PC 등) 만들기 전에 사용자에게 확인한다.
+
+## 엔트리 형식
+
+파일명: `SB-NNNN-<kebab-slug>.md`. NN은 기존 파일명과 INDEX 중 최대값 + 1 (신규면 0001).
+
+````md
+---
+id: SB-0001
+title: InnoDB 버퍼 풀과 인덱스 물리 구조
+captured: 2026-09-03
+status: raw
+---
+
+## 출처
+- 위치: <repo명 + 파일경로, 또는 URL, 티켓키>
+- 상황: <무슨 작업 중 무슨 질문에서 나왔는지 1~3문장>
+
+## 동기
+<왜 공부하고 싶은지 — 나중에 우선순위를 판단하는 근거>
+
+## 범위
+- <하위 주제 3~7개. 세분화 금지>
+
+## 자료
+- <핵심 발췌·링크·코드·실행 결과. 대화에서 이미 설명된 내용이 있으면 그 요약>
+````
+
+- status: `raw` → `triaged` → `studying` → `done` / `dropped`. 캡처 시 항상 `raw`.
+- `title`은 나중에 백로그를 훑을 때 한눈에 판별되는 구체적 명사구로.
+
+## INDEX.md
+
+```md
+# Study Backlog
+
+| ID | 제목 | captured | status |
+|----|------|----------|--------|
+| SB-0001 | InnoDB 버퍼 풀과 인덱스 물리 구조 | 2026-09-03 | raw |
+```
+
+새 항목은 헤더 바로 아래에 삽입(최신 상단). 상태 변경 시 엔트리 frontmatter와 이 테이블을 함께 갱신한다.
+
+## 워크플로
+
+### 캡처 — 명시적
+1. "백로그에 넣어" 등 요청 → 대화에서 출처·동기·범위·자료를 추려 엔트리 초안 작성
+2. 초안 전문을 보여주고 기록 확인
+3. 승인되면: ID 할당 → 엔트리 파일 생성 + INDEX 갱신 → git 커밋
+
+### 캡처 — 감지 제안
+1. 기술 대화 중 학습 갭이 드러남(사용자가 깊이 파고드는 연속 질문, "나중에 정리해봐야겠다" 뉘앙스)
+2. 본업 답변에 이어 한 줄 제안: "이 주제 학습 백로그에 남겨둘까요?"
+3. 수락 시 명시적 캡처 2~3단계로 진행
+
+### 조회 / 유지보수
+- "백로그 보여줘" → INDEX 테이블 + 최근 항목 한 줄 요약
+- "SB-NNNN 드랍해줘" 등 상태 변경 → 확인 후 frontmatter + INDEX 갱신 + 커밋
+- **심화 학습으로의 승격(studying 전환, study-\<slug\> 프로젝트 생성)은 이 스킬 범위 밖.** 사용자가 진행하기로 하면 해당 엔트리 파일을 컨텍스트로 넘겨 /study-init 워크플로에서 진행한다.
+
+## git 커밋 규칙
+
+```bash
+git -C ~/IdeaProjects/study add backlog/
+git -C ~/IdeaProjects/study commit -m "backlog: +SB-0001 <title>"             # 신규
+git -C ~/IdeaProjects/study commit -m "backlog: SB-0001 status raw→triaged"   # 변경
+```
+
+- 커밋 실패 시 파일 기록은 유지하고 사용자에게 알린다
+- `~/IdeaProjects/study`가 git 저장소가 아니면 파일만 쓰고 경고한다
