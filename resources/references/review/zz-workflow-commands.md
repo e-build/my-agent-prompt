@@ -97,7 +97,7 @@ resources/templates/feature-workflow/                # command가 참조하는 �
 4. **커스터마이즈 프로젝트 덮어쓰기** — **해결**: init Phase 0 게이트(중단/`--sync`/강제)와 design-system 기존 디렉토리 게이트 적용.
 5. **기능 재진입 혼란** — **해결**: `continue` 명령 추가. 상태 문서 3종 진단 → 요약 보고 → 승인 후 진행 → 동시 갱신.
 6. **버전 결정 UX** — **부분 해결**: 구조화 질문 도구 사용 및 선택지 의미 표기 명시. 실사용 피드백 지속 수집 필요.
-7. **결정 채번 충돌(병행 세션)** — **미해결**: kkiri에서 D-32 채번 충돌 사고 이력 존재. `decide` 신규 명령 후보로 제안서(kkiri `docs/plans/zz-workflow-upgrade-proposal.md`)에 보류 중.
+7. **결정 채번 충돌(병행 세션)** — **미해결**: kkiri에서 D-32 채번 충돌 사고 이력 존재. `decide` 신규 명령 후보로 보류 중 (상세 설계 원문은 kkiri git 이력의 `docs/plans/zz-workflow-upgrade-proposal.md` — 2026-09-06 정리 시 제거, 나머지 6종 제안은 1종(continue) 축소로 기각).
 
 ---
 
