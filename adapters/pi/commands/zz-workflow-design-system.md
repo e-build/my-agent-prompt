@@ -3,4 +3,4 @@ description: 대상 프로젝트에 디자인 시스템 문서 구조를 초기�
 
 ---
 
-Read `resources/commands/zz-workflow-design-system.md` in this repo and follow its instructions exactly.
+Read `~/.pi/agent/commands/zz-workflow-design-system.md` and follow its instructions exactly.

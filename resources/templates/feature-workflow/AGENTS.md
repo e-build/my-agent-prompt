@@ -6,6 +6,7 @@
 ## 목차
 - [문서 목적](#문서-목적)
 - [기본 원칙](#기본-원칙)
+- [기능 시작·재개 규칙](#기능-시작재개-규칙)
 - [문서 디렉토리 규칙](#문서-디렉토리-규칙)
 - [기능 작업 표준 절차](#기능-작업-표준-절차)
 - [단계별 체크리스트](#단계별-체크리스트)
@@ -33,6 +34,16 @@
 - 기능 기획 문서와 기술 문서는 분리
 - 같은 내용을 여러 문서에 중복 정의하지 않음
 - 문서보다 코드가 늦게 가야 하며, 구현 전에 최소한 API와 정책 합의 선행 필요
+
+## 기능 시작·재개 규칙
+
+| 상황 | 사용 명령 |
+|---|---|
+| 새 기능 또는 기존 기능의 새 버전 시작 | `/zz-workflow:new {feature-name}` |
+| 기존 기능·버전의 작업을 이어서 진행 | `/zz-workflow:continue {feature-name}` |
+
+- 기능 디렉토리가 이미 존재하면 요구사항부터 다시 시작하지 않는다. `/zz-workflow:continue`로 현재 단계를 진단한 뒤 이어서 진행한다.
+- 단계·산출물 확정 시 `PROGRESS.md`·기능 `index.md`·`07-progress.md`를 함께 갱신한다 (부분 갱신 금지).
 
 ## 문서 디렉토리 규칙
 
@@ -242,13 +253,13 @@ docs/
 
 | 단계 | 기본 위치 | 예시 |
 |---|---|---|
-| 요구사항 정의 | `docs/features/{feature}/v{version}/requirements.md` | `docs/features/auth/v0/requirements.md` |
-| 기획 / 정책 | `docs/features/{feature}/v{version}/plans.md` | `docs/features/order/v0/plans.md` |
-| 기능별 화면 정의 | `docs/features/{feature}/v{version}/screens.md` | `docs/features/order/v0/screens.md` |
+| 요구사항 정의 | `docs/features/{feature}/v{version}/01-requirements.md` | `docs/features/auth/v0/01-requirements.md` |
+| 기획 / 정책 | `docs/features/{feature}/v{version}/02-plans.md` | `docs/features/order/v0/02-plans.md` |
+| 기능별 화면 정의 | `docs/features/{feature}/v{version}/03-screens.md` | `docs/features/order/v0/03-screens.md` |
 | 공통 API 규약 | `docs/engineering/api-conventions.md` | 응답 포맷, 에러 코드 규칙 |
-| 기능 API 문서 | `docs/features/{feature}/v{version}/api.md` | `docs/features/order/v0/api.md` |
-| 시스템 설계 | `docs/features/{feature}/v{version}/design.md` | `docs/features/order/v0/design.md` |
-| 의사결정 로그 | `docs/features/{feature}/v{version}/decisions.md` | `docs/features/auth/v0/decisions.md` |
-| 현재 진행 상황 | `docs/features/{feature}/v{version}/progress.md` | `docs/features/auth/v0/progress.md` |
+| 기능 API 문서 | `docs/features/{feature}/v{version}/04-api.md` | `docs/features/order/v0/04-api.md` |
+| 시스템 설계 | `docs/features/{feature}/v{version}/05-design.md` | `docs/features/order/v0/05-design.md` |
+| 의사결정 로그 | `docs/features/{feature}/v{version}/06-decisions.md` | `docs/features/auth/v0/06-decisions.md` |
+| 현재 진행 상황 | `docs/features/{feature}/v{version}/07-progress.md` | `docs/features/auth/v0/07-progress.md` |
 | 구현 코드 | 실제 소스 디렉토리 | 서버 / 클라이언트 코드 |
 | 문서 템플릿 | `docs/templates/` | 8개 표준 템플릿 |

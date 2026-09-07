@@ -3,4 +3,4 @@ description: 대상 프로젝트에 zz-workflow 방법론을 설치한다. AGENT
 
 ---
 
-Read `resources/commands/zz-workflow-init.md` in this repo and follow its instructions exactly.
+Read `~/.pi/agent/commands/zz-workflow-init.md` and follow its instructions exactly.

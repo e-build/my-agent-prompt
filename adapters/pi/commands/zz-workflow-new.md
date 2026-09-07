@@ -3,4 +3,4 @@ description: 새 기능을 시작하거나 기존 기능을 고도화한다. 기
 
 ---
 
-Read `resources/commands/zz-workflow-new.md` in this repo and follow its instructions exactly.
+Read `~/.pi/agent/commands/zz-workflow-new.md` and follow its instructions exactly.
