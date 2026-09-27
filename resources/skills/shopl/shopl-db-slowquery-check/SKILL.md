@@ -9,12 +9,12 @@ CloudWatch `slowquery` 로그를 **읽기 전용**으로 조사한다.
 
 ## 입력 확정
 
-조회 전 아래를 확인한다. 없으면 질문한다.
-
-- 리전 (기본: `ap-northeast-2`)
-- 기간: KST 오늘 또는 명시 날짜/시각
-- 운영 클러스터와 제외할 QA/UAT/clone 그룹
-- 선택 필터: DB 계정, 테이블/도메인 키워드, row ID
+- 리전 기본값은 `ap-northeast-2`다.
+- 기간이 없으면 **텍스트로 되묻지 말고** AWS 명령 실행 전에 `ask_user_question`을 호출한다.
+  - header: `조회 기간`
+  - 옵션: `오늘 KST (Recommended)`, `어제 KST`, `최근 7일`, `직접 지정`
+- 운영 클러스터가 불명확하면 `/slowquery` 그룹을 먼저 찾은 뒤, QA/UAT/clone을 제외한 후보를 `ask_user_question`으로 선택받는다.
+- DB 계정·테이블·row ID는 사용자가 제공한 경우에만 상세 필터로 적용한다.
 
 ## 실행 흐름
 

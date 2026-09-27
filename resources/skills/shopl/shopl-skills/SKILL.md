@@ -12,6 +12,8 @@ Shopl 프로젝트 업무에 특화된 스킬 모음. 모든 스킬은 원본이
 | 스킬 | 분류 | 설명 | 사용 시점 |
 |------|------|------|----------|
 | `shopl-backend-log-query` | fix | Elasticsearch 로그 조회 질의, 필드 카탈로그, Recipe | 운영 로그 조회, rId/cId 추적, ERROR 분석, Batch/IDP 로그 |
+| `shopl-db-lock-monitor` | shopl | CloudWatch 락 모니터 로그그룹 lock_wait 이벤트 집계·라이프사이클 추적, 경합 유형 판정 | DB 락 경합 분석, lock wait/잠금 대기, 대기 체인, 특정 테이블·SQL 락 충돌 조사 |
+| `shopl-db-slowquery-check` | fix | CloudWatch Aurora/RDS MySQL slowquery를 AWS CLI로 집계하고 락 대기 vs 대량 스캔을 구분해 브리핑 | DB slow query 분석, Query_time/Lock_time/Rows_examined, 느린 UPDATE, DB 락 경합 의심, 슬로우쿼리 브리핑 |
 | `shopl-dev-api-draft` | dev | 구현 분해 문서 → 개발 착수 전 API 초안 명세 작성 | breakdown의 API 후보를 전체 명세로 전환, API 초안/설계/명세 작성 |
 | `shopl-dev-task-flow` | dev | 트래커(jira/local + linear scaffold) 기반 작업 순차 실행 Outer Loop | 문서·트래커 매핑 작업 setup→Orientation→작은 분류 위임→검증→트래커 동기화 |
 | `shopl-dev-task-flow-unit` | dev | 실행 단위(작은 분류) 1개 수명주기 실행 | shopl-dev-task-flow의 작은 분류 루프에서 호출, 단위 단위 계획·승인·구현·diff·커밋 |
@@ -47,6 +49,8 @@ shopl-dev-api-draft (구현 분해 → API 초안 명세 작성)
 # Operational Flow
 
 shopl-backend-log-query (ES 로그 조회, 운영 질의)
+shopl-db-lock-monitor (CloudWatch 락 모니터 로그 조사, DB 락 경합 분석)
+shopl-db-slowquery-check (CloudWatch slowquery 집계, 락 대기 vs 대량 스캔 구분)
 ```
 
 **분류 체계:**
