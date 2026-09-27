@@ -41,6 +41,21 @@ test("stub markdown migrates to not_started", async () => {
   assert.equal(migrated.review.status, "not_started");
 });
 
+test("uses the chapter README as canonical concept and supports legacy concept.md", async () => {
+  const root = await project();
+  const dir = await chapter(root, "ch-01-cache");
+  await writeFile(join(dir, "README.md"), "# Chapter\n\n## 개념 학습 노트\n\n" + "x".repeat(600));
+  const canonical = await migrateChapterState(root, "ch-01-cache");
+  assert.equal(canonical.concept.status, "completed");
+  assert.deepEqual(canonical.concept.evidence, [join("ch-01-cache", "README.md")]);
+
+  await writeFile(join(dir, "README.md"), "# Chapter\n\n## 학습 목표\n\n짧은 개요만 있음.");
+  await writeFile(join(dir, "concept.md"), "# 개념 노트\n\n## 핵심 개념\n\n" + "x".repeat(600));
+  const legacy = await migrateChapterState(root, "ch-01-cache");
+  assert.equal(legacy.concept.status, "completed");
+  assert.deepEqual(legacy.concept.evidence, [join("ch-01-cache", "concept.md")]);
+});
+
 test("real chapter records migrate to completed and relearn states", async () => {
   const root = await project();
   const dir = await chapter(root, "ch-02-read-through");

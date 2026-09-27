@@ -38,6 +38,13 @@ export type LabVerification = {
   messages: string[];
 };
 
+export type LabResultInput = {
+  observation: string;
+  takeaway: string;
+  verification: LabVerification;
+  recordedAt?: string;
+};
+
 export type LabRunner = (command: string, args: string[], cwd: string) => Promise<{ code: number; stdout: string; stderr: string }>;
 
 async function exists(path: string): Promise<boolean> {
@@ -99,6 +106,51 @@ export async function verifyLabStep(projectRoot: string, chapterSlug: string, st
     }
   }
   return { passed: messages.length === 0, stepId, status: step.status, command: commandResult, missingFiles, messages };
+}
+
+export async function recordLabResult(
+  projectRoot: string,
+  manifest: LabManifest,
+  stepId: string,
+  input: LabResultInput,
+): Promise<void> {
+  const step = manifest.steps.find((item) => item.id === stepId);
+  if (!step) throw new Error(`lab step을 찾지 못했습니다: ${stepId}`);
+  if (!input.verification.passed || input.verification.stepId !== stepId) throw new Error("실습 결과는 해당 step의 검증 통과 후에만 기록할 수 있습니다.");
+  if (input.verification.status !== step.status) throw new Error("검증 시점의 step 상태와 현재 manifest 상태가 다릅니다. manifest를 다시 확인하세요.");
+  if (!input.observation.trim()) throw new Error("관찰 결과를 입력해야 합니다.");
+  if (!input.takeaway.trim()) throw new Error("배운 점을 입력해야 합니다.");
+
+  const path = projectPath(projectRoot, manifest.chapterSlug, "lab", "results.md");
+  await mkdir(dirname(path), { recursive: true });
+  let existing = "";
+  try { existing = await readFile(path, "utf8"); } catch { /* first result */ }
+  const command = input.verification.command;
+  const block = [
+    `## ${step.title}`,
+    "",
+    `- Step ID: \`${stepId}\``,
+    `- 기록 시각: ${input.recordedAt ?? new Date().toISOString()}`,
+    `- 관찰: ${input.observation.trim()}`,
+    `- 배운 점: ${input.takeaway.trim()} (학습자 설명; 독립적으로 검증된 사실은 아님)`,
+    ...(input.verification.messages.length ? [`- 검증 메시지: ${input.verification.messages.join("; ")}`] : []),
+    ...(step.status === "skipped_understood" ? [`- 스킵 근거: ${step.skipEvidence}`] : []),
+    ...(command ? [
+      `- 검증 명령 종료 코드: ${command.exitCode}`,
+      ...(command.testCount != null ? [`- 실제 테스트 수: ${command.testCount}`] : []),
+      ...(command.stdout.trim() ? [`- 표준 출력 요약: ${command.stdout.trim().split("\n").slice(-8).join(" | ")}`] : []),
+      ...(command.stderr.trim() ? [`- 표준 오류 요약: ${command.stderr.trim().split("\n").slice(-5).join(" | ")}`] : []),
+    ] : ["- 검증: manifest에 정의된 명령/산출물 검증 통과"]),
+    ...(step.learnerFiles?.length ? [`- 확인 파일: ${step.learnerFiles.map((file) => `\`${file}\``).join(", ")}`] : []),
+    ...(step.requiredArtifacts?.length ? [`- 산출물: ${step.requiredArtifacts.map((file) => `\`${file}\``).join(", ")}`] : []),
+    "",
+  ].join("\n");
+  const marker = `- Step ID: \`${stepId}\``;
+  if (existing.includes(marker)) return;
+  const prefix = existing.trim() ? `${existing.trimEnd()}\n\n` : `# 실습 결과 기록 — ${manifest.chapterSlug}\n\n`;
+  const temp = `${path}.tmp-${process.pid}`;
+  await writeFile(temp, `${prefix}${block}`, "utf8");
+  await rename(temp, path);
 }
 
 export function updateLabStep(manifest: LabManifest, stepId: string, status: LabStepStatus, reason?: string): LabManifest {

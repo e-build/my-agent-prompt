@@ -23,7 +23,7 @@ argument-hint: "[챕터명] [단계]"
 ## ⚠️ 스코프 가드 (가장 중요)
 
 복습의 모든 피드백은 **해당 챕터의 본 학습 범위**로 한정한다.
-범위 = `ch-{slug}/README.md` + `diagnosis.md` + `concept.md` + `lab/` 산출물에서 실제 다룬 내용.
+범위 = `ch-{slug}/README.md`의 개념 학습 노트 + `diagnosis.md` + `lab/results.md` 및 lab 산출물 + `test.md`에서 실제 다룬 내용. `concept.md`가 있는 기존 프로젝트는 레거시 개념 원본으로 함께 읽는다.
 
 빈틈을 두 종류로 **명시 분류**한다:
 
@@ -48,6 +48,7 @@ argument-hint: "[챕터명] [단계]"
   - **WRONG** — 틀렸거나 오개념. 또는 아예 못 적음.
 - 범위 밖(본 학습에서 안 다룬 것)을 WEAK/WRONG으로 분급하면 안 된다 → `learning-gaps.md`로 보낸다.
 - 결과를 `blank-recall.md`에 기록: 5개 기대 아이디어 + 학습자 답 + STRONG/WEAK/WRONG 분급.
+- blank recall 결과를 `review/blank-recall.md`에 기록한 뒤 study-pack이 있으면 그 결과를 `복습 회상 기록`에 추가한다. `study_pack_refresh`는 재생성 시 기존 회상 기록을 보존한다. 원본 개념/실습 기록은 바꾸지 않는다.
 
 ### 2. gap-fill — Agent = 보강자 (Reinforcer)
 - `blank-recall.md`에서 **WEAK / WRONG**으로 분급된 항목만 타겟. STRONG은 건너뛴다. 전체 재독 금지.

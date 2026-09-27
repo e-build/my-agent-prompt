@@ -413,7 +413,7 @@ type AssessmentOption = {
 - 쉬운 말 정의 → 구체 예시 → 중간 상태 → 원리 → 비슷한 개념 비교 순서로 진행한다.
 - 처음부터 어려운 문제를 던지지 않는다.
 - 학습자가 pinpoint한 문항이 있으면 전체 개념 흐름은 유지하되, 해당 문항과 연결된 개념의 설명 밀도와 예시를 조금 늘린다.
-- 개념 학습 후 `concept.md`에 교과서형으로 정리한다.
+- 개념 학습 후 챕터 `README.md`의 `개념 학습 노트` 섹션에 교과서형으로 정리한다. 새 프로젝트에는 `concept.md`를 만들지 않는다.
 
 ### lab — 안내에서 독립 수행으로
 - 실습은 처음부터 빈 과제로 시작하지 않는다.
@@ -463,16 +463,16 @@ type AssessmentOption = {
 ### 개념 학습
 - diagnosis.md의 약점을 우선 커버한다.
 - 개념 학습은 Pi TUI 대화로 진행한다. full interactive HTML로 만들지 않는다.
-- 단, 개념 학습은 채팅 기록으로만 남기지 않는다. **lab 또는 test로 전환하기 전에 반드시 `ch-{slug}/concept.md`를 생성하거나 최신화한다.**
-- `concept.md`는 채팅 요약이 아니라, 나중에 여러 챕터의 `concept.md`만 모아도 교과서처럼 읽을 수 있는 독립 문서여야 한다.
+- 단, 개념 학습은 채팅 기록으로만 남기지 않는다. **lab 또는 test로 전환하기 전에 반드시 챕터 `README.md`의 `개념 학습 노트`를 생성하거나 최신화한다.**
+- 이 섹션은 채팅 요약이 아니라, 챕터 README만 읽어도 교과서처럼 이해할 수 있는 독립 본문이어야 한다. 기존 `concept.md`는 레거시 프로젝트의 읽기 호환용으로만 취급한다.
 - 개념 학습 범위는 챕터 README의 `학습 목표`, `다룰 개념과 용어`, `개념 관계도`를 기준으로 삼는다. 챕터 README에 `완료 기준`이 없어도 정상이다.
 - 개념을 설명할 때는 직접적이고 구체적으로, 모든 중간 상태를 보여주고, 12살에게 설명하듯 쉽게 쓴다.
 - 추상 용어를 쓰기 전에는 일상어로 먼저 풀어준다.
 - 주제에 맞는 구체 예시를 반드시 사용한다. 예: 개발/DB는 코드·SQL·데이터, 글쓰기는 문장·문단 전후 비교, 언어학습은 발화·대화문, 음악은 악보·리듬 패턴, 업무 프로세스는 실제 상황/문서 흐름.
 - 구조, 흐름, 순서, 관계가 이해에 도움이 되면 mermaid 다이어그램을 사용한다.
-- `concept.md`에는 자기점검 섹션을 만들지 않는다. 이 문서는 문제지가 아니라 교과서형 개념 노트다.
+- README의 `개념 학습 노트`에는 자기점검 문제지를 넣지 않는다. 본문은 교과서형 설명으로 유지한다.
 
-`concept.md` 구조:
+`README.md`에 추가할 `개념 학습 노트` 구조:
 
 ```md
 # {챕터 제목}
@@ -511,11 +511,11 @@ before → step 1 → step 2 → after 순서로 중간 상태를 생략하지 �
 ```
 
 ### lab (실습)
-- lab으로 전환하기 직전, 먼저 `concept.md`가 최신인지 확인한다. 없거나 현재 개념 학습 내용이 반영되지 않았으면 먼저 생성/최신화한다.
+- lab으로 전환하기 직전, 먼저 챕터 `README.md`의 `개념 학습 노트`가 최신인지 확인한다. 없거나 현재 학습 내용이 반영되지 않았으면 먼저 같은 파일에 생성/최신화한다.
 - 그 다음 학습자에게 아래처럼 lab 전환을 안내한다.
 
 ```text
-완료: 개념 학습 내용을 concept.md로 정리했습니다.
+완료: 개념 학습 내용을 챕터 README의 `개념 학습 노트`에 통합했습니다.
 다음: 실습으로 이해를 확인합니다.
 실행: ch-01 대표 실수/오류/어려운 상황을 재현하는 실습 세트를 만들고 lab/README.md를 작성하겠습니다.
 ```
@@ -523,7 +523,8 @@ before → step 1 → step 2 → after 순서로 중간 상태를 생략하지 �
 - `lab/` 디렉토리에 실습 과제 파일을 생성한다(확장자는 도메인에 맞게).
 - lab 시작 전 또는 시작 시 `lab/README.md`를 체크리스트 형식으로 생성한다.
 - 학습자가 직접 수행한 결과/로그/산출물/실행계획/스크린샷/문서 초안 등 주제에 맞는 증거를 lab/에 첨부하도록 안내한다.
-- 완료 후 결과를 확인하고, 틀린 부분이 있으면 피드백한다.
+- 완료라고 하면 실제 관찰과 배운 점을 확인한 뒤 study_lab_verify에 전달한다. 검증 성공 시 extension이 측정 evidence와 함께 `lab/results.md`에 기록한다. 실패한 검증이나 테스트 output만으로 학습자의 설명을 추측해 기록하지 않는다.
+- 틀린 부분이 있으면 피드백한다.
 
 `lab/README.md` 구조:
 
@@ -563,7 +564,7 @@ before → step 1 → step 2 → after 순서로 중간 상태를 생략하지 �
 
 #### 정상 진행
 
-1. `concept.md`, lab 산출물, 챕터 README의 학습 목표를 읽는다.
+1. 챕터 README의 개념 학습 노트, `lab/results.md` 및 lab 산출물, 학습 목표를 읽는다.
 2. `test.md`의 기존 Attempt를 읽어 새 attempt 번호를 결정한다. 파일이 없으면 attempt 1이다.
 3. `TestQuestionSet` JSON을 구성한다. 예:
 
@@ -602,9 +603,11 @@ before → step 1 → step 2 → after 순서로 중간 상태를 생략하지 �
    - 응답 끝에 `TEST_GRADE_JSON` marker를 반드시 포함한다.
 7. 채점 직후 자동으로 review/relearn을 시작하지 않는다. 학습자가 같은 브라우저에서 결과를 확인하고 CTA를 누를 때까지 대기한다.
 8. `# TEST_RESULTS_REVIEWED`를 받으면:
+   - 통과 상태면 `review/study-pack.md` 생성 여부를 확인한다. 생성된 묶음에는 README 개념 본문, 모든 완료/스킵 lab step 기록, diagnosis/test 결과가 포함되어야 한다.
    - `passed: true`, `nextAction: review` → `/study-review` 흐름으로 전환한다.
    - `passed: false`, `nextAction: relearn` → weaknesses/오답 문항에 해당하는 가장 작은 개념만 재학습한다. 전체 concept/lab 반복 금지. 재학습 후 새 변형 TestQuestionSet으로 다음 attempt를 연다.
-9. tool 호출 실패나 tool 부재 시 `/reload`, 필요하면 `bash scripts/install-pi --restore`를 안내한다. 수동 test.md 답안 작성 fallback을 제공하지 않는다.
+9. test 통과 시 extension이 README, lab/results.md, diagnosis.md, test.md를 `review/study-pack.md`로 묶는다. 기록이 부족해 생성되지 않으면 누락 파일을 보완한 뒤 다시 생성한다. 이후 `/study-review`에서 회상 결과와 잔여 학습 공백을 복습 묶음에 반영한다.
+10. tool 호출 실패나 tool 부재 시 `/reload`, 필요하면 `bash scripts/install-pi --restore`를 안내한다. 수동 test.md 답안 작성 fallback을 제공하지 않는다.
 
 #### TEST_GRADE_JSON 계약
 
@@ -674,10 +677,13 @@ before → step 1 → step 2 → after 순서로 중간 상태를 생략하지 �
 
 ### review (복습)
 - 복습은 `/study-review` 커맨드로 위임한다. 에이전트는 Verifier/Reinforcer/Curious Student/Anchorer/Scheduler 역할로 5단계(blank-recall → gap-fill → self-lecture → analogy-lock → schedule)를 진행한다.
+- `review/study-pack.md`가 있으면 먼저 읽어 실제 개념 본문과 실습 증거를 확인하고, 없으면 챕터 README와 lab/results.md를 직접 확인한다.
+- blank-recall 결과와 가장 중요한 gap을 study-pack의 `복습 회상 기록`에 추가하고 `study_pack_refresh` 도구로 최신 원본과 묶는다. 기존 회상 기록을 보존한다.
 - `review/` 디렉토리가 없으면 생성한다.
-- 피드백은 본 학습 범위(concept/lab)로 한정. 벗어나면 `review/learning-gaps.md`에 분류.
+- blank-recall 결과, gap-fill 보강, 셀프렉처에서 확인된 설명 공백을 각 review 문서에 남긴다. study-pack이 있으면 해당 원본 review 파일들을 pack에 합쳐 갱신하고, 이전 회상 기록은 보존한다.
+- 피드백은 본 학습 범위(README 개념 본문/lab)로 한정. 벗어나면 `review/learning-gaps.md`에 분류.
 
 ## 종료 조건
 
-- 모든 단계를 완료했으면 "이 챕터 완료" 메시지와 함께 다음 챕터 번호를 안내한다.
+- 모든 단계를 완료했으면 `review/study-pack.md`가 최신 canonical 개념·lab 결과·assessment를 포함하는지 확인한 뒤 "이 챕터 완료" 메시지와 함께 복습 묶음 경로와 다음 챕터 번호를 안내한다.
 - 중간에 끝낼 경우 "다음에 /study-chapter 로 이어서 시작" 메시지를 남긴다.

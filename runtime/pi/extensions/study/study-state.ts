@@ -70,10 +70,15 @@ function hasRealDiagnosis(content: string): boolean {
   return /상태:\s*채점 완료|총점:\s*\d+\s*\/\s*\d+|diagnosisId:/i.test(content);
 }
 
-function hasRealConcept(content: string): boolean {
-  if (!content.trim()) return false;
-  if (/아직\s*개념\s*학습\s*전|#\s*개념\s*노트\s*\n\s*아직/i.test(content)) return false;
-  return /##\s*(이 장에서 배우는 것|핵심 개념|단계별 작동 원리)/.test(content) || content.length > 500;
+function hasRealConcept(chapterReadme: string, legacyConcept: string): { completed: boolean; evidence?: string } {
+  const readmeConcept = chapterReadme.match(/##\s*개념 학습 노트\s*\n([\s\S]*?)(?=\n##\s|$)/)?.[1]?.trim() ?? "";
+  if (readmeConcept && !/아직\s*개념\s*학습\s*전/.test(readmeConcept)) {
+    return { completed: true, evidence: "README.md" };
+  }
+  if (!legacyConcept.trim()) return { completed: false };
+  if (/아직\s*개념\s*학습\s*전|#\s*개념\s*노트\s*\n\s*아직/i.test(legacyConcept)) return { completed: false };
+  const completed = /##\s*(이 장에서 배우는 것|핵심 개념|단계별 작동 원리)/.test(legacyConcept) || legacyConcept.length > 500;
+  return completed ? { completed, evidence: "concept.md" } : { completed: false };
 }
 
 function hasPassedTest(content: string): boolean {
@@ -112,6 +117,7 @@ async function inferLab(chapterDir: string): Promise<PhaseState> {
 export async function migrateChapterState(projectRoot: string, chapterSlug: string): Promise<ChapterState> {
   const dir = join(projectRoot, chapterSlug);
   const diagnosis = await text(join(dir, "diagnosis.md"));
+  const chapterReadme = await text(join(dir, "README.md"));
   const concept = await text(join(dir, "concept.md"));
   const test = await text(join(dir, "test.md"));
   const review = await text(join(dir, "review", "schedule.md"));
@@ -120,8 +126,9 @@ export async function migrateChapterState(projectRoot: string, chapterSlug: stri
   state.diagnosis = hasRealDiagnosis(diagnosis)
     ? phase("completed", [join(chapterSlug, "diagnosis.md")])
     : phase("not_started");
-  state.concept = hasRealConcept(concept)
-    ? phase("completed", [join(chapterSlug, "concept.md")])
+  const conceptRecord = hasRealConcept(chapterReadme, concept);
+  state.concept = conceptRecord.completed
+    ? phase("completed", [join(chapterSlug, conceptRecord.evidence!)])
     : phase("not_started");
   state.lab = await inferLab(dir);
   state.test = hasPassedTest(test)

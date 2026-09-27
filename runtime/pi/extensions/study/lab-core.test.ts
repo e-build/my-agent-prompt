@@ -1,9 +1,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { loadLabManifest, saveLabManifest, updateLabStep, verifyLabStep, type LabManifest } from "./lab-core.ts";
+import { loadLabManifest, recordLabResult, saveLabManifest, updateLabStep, verifyLabStep, type LabManifest } from "./lab-core.ts";
 
 async function setup(): Promise<{ root: string; manifest: LabManifest }> {
   const root = await mkdtemp(join(tmpdir(), "lab-core-"));
@@ -41,6 +41,39 @@ test("passes with required artifacts and expected JUnit count", async () => {
   const result = await verifyLabStep(root, "ch-01", "cache", async () => ({ code: 0, stdout: "BUILD SUCCESSFUL", stderr: "" }));
   assert.equal(result.passed, true);
   assert.equal(result.command?.testCount, 2);
+});
+
+test("records verified lab results with observation and takeaway in append-only chapter notes", async () => {
+  const { root, manifest } = await setup();
+  await writeFile(join(root, "ch-01", "lab", "result.md"), "artifact");
+  await writeFile(join(root, "app", "build", "test-results", "test", "TEST-x.xml"), '<testsuite tests="2" failures="0" errors="0"></testsuite>');
+  const verification = await verifyLabStep(root, "ch-01", "cache", async () => ({ code: 0, stdout: "BUILD SUCCESSFUL", stderr: "" }));
+
+  await recordLabResult(root, manifest, "cache", {
+    observation: "miss에서 loader가 한 번 호출됐다.",
+    takeaway: "캐시 계층이 적재 책임을 한곳에 둔다.",
+    verification,
+  });
+
+  const notes = await readFile(join(root, "ch-01", "lab", "results.md"), "utf8");
+  assert.match(notes, /miss에서 loader가 한 번 호출됐다/);
+  assert.match(notes, /캐시 계층이 적재 책임을 한곳에 둔다/);
+  assert.match(notes, /실제 테스트 수: 2/);
+});
+
+test("does not record unverified or empty lab results", async () => {
+  const { root, manifest } = await setup();
+  const failed = await verifyLabStep(root, "ch-01", "cache", async () => ({ code: 1, stdout: "", stderr: "failed" }));
+  await assert.rejects(() => recordLabResult(root, manifest, "cache", {
+    observation: "something",
+    takeaway: "something learned",
+    verification: failed,
+  }), /검증 통과/);
+  await assert.rejects(() => recordLabResult(root, manifest, "cache", {
+    observation: " ",
+    takeaway: "something learned",
+    verification: { ...failed, passed: true },
+  }), /관찰 결과/);
 });
 
 test("skipped_understood requires evidence", async () => {

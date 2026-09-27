@@ -38,8 +38,9 @@ import { findStudyProjectRoot, registerStudyChapterCommand, type StudyChapterTar
 import { loadStudyState, saveStudyState, updatePhaseState, type StudyPhase } from "./study-state.ts";
 import { manifestFromCurriculum, saveProjectManifest } from "./project-manifest.ts";
 import { runStudyPreflight } from "./preflight.ts";
-import { loadLabManifest, saveLabManifest, updateLabStep, verifyLabStep } from "./lab-core.ts";
+import { loadLabManifest, recordLabResult, saveLabManifest, updateLabStep, verifyLabStep } from "./lab-core.ts";
 import { projectPath } from "./project-path.ts";
+import { buildStudyPack } from "./study-pack.ts";
 
 type DiagnosisSession = {
 	id: string;
@@ -296,13 +297,31 @@ export default function (pi: ExtensionAPI) {
 			}
 			session.status = "acknowledged";
 			const grade = session.grade as any;
+			const passed = Boolean(grade?.passed);
+			let packPath: string | undefined;
+			let packError: string | undefined;
+			if (passed) {
+				try {
+					packPath = await buildStudyPack(session.projectRoot, session.chapterSlug, {
+						score: Number(grade?.totalScore ?? 0),
+						maxScore: Number(grade?.maxScore ?? session.questionSet.totalPoints),
+						passScore: session.passScore,
+					});
+				} catch (error) {
+					packError = error instanceof Error ? error.message : String(error);
+					console.warn("[study] failed to build chapter study pack:", error);
+				}
+			}
+			const nextStatus = passed ? (packPath ? "completed" : "blocked") : "relearn_required";
 			await updateProjectPhase(
 				session.projectRoot,
 				session.chapterSlug,
 				"test",
-				grade?.passed ? "completed" : "relearn_required",
-				{ attempt: session.attempt, score: Number(grade?.totalScore ?? 0), maxScore: Number(grade?.maxScore ?? session.questionSet.totalPoints), sessionId: session.id },
+				nextStatus,
+				{ attempt: session.attempt, score: Number(grade?.totalScore ?? 0), maxScore: Number(grade?.maxScore ?? session.questionSet.totalPoints), sessionId: session.id, ...(packError ? { reason: `복습 묶음 생성 실패: ${packError}` } : {}) },
 			);
+			if (packPath) pi.sendUserMessage(`# STUDY_PACK_CREATED\\n\\n챕터 테스트 통과 후 복습 묶음을 생성했습니다: ${packPath}`, { deliverAs: "followUp" });
+			if (packError) pi.sendUserMessage(`# STUDY_PACK_REQUIRED\\n\\n챕터 테스트는 통과했지만 복습 묶음이 완성되지 않아 test 단계를 완료 처리하지 않았습니다. README 개념 본문, lab manifest/results 기록을 보완하세요. 원인: ${packError}`, { deliverAs: "followUp" });
 			deliverTestReviewToAgent(session, payload);
 			return sendJson(res, 200, { ok: true, status: "acknowledged", message: "Pi 세션으로 테스트 결과 확인 신호를 보냈습니다." });
 		}
@@ -650,10 +669,13 @@ export default function (pi: ExtensionAPI) {
 		name: "study_lab_verify",
 		label: "Study Lab Verify",
 		description: "lab/manifest.json의 현재 step에 지정된 파일, 산출물, 검증 명령, 실제 테스트 수를 확인합니다.",
-		promptSnippet: "Verify a structured lab step using its manifest evidence",
+		promptSnippet: "Verify a structured lab step, then append the learner's observation and takeaway with measured evidence to lab/results.md",
+		promptGuidelines: ["study_lab_verify 호출 전 학습자가 직접 보고 설명한 observation과 takeaway를 받으세요. 자동 검증만으로 학습 내용을 추측하지 마세요."],
 		parameters: Type.Object({
 			chapterSlug: Type.String({ description: "챕터 slug" }),
 			stepId: Type.String({ description: "lab manifest step id" }),
+			observation: Type.String({ description: "실습 중 실제로 관찰한 결과. 명령 출력/테스트/화면 증거 기반." }),
+			takeaway: Type.String({ description: "이 step에서 배운 개념 또는 자료구조 선택 이유." }),
 		}),
 		async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
 			const projectRoot = await findStudyProjectRoot(ctx?.cwd ?? process.cwd());
@@ -663,12 +685,17 @@ export default function (pi: ExtensionAPI) {
 			});
 			if (result.passed) {
 				const manifest = await loadLabManifest(projectRoot, params.chapterSlug);
+				await recordLabResult(projectRoot, manifest, params.stepId, {
+					observation: params.observation,
+					takeaway: params.takeaway,
+					verification: result,
+				});
 				updateLabStep(manifest, params.stepId, manifest.steps.find((step) => step.id === params.stepId)?.status === "skipped_understood" ? "skipped_understood" : "completed");
 				await saveLabManifest(projectRoot, manifest);
 				const finished = manifest.steps.every((step) => step.status === "completed" || step.status === "skipped_understood");
 				await updateProjectPhase(projectRoot, params.chapterSlug, "lab", finished ? "completed" : "in_progress", { evidence: [join(params.chapterSlug, "lab", "manifest.json")] });
 			}
-			return { content: [{ type: "text", text: result.passed ? `✅ lab step 검증 통과: ${params.stepId}` : `❌ lab step 검증 실패: ${result.messages.join("; ")}` }], details: result };
+			return { content: [{ type: "text", text: result.passed ? `✅ lab step 검증 및 결과 기록 통과: ${params.stepId} → ${params.chapterSlug}/lab/results.md` : `❌ lab step 검증 실패: ${result.messages.join("; ")}` }], details: result };
 		},
 	});
 
@@ -690,6 +717,22 @@ export default function (pi: ExtensionAPI) {
 			await saveLabManifest(projectRoot, manifest);
 			await updateProjectPhase(projectRoot, params.chapterSlug, "lab", params.status === "blocked" ? "blocked" : "in_progress", { reason: params.reason });
 			return { content: [{ type: "text", text: `lab step ${params.stepId} → ${params.status}` }], details: { chapterSlug: params.chapterSlug, stepId: params.stepId, status: params.status } };
+		},
+	});
+
+	// ------------------------------------------------------------------
+	// tool: study_pack_refresh
+	// ------------------------------------------------------------------
+	pi.registerTool({
+		name: "study_pack_refresh",
+		label: "Study Pack Refresh",
+		description: "챕터의 canonical README 개념 본문, lab 결과, diagnosis/test, 학습 공백을 검증해 review/study-pack.md를 생성·갱신합니다.",
+		promptSnippet: "Refresh the chapter study pack after review while preserving its recall notes",
+		parameters: Type.Object({ chapterSlug: Type.String({ description: "챕터 slug" }) }),
+		async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
+			const projectRoot = await findStudyProjectRoot(ctx?.cwd ?? process.cwd());
+			const path = await buildStudyPack(projectRoot, params.chapterSlug);
+			return { content: [{ type: "text", text: `복습 묶음 갱신 완료: ${path}` }], details: { path } };
 		},
 	});
 

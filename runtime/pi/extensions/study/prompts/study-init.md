@@ -150,12 +150,15 @@ flowchart TD
 - 개념 학습에서 다룰 것
 - 실습에서 확인할 것
 - 테스트에서 검증할 것
+
+## 개념 학습 노트
+개념 단계에서 위 학습 목표/개념 지도를 토대로 교과서형 본문을 이 섹션에 추가한다. 시작 시에는 빈 섹션을 만들지 않는다.
 ````
 
 규칙:
 - 챕터 README에는 `완료 기준`, `완료기준`, `통과 기준` 섹션을 만들지 않는다.
 - 완료 여부는 `test.md`와 `review/`에서 다룬다.
-- README는 "이 챕터에서 무엇을 배우는지"를 보여주는 지도 역할이다.
+- README는 시작 시 학습 지도, concept 단계 완료 후 학습 지도와 독립적인 교과서형 개념 본문을 함께 제공한다.
 - `다룰 내용`과 `완료 기준`이 같은 말로 반복되지 않도록, `다룰 내용`은 **개념/용어/관계**, `학습 목표`는 **이해/판단/적용 능력** 중심으로 분리한다.
 
 ## 5. 학습 설계 미리보기 브라우저 세션 (study extension)
@@ -270,12 +273,13 @@ study-{slug}/
 │   ├── README.md           # 챕터 개요 + 학습 목표
 │   ├── diagnosis.md        # 사전평가 결과 + 난이도 + 약점 기록
 │   ├── diagnosis.html      # study_diagnosis_open tool이 자동 생성 (진단 UI)
-│   ├── concept.md          # 개념 학습 후 생성되는 교과서형 개념 노트
 │   ├── test.md             # 테스트 attempt별 문제·답안·채점 결과 (canonical)
 │   ├── test.html           # study_test_open tool이 자동 생성 (테스트 UI)
 │   ├── lab/                # 실습 산출물 (확장자/형식 도메인 자유)
-│   │   └── README.md       # 실습 목표/단계/완료조건/산출물 체크리스트
+│   │   ├── README.md       # 실습 목표/단계/완료조건/산출물 체크리스트
+│   │   └── results.md      # step별 검증 증거, 관찰, 배운 점의 누적 기록
 │   └── review/
+│       ├── study-pack.md   # concept + lab 증거 + 진단/테스트를 묶은 복습본
 │       ├── blank-recall.md # 백지 회상: 5개 핵심 아이디어 vs 학습자 답 + STRONG/WEAK/WRONG 분급
 │       ├── gap-fill.md     # WEAK/WRONG 보충 (다른 비유로 정정, recall gap만)
 │       ├── self-lecture.md # 셀프렉처: 에이전트가 호기심 많은 학생 역할
@@ -287,12 +291,14 @@ study-{slug}/
 
 규칙:
 - 디렉토리명: `ch-{NN}-{영문-슬러그}` (NN은 01부터 시작하는 2자리 숫자)
-- 챕터 내 파일명은 **역할 기반**으로 고정(README/diagnosis/concept/test/lab/review). 확장자는 학습 주제에 맞춰 자유롭게 둔다.
+- 챕터 내 파일명은 **역할 기반**으로 고정(README/diagnosis/test/lab/review). 새 구조에서 concept 본문은 README에 통합한다.
 - 학습 설계 미리보기 HTML 템플릿은 프로젝트에 두지 않는다. `study_curriculum_open` tool이 extension에 내장된 템플릿을 사용해 `curriculum.html`을 생성한다.
 - 사전진단/테스트 HTML 템플릿은 프로젝트에 두지 않는다. extension의 공통 assessment 템플릿을 사용해 `study_diagnosis_open`은 `diagnosis.html`, `study_test_open`은 `test.html`을 생성한다.
 - `diagnosis.html`과 `test.html`은 생성 산출물이므로 다시 만들 수 있다. canonical source는 각각 `diagnosis.md`, attempt별 문제·답안·채점 결과가 누적되는 `test.md`다.
-- `concept.md`는 개념 학습 후 남는 canonical 학습 노트다. 채팅 요약이 아니라, 여러 챕터의 concept.md만 모아도 교과서처럼 읽히는 독립 문서로 작성한다. 구조/흐름/순서/관계가 이해에 도움이 되면 markdown의 mermaid 다이어그램을 사용한다.
-- `lab/README.md`는 실습 목표/단계/완료조건/산출물 체크리스트다.
+- 챕터 `README.md`가 학습 개요와 concept 단계에서 확장되는 **유일한 canonical 개념 문서**다. README는 챕터 시작 시 목표/개념 지도/학습 흐름을 담고, 개념 학습 뒤 `개념 학습 노트` 본문을 같은 파일에 추가한다. 독립적으로 읽어도 교과서처럼 이해되게 쓰며, 채팅 요약이 아니라 구조/흐름/예시/판단 기준을 포함한다.
+- `review/study-pack.md`는 통과한 챕터 테스트 뒤 생성되는 단일 복습 묶음이다. 개념 본문, 각 lab step의 검증된 실행 증거와 학습자 설명, 진단/테스트 결과, 남은 학습 공백을 포함한다. 이후 복습 회상 결과를 누적한다.
+- 새 챕터에는 `concept.md`를 만들지 않는다. 기존 프로젝트의 `concept.md`는 하위 호환을 위해 읽을 수 있지만 새 내용은 README로 통합한다.
+- `lab/README.md`는 앞으로 수행할 실습 목표/단계/완료조건/산출물 체크리스트다. `lab/results.md`는 완료한 각 step의 검증 결과, 실행/관찰 증거, 학습자가 설명한 배운 점을 누적 기록한다. 검증 자동값과 학습자 서술을 구별하고, 확인하지 않은 로그/결과를 만들어내지 않는다.
 - `lab/` 산출물 형식은 도메인이 정한다: 개발/DB는 코드·쿼리·설정·로그, 글쓰기는 초안/수정본, 언어 학습은 녹음 링크/대본, 음악은 악보/리듬/녹음 기록 등.
 - `ch-` 프리픽스는 챕터 구분과 정렬을 위함. Phase 구분은 README.md의 Phase 번호로 한다.
 
@@ -319,8 +325,8 @@ study-{slug}/
 
 1. **사전 평가** — `/study-chapter {챕터} diagnosis`가 `study_diagnosis_open` tool으로 브라우저 세션을 연다. 학습자가 풀고 제출하면 자동 채점된다.
 2. **결과 기록** — `diagnosis.md`에 사전평가 결과 + 난이도 + 약점 + 권장 학습 깊이를 기록. 이후 단계에서 참조한다.
-3. **개념 학습** — 사전평가 결과에 맞춰 깊이와 난이도를 조정한다. 이미 아는 것은 가볍게, 약점은 깊이. lab/test로 넘어가기 전 `concept.md`를 생성한다.
-4. **실습 수행** — `lab/README.md` 체크리스트를 만들고 `lab/`에서 직접 수행한다. 개발/DB면 실행결과·쿼리결과·로그, 언어면 녹음/대본, 글쓰기면 초안/수정본, 운동·음악이면 기록/영상처럼 도메인 증거를 남긴다.
+3. **개념 학습** — 사전평가 결과에 맞춰 깊이와 난이도를 조정한다. 이미 아는 것은 가볍게, 약점은 깊이. lab/test로 넘어가기 전 챕터 `README.md`의 `개념 학습 노트`를 생성/최신화한다.
+4. **실습 수행** — `lab/README.md` 체크리스트를 만들고 `lab/`에서 직접 수행한다. 각 step 검증 뒤 관찰과 배운 점을 `lab/results.md`에 기록한다. 개발/DB면 실행결과·쿼리결과·로그, 언어면 녹음/대본, 글쓰기면 초안/수정본, 운동·음악이면 기록/영상처럼 도메인 증거를 남긴다.
 5. **테스트** — `study_test_open`으로 브라우저 테스트를 열고 같은 화면에서 자동 채점 결과를 확인한다. `test.md`에는 attempt별 문제·답안·채점을 누적한다. 통과 기준 미달 시 해당 개념만 재학습하고 새 변형 문제로 다음 attempt를 진행한다. 전체 반복 금지.
 6. **복습(`/study-review` 커맨드로 진행)** — 에이전트는 5가지 역할을 번갈아 한다:
    1. `blank-recall.md` (검증자): 원본에서 5개 핵심 아이디어 추출, 학습자 답과 대조해 STRONG/WEAK/WRONG 분급.
@@ -390,14 +396,12 @@ study-{slug}/
 아직 채점 전입니다.
 ```
 
-- `concept.md`는 프로젝트 생성 시 비워두거나 아래 헤더만 둔다. 실제 내용은 `/study-chapter`의 개념 학습이 lab/test로 전환되기 전에 생성/최신화한다.
+- `README.md`에는 프로젝트 생성 시 학습 목표/개념 지도/학습 흐름을 둔다. 빈 `개념 학습 노트` 헤더는 미리 만들지 않는다. `/study-chapter concept`는 실제 설명을 마친 뒤 이 섹션을 추가하고, lab/test로 넘어가기 전에 같은 README에 통합한다.
+- chapter test 통과 뒤 `review/study-pack.md`에 README 개념 본문, lab/results.md, diagnosis.md, test.md, learning-gaps.md를 모은다. 챕터 단독 복습 자료이며 `/study-review`의 회상 기록도 누적한다.
+- `lab/results.md`는 빈 템플릿으로만 생성하거나 첫 완료 step 때 extension이 만든다. `/study-chapter lab`은 검증 성공 뒤 매 step의 관찰/배운 점을 누적한다.
+- `review/study-pack.md`는 chapter test 통과 시 extension이 생성한다. `/study-review`는 회상 내용을 기록하고 `study_pack_refresh`를 호출해 최신 노트를 재구성한다.
 
-```md
-# 개념 노트
-
-아직 개념 학습 전입니다.
-```
-
+- 챕터 `README.md`는 개념 학습 전에는 학습 지도만 포함하고, concept phase에서 실제 설명을 마친 뒤 `## 개념 학습 노트`를 채운다.
 - `lab/README.md`는 실습 전 아래 구조로 생성/최신화한다.
 
 ```md
