@@ -218,6 +218,26 @@ export function resolveNextTarget(state: StudyState): { chapterSlug: string; pha
   return reviewChapter ? { chapterSlug: reviewChapter, phase: "review" } : { chapterSlug: slugs[slugs.length - 1], phase: "review" };
 }
 
+export async function applyTestRecovery(
+  projectRoot: string,
+  chapterSlug: string,
+  record: { id: string; attempt: number; score: number; maxScore: number },
+): Promise<boolean> {
+  const state = await loadStudyState(projectRoot);
+  if (!state.chapters[chapterSlug]) return false;
+  if (state.chapters[chapterSlug].test.status === "completed") return true;
+  updatePhaseState(state, chapterSlug, "test", {
+    status: "completed",
+    attempt: record.attempt,
+    score: record.score,
+    maxScore: record.maxScore,
+    sessionId: record.id,
+    reason: undefined,
+  });
+  await saveStudyState(projectRoot, state);
+  return true;
+}
+
 export function updatePhaseState(
   state: StudyState,
   chapterSlug: string,

@@ -33,14 +33,15 @@ import {
 	type AssessmentStatus,
 	type TestQuestionSet,
 } from "./assessment-core.ts";
-import { persistDiagnosisRecord, persistTestRecord, validateDiagnosisGrade, validateTestGrade } from "./assessment-grade.ts";
+import { buildDiagnosisGradeSkeleton, buildTestGradeSkeleton, findRecoverablePassedTest, markAssessmentAcknowledged, persistDiagnosisRecord, persistTestRecord, validateDiagnosisGrade, validateTestGrade } from "./assessment-grade.ts";
+import { findReusableTestSession, hasAssessmentSession } from "./session-core.ts";
 import { findStudyProjectRoot, registerStudyChapterCommand, type StudyChapterTarget } from "./study-command.ts";
-import { loadStudyState, saveStudyState, updatePhaseState, type StudyPhase } from "./study-state.ts";
+import { applyTestRecovery, loadStudyState, saveStudyState, updatePhaseState, type StudyPhase } from "./study-state.ts";
 import { manifestFromCurriculum, saveProjectManifest } from "./project-manifest.ts";
 import { runStudyPreflight } from "./preflight.ts";
 import { loadLabManifest, recordLabResult, saveLabManifest, updateLabStep, verifyLabStep } from "./lab-core.ts";
 import { projectPath } from "./project-path.ts";
-import { buildStudyPack } from "./study-pack.ts";
+import { buildStudyPack, findLabRecordGaps } from "./study-pack.ts";
 
 type DiagnosisSession = {
 	id: string;
@@ -116,8 +117,14 @@ export default function (pi: ExtensionAPI) {
 	});
 
 	pi.on("turn_end", () => {
-		if (!activeChapterTarget || correctiveFollowUpSent || assessmentOpenObserved) return;
+		if (!activeChapterTarget || correctiveFollowUpSent) return;
 		if (activeChapterTarget.phase !== "diagnosis" && activeChapterTarget.phase !== "test") return;
+		const chapterSessions = activeChapterTarget.phase === "test" ? [...testSessions.values()] : [...sessions.values()];
+		if (hasAssessmentSession(chapterSessions, activeChapterTarget.chapterSlug)) {
+			assessmentOpenObserved = true;
+			return;
+		}
+		if (assessmentOpenObserved) return;
 		correctiveFollowUpSent = true;
 		const tool = activeChapterTarget.phase === "diagnosis" ? "study_diagnosis_open" : "study_test_open";
 		pi.sendUserMessage(
@@ -296,6 +303,7 @@ export default function (pi: ExtensionAPI) {
 				try { payload = JSON.parse(body); } catch { return sendJson(res, 400, { error: "Invalid JSON payload" }); }
 			}
 			session.status = "acknowledged";
+			markAssessmentAcknowledged(session.projectRoot, session.id).catch((error) => console.warn("[study] failed to persist acknowledgement:", error));
 			const grade = session.grade as any;
 			const passed = Boolean(grade?.passed);
 			let packPath: string | undefined;
@@ -416,25 +424,11 @@ export default function (pi: ExtensionAPI) {
 			"2. 문항별 score, status(correct|partial|wrong|unanswered), correctAnswer, explanation, advice 산출.",
 			"3. totalScore, maxScore, level(slow|normal|fast), summary, weaknesses, recommendation 산출. 약점은 fact_gap/concept_gap/transfer_gap/execution_gap/ambiguous_question 관점으로 중립적으로 설명하고, 학습자를 복사·불성실로 단정하지 마세요.",
 			"4. 파일은 직접 수정하지 마세요. extension이 검증된 grade를 diagnosis.md와 .study/assessments에 자동 기록합니다.",
-			"5. 응답 끝에 반드시 아래 마커로 DIAGNOSIS_GRADE_JSON을 포함. diagnosisId 필드는 반드시 채울 것:",
+			"5. 응답 끝에 반드시 아래 마커로 DIAGNOSIS_GRADE_JSON을 포함. diagnosisId 필드는 반드시 채울 것. results의 id/maxScore는 이미 문항 배점으로 채워져 있으니 그대로 두고 score/status/correctAnswer/explanation/advice만 채우세요. status는 correct|partial|wrong|unanswered 중 하나여야 합니다.",
 			"",
 			DIAGNOSIS_GRADE_START,
 			"```json",
-			JSON.stringify(
-				{
-					kind: "study-diagnosis-grade",
-					diagnosisId: session.id,
-					totalScore: 0,
-					maxScore: 0,
-					level: "normal",
-					summary: "",
-					weaknesses: [],
-					recommendation: "",
-					results: [],
-				},
-				null,
-				2,
-			),
+			JSON.stringify(buildDiagnosisGradeSkeleton(session.questionSet, session.id), null, 2),
 			"```",
 			DIAGNOSIS_GRADE_END,
 			"",
@@ -470,11 +464,11 @@ export default function (pi: ExtensionAPI) {
 			"1. rubric과 챕터 concept/lab 범위를 기준으로 문항별 score/status/correctAnswer/explanation/advice를 산출하세요.",
 			"2. totalScore, maxScore, passScore, passed, summary, weaknesses, recommendation을 산출하세요. 약점은 fact_gap/concept_gap/transfer_gap/execution_gap/ambiguous_question 관점으로 중립적으로 설명하고, 학습자를 복사·불성실로 단정하지 마세요.",
 			"3. 파일은 직접 수정하지 마세요. extension이 검증된 attempt를 test.md와 .study/assessments에 자동 누적합니다.",
-			"4. 응답 끝에 반드시 아래 TEST_GRADE_JSON을 포함하고 testId/attempt를 그대로 유지하세요.",
+			"4. 응답 끝에 반드시 아래 TEST_GRADE_JSON을 포함하고 testId/attempt를 그대로 유지하세요. results의 id/maxScore는 이미 문항 배점으로 채워져 있으니 그대로 두고 score/status/correctAnswer/explanation/advice만 채우세요. status는 correct|partial|wrong|unanswered 중 하나여야 합니다.",
 			"",
 			TEST_GRADE_START,
 			"```json",
-			JSON.stringify({ kind: "study-test-grade", testId: session.id, attempt: session.attempt, totalScore: 0, maxScore: 100, passScore: session.passScore, passed: false, summary: "", weaknesses: [], recommendation: "", results: [] }, null, 2),
+			JSON.stringify(buildTestGradeSkeleton(session.questionSet, session.id), null, 2),
 			"```",
 			TEST_GRADE_END,
 			"",
@@ -732,7 +726,12 @@ export default function (pi: ExtensionAPI) {
 		async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
 			const projectRoot = await findStudyProjectRoot(ctx?.cwd ?? process.cwd());
 			const path = await buildStudyPack(projectRoot, params.chapterSlug);
-			return { content: [{ type: "text", text: `복습 묶음 갱신 완료: ${path}` }], details: { path } };
+			const record = await findRecoverablePassedTest(projectRoot, params.chapterSlug);
+			let recoveryLine = "";
+			if (record && await applyTestRecovery(projectRoot, params.chapterSlug, record)) {
+				recoveryLine = `\n출석부 복구: test → completed (시험 ${record.id}, ${record.score}/${record.maxScore})`;
+			}
+			return { content: [{ type: "text", text: `복습 묶음 갱신 완료: ${path}${recoveryLine}` }], details: { path, recovery: record ?? undefined } };
 		},
 	});
 
@@ -963,7 +962,7 @@ export default function (pi: ExtensionAPI) {
 		promptSnippet: "Open interactive chapter test in browser; bridge submission, grading, and score-based handoff",
 		promptGuidelines: ["/study-chapter test 단계에서 TestQuestionSet JSON을 만든 직후 호출하세요. test.md 직접 편집을 학습자에게 요구하지 마세요."],
 		parameters: Type.Object({
-			chapterSlug: Type.String({ description: "챕터 디렉토리 slug. {chapterSlug}/test.html이 생성됩니다." }),
+			chapterSlug: Type.String({ description: "챕터 디렉토리 slug. {chapterSlug}/test-{id}.html이 생성됩니다." }),
 			chapterTitle: Type.String({ description: "챕터 제목" }),
 			phase: Type.Optional(Type.String({ description: "Phase 라벨. 기본값 Phase 4 / test" })),
 			questionsJson: Type.String({ description: "passScore와 attempt를 포함한 TestQuestionSet JSON 문자열" }),
@@ -973,7 +972,8 @@ export default function (pi: ExtensionAPI) {
 			const cwd = ctx?.cwd ?? process.cwd();
 			const projectRoot = await findStudyProjectRoot(cwd);
 			const slug = params.chapterSlug;
-			const htmlPath = projectPath(projectRoot, slug, "test.html");
+			const id = randomUUID().replace(/-/g, "").slice(0, 12);
+			const htmlPath = projectPath(projectRoot, slug, `test-${id}.html`);
 			const testMdPath = params.testMdPath ?? join(slug, "test.md");
 			let template: string;
 			try { template = await readFile(templatePath, "utf8"); }
@@ -983,6 +983,36 @@ export default function (pi: ExtensionAPI) {
 			catch (err) { throw new Error(`questionsJson이 올바른 JSON이 아닙니다: ${err instanceof Error ? err.message : err}`); }
 			validateAssessmentQuestionSet(parsed, "test");
 			const testSet = parsed as TestQuestionSet;
+			const labGaps = await findLabRecordGaps(projectRoot, slug);
+			if (labGaps) {
+				const problems = [
+					...(labGaps.unfinishedSteps.length ? [`완료되지 않은 lab step: ${labGaps.unfinishedSteps.join(", ")}`] : []),
+					...(labGaps.missingResultSteps.length ? [`결과 기록이 없는 lab step: ${labGaps.missingResultSteps.join(", ")}`] : []),
+					...(labGaps.missingSkippedEvidence.length ? [`근거 기록이 없는 skipped lab step: ${labGaps.missingSkippedEvidence.join(", ")}`] : []),
+				];
+				if (problems.length) {
+					throw new Error(`시험을 열 수 없습니다 — lab 기록 미완료. ${problems.join(" / ")}. 누락된 step을 먼저 완료하거나 study_lab_verify로 결과를 기록한 뒤 다시 여세요.`);
+				}
+			}
+			const reusable = findReusableTestSession([...testSessions.values()], slug, testSet.attempt);
+			if (reusable) {
+				const port = await startServer();
+				const browserUrl = `http://127.0.0.1:${port}/test/${reusable.id}`;
+				openBrowser(browserUrl);
+				assessmentOpenObserved = true;
+				if (signal?.aborted) return { content: [{ type: "text", text: "취소됨" }] };
+				return {
+					content: [{ type: "text", text: [
+					`♻️ 이미 열려 있는 테스트 세션을 재사용합니다. 같은 시도(${reusable.attempt}차)의 세션이 열려 있어 새 세션을 만들지 않았습니다.`,
+					`URL: ${browserUrl}`,
+					`세션: ${reusable.id} (${reusable.status})`,
+					`결과 기록: ${reusable.testMdPath}`,
+					``,
+					`학습자가 기존 화면에서 답안을 제출하면 됩니다. 새 변형 문제가 필요하면 attempt를 1 올려서 다시 호출하세요.`,
+				].join("\n") }],
+					details: { url: browserUrl, id: reusable.id, reused: true, htmlPath: reusable.htmlPath, testMdPath: reusable.testMdPath, passScore: reusable.passScore, attempt: reusable.attempt },
+				};
+			}
 			const phase = params.phase ?? testSet.phase ?? "Phase 4 / test";
 			const config = JSON.stringify({
 				kind: "test", title: "학습 완료 테스트", submissionKind: "study-test-submission", submissionHeading: "TEST_SUBMISSION",
@@ -1000,7 +1030,6 @@ export default function (pi: ExtensionAPI) {
 			await mkdir(dirname(htmlPath), { recursive: true });
 			await writeFile(htmlPath, html, "utf8");
 			const port = await startServer();
-			const id = randomUUID().replace(/-/g, "").slice(0, 12);
 			const session: TestSession = { id, htmlPath, projectRoot, chapterSlug: slug, chapterTitle: params.chapterTitle, testMdPath, questionSet: testSet, passScore: testSet.passScore, attempt: testSet.attempt, createdAt: Date.now(), status: "open", submission: null, grade: null };
 			testSessions.set(id, session);
 			assessmentOpenObserved = true;

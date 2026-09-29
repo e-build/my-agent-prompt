@@ -4,7 +4,7 @@ import { mkdtemp, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { persistTestRecord, validateDiagnosisGrade, validateTestGrade } from "./assessment-grade.ts";
+import { buildDiagnosisGradeSkeleton, buildTestGradeSkeleton, persistTestRecord, validateDiagnosisGrade, validateTestGrade } from "./assessment-grade.ts";
 import type { AssessmentQuestionSet, TestQuestionSet } from "./assessment-core.ts";
 
 function set(): TestQuestionSet {
@@ -59,7 +59,7 @@ test("rejects missing, duplicate, score mismatch and attempt mismatch", () => {
   assert.throws(() => validateTestGrade(duplicate, "t1", set()), /중복/);
   const mismatch = grade();
   mismatch.totalScore = 99;
-  assert.throws(() => validateTestGrade(mismatch, "t1", set()), /점수 합계/);
+  assert.equal(validateTestGrade(mismatch, "t1", set()).totalScore, 15);
   const attempt = grade();
   attempt.attempt = 2;
   assert.throws(() => validateTestGrade(attempt, "t1", set()), /attempt/);
@@ -87,6 +87,40 @@ test("rejects assessment markdown paths outside the project", async () => {
     submission: { answers: [] },
     grade: validated,
   }), /프로젝트 밖 경로/);
+});
+
+test("builds prefilled grade skeletons from the active question set", () => {
+  const testSkeleton = buildTestGradeSkeleton(set(), "t1") as Record<string, any>;
+  assert.equal(testSkeleton.kind, "study-test-grade");
+  assert.equal(testSkeleton.testId, "t1");
+  assert.equal(testSkeleton.attempt, 1);
+  assert.equal(testSkeleton.maxScore, 20);
+  assert.equal(testSkeleton.passScore, 14);
+  assert.deepEqual(
+    testSkeleton.results.map((result: any) => [result.id, result.maxScore]),
+    [["q1", 10], ["q2", 10]],
+  );
+
+  const questionSet = set() as AssessmentQuestionSet;
+  const diagnosisSkeleton = buildDiagnosisGradeSkeleton(questionSet, "d1") as Record<string, any>;
+  assert.equal(diagnosisSkeleton.kind, "study-diagnosis-grade");
+  assert.equal(diagnosisSkeleton.diagnosisId, "d1");
+  assert.equal(diagnosisSkeleton.maxScore, 20);
+  assert.equal(diagnosisSkeleton.results.length, 2);
+});
+
+test("aggregates every results-array validation error into one repair message", () => {
+  const broken = grade();
+  delete (broken.results[0] as Record<string, unknown>).maxScore;
+  (broken.results[0] as Record<string, unknown>).correctAnswer = "";
+  (broken.results[1] as Record<string, unknown>).status = "incorrect";
+  assert.throws(
+    () => validateTestGrade(broken, "t1", set()),
+    (error: unknown) => {
+      const message = error instanceof Error ? error.message : String(error);
+      return /q1 maxScore/.test(message) && /q1 correctAnswer/.test(message) && /q2 status/.test(message);
+    },
+  );
 });
 
 test("persists test attempts append-only and structured assessment record", async () => {

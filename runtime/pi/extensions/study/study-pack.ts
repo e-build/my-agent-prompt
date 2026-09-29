@@ -25,6 +25,34 @@ function conceptBodyFrom(readme: string): string {
   return match?.[1]?.trim() ?? "";
 }
 
+export type LabRecordGaps = {
+  unfinishedSteps: string[];
+  missingResultSteps: string[];
+  missingSkippedEvidence: string[];
+};
+
+export async function findLabRecordGaps(projectRoot: string, chapterSlug: string): Promise<LabRecordGaps | null> {
+  const chapterDir = projectPath(projectRoot, chapterSlug);
+  const manifestText = await readOptional(join(chapterDir, "lab", "manifest.json"));
+  if (!manifestText.trim()) return null;
+  let manifest: { steps?: Array<{ id?: string; status?: string; skipEvidence?: string }> };
+  try { manifest = JSON.parse(manifestText); } catch { return null; }
+  if (!Array.isArray(manifest.steps)) return null;
+  const labResults = await readOptional(join(chapterDir, "lab", "results.md"));
+  const doneSteps = manifest.steps.filter((step) => ["completed", "skipped_understood"].includes(String(step.status)));
+  return {
+    unfinishedSteps: manifest.steps
+      .filter((step) => !["completed", "skipped_understood"].includes(String(step.status)))
+      .map((step) => step.id ?? "unknown"),
+    missingResultSteps: doneSteps
+      .filter((step) => step.id && !labResults.includes(`- Step ID: \`${step.id}\``))
+      .map((step) => step.id!),
+    missingSkippedEvidence: doneSteps
+      .filter((step) => step.status === "skipped_understood" && (!step.skipEvidence?.trim() || !labResults.includes(`- 스킵 근거: ${step.skipEvidence}`)))
+      .map((step) => step.id!),
+  };
+}
+
 export async function buildStudyPack(projectRoot: string, chapterSlug: string, score?: StudyPackScore): Promise<string> {
   const chapterDir = projectPath(projectRoot, chapterSlug);
   const readmePath = join(chapterDir, "README.md");
@@ -39,17 +67,15 @@ export async function buildStudyPack(projectRoot: string, chapterSlug: string, s
   const diagnosis = await readOptional(join(chapterDir, "diagnosis.md"));
   const labResults = await readOptional(join(chapterDir, "lab", "results.md"));
   if (!labResults.trim()) throw new Error("챕터 학습 묶음을 만들려면 기록된 lab/results.md가 필요합니다.");
-  const manifestText = await readOptional(join(chapterDir, "lab", "manifest.json"));
-  if (!manifestText.trim()) throw new Error("챕터 학습 묶음에는 lab/manifest.json이 필요합니다.");
-  let manifest: { steps?: Array<{ id?: string; status?: string; skipEvidence?: string }> };
-  try { manifest = JSON.parse(manifestText); } catch { throw new Error("lab/manifest.json을 읽을 수 없습니다."); }
-  if (!Array.isArray(manifest.steps)) throw new Error("lab/manifest.json에 steps 배열이 없습니다.");
-  const unfinished = manifest.steps.filter((step) => !["completed", "skipped_understood"].includes(String(step.status)));
-  if (unfinished.length) throw new Error(`완료되지 않은 lab step이 있습니다: ${unfinished.map((step) => step.id ?? "unknown").join(", ")}`);
-  const missingResultSteps = manifest.steps.filter((step) => step.id && !labResults.includes(`- Step ID: \`${step.id}\``));
-  const missingSkippedEvidence = manifest.steps.filter((step) => step.status === "skipped_understood" && (!step.skipEvidence?.trim() || !labResults.includes(`- 스킵 근거: ${step.skipEvidence}`)));
-  if (missingResultSteps.length) throw new Error(`결과 기록이 없는 lab step이 있습니다: ${missingResultSteps.map((step) => step.id).join(", ")}`);
-  if (missingSkippedEvidence.length) throw new Error(`근거 기록이 없는 skipped lab step이 있습니다: ${missingSkippedEvidence.map((step) => step.id).join(", ")}`);
+  const gaps = await findLabRecordGaps(projectRoot, chapterSlug);
+  if (!gaps) {
+    const manifestText = await readOptional(join(chapterDir, "lab", "manifest.json"));
+    if (!manifestText.trim()) throw new Error("챕터 학습 묶음에는 lab/manifest.json이 필요합니다.");
+    throw new Error("lab/manifest.json을 읽을 수 없습니다.");
+  }
+  if (gaps.unfinishedSteps.length) throw new Error(`완료되지 않은 lab step이 있습니다: ${gaps.unfinishedSteps.join(", ")}`);
+  if (gaps.missingResultSteps.length) throw new Error(`결과 기록이 없는 lab step이 있습니다: ${gaps.missingResultSteps.join(", ")}`);
+  if (gaps.missingSkippedEvidence.length) throw new Error(`근거 기록이 없는 skipped lab step이 있습니다: ${gaps.missingSkippedEvidence.join(", ")}`);
   const review = await readOptional(join(chapterDir, "review", "learning-gaps.md"));
   const scoreLine = score
     ? `- 최종 테스트: ${score.score}/${score.maxScore} (통과 기준 ${score.passScore})\n`

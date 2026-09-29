@@ -1,4 +1,4 @@
-import { access, mkdir, readFile, readdir, rename, writeFile } from "node:fs/promises";
+import { access, mkdir, readFile, readdir, rename, stat, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { projectPath } from "./project-path.ts";
 import type { StudyPhaseStatus } from "./study-state.ts";
@@ -19,6 +19,9 @@ export type LabStep = {
     outputIncludes?: string[];
   };
   skipEvidence?: string;
+  /** legacy manifest fields kept for normalization */
+  verifyCommands?: string[];
+  expectedTests?: { total: number; failures?: number };
 };
 
 export type LabManifest = {
@@ -55,8 +58,20 @@ export function labManifestPath(projectRoot: string, chapterSlug: string): strin
   return projectPath(projectRoot, chapterSlug, "lab", "manifest.json");
 }
 
+export function normalizeLabManifest(manifest: LabManifest): LabManifest {
+  for (const step of manifest.steps) {
+    if (!step.verify && Array.isArray(step.verifyCommands) && step.verifyCommands.length > 0) {
+      step.verify = {
+        command: step.verifyCommands[0],
+        ...(typeof step.expectedTests?.total === "number" ? { expectedTests: step.expectedTests.total } : {}),
+      };
+    }
+  }
+  return manifest;
+}
+
 export async function loadLabManifest(projectRoot: string, chapterSlug: string): Promise<LabManifest> {
-  return JSON.parse(await readFile(labManifestPath(projectRoot, chapterSlug), "utf8"));
+  return normalizeLabManifest(JSON.parse(await readFile(labManifestPath(projectRoot, chapterSlug), "utf8")));
 }
 
 export async function saveLabManifest(projectRoot: string, manifest: LabManifest): Promise<void> {
@@ -67,13 +82,20 @@ export async function saveLabManifest(projectRoot: string, manifest: LabManifest
   await rename(temp, path);
 }
 
-async function junitTestCount(workspace: string): Promise<number | undefined> {
+async function junitTestCount(workspace: string, sinceMs?: number): Promise<number | undefined> {
   const dir = join(workspace, "build", "test-results", "test");
   let entries: string[];
   try { entries = await readdir(dir); } catch { return undefined; }
   let count = 0;
   for (const file of entries.filter((name) => name.endsWith(".xml"))) {
-    const xml = await readFile(join(dir, file), "utf8");
+    const path = join(dir, file);
+    if (sinceMs != null) {
+      try {
+        const stats = await stat(path);
+        if (stats.mtimeMs < sinceMs - 1000) continue;
+      } catch { continue; }
+    }
+    const xml = await readFile(path, "utf8");
     const suite = xml.match(/<testsuite[^>]*\stests="(\d+)"[^>]*>/);
     if (suite) count += Number(suite[1]);
   }
@@ -93,10 +115,13 @@ export async function verifyLabStep(projectRoot: string, chapterSlug: string, st
   for (const path of required) if (!(await exists(projectPath(projectRoot, path)))) missingFiles.push(path);
   const messages: string[] = missingFiles.length ? [`필수 파일 누락: ${missingFiles.join(", ")}`] : [];
   let commandResult: LabVerification["command"];
-  if (step.verify) {
+  if (!step.verify) {
+    messages.push("검증 명령이 정의되지 않았습니다. step에 verify.command(또는 legacy verifyCommands)를 지정하세요.");
+  } else {
     const cwd = projectPath(projectRoot, step.verify.cwd ?? manifest.workspace ?? ".");
+    const startedAt = Date.now();
     const result = await runner("/bin/sh", ["-lc", step.verify.command], cwd);
-    const testCount = await junitTestCount(cwd);
+    const testCount = await junitTestCount(cwd, startedAt);
     commandResult = { exitCode: result.code, stdout: result.stdout, stderr: result.stderr, ...(testCount != null ? { testCount } : {}) };
     const expectedExit = step.verify.expectedExitCode ?? 0;
     if (result.code !== expectedExit) messages.push(`검증 명령 exit code ${result.code}; expected ${expectedExit}`);

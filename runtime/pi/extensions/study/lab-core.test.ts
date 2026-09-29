@@ -76,6 +76,57 @@ test("does not record unverified or empty lab results", async () => {
   }), /관찰 결과/);
 });
 
+test("normalizes legacy verifyCommands manifests and actually executes the command", async () => {
+  const { root } = await setup();
+  await writeFile(join(root, "ch-01", "lab", "manifest.json"), JSON.stringify({
+    version: 1,
+    chapterSlug: "ch-01",
+    mode: "application",
+    workspace: "app",
+    steps: [{
+      id: "cache",
+      title: "Cache",
+      status: "in_progress",
+      learnerFiles: ["app/src.kt"],
+      verifyCommands: ["cd app && ./gradlew cleanTest test"],
+      expectedTests: { total: 2, failures: 0 },
+      cliEvidence: ["redis-cli TTL k"],
+    }],
+  }, null, 2));
+  await writeFile(join(root, "ch-01", "lab", "result.md"), "evidence");
+  await writeFile(join(root, "app", "build", "test-results", "test", "TEST-x.xml"), '<testsuite tests="2" failures="0" errors="0"></testsuite>');
+
+  const executed: Array<{ command: string; args: string[] }> = [];
+  const result = await verifyLabStep(root, "ch-01", "cache", async (command, args, cwd) => {
+    executed.push({ command, args });
+    return { code: 0, stdout: "BUILD SUCCESSFUL", stderr: "" };
+  });
+
+  assert.equal(result.passed, true, result.messages.join("; "));
+  assert.equal(executed.length, 1);
+  assert.match(executed[0].args.join(" "), /gradlew cleanTest test/);
+  assert.equal(result.command?.testCount, 2);
+
+  const manifest = await loadLabManifest(root, "ch-01");
+  assert.equal(manifest.steps[0].verify?.command, "cd app && ./gradlew cleanTest test");
+  assert.equal(manifest.steps[0].verify?.expectedTests, 2);
+});
+
+test("fails closed when a step defines no verification command", async () => {
+  const { root } = await setup();
+  await writeFile(join(root, "ch-01", "lab", "manifest.json"), JSON.stringify({
+    version: 1,
+    chapterSlug: "ch-01",
+    mode: "application",
+    workspace: "app",
+    steps: [{ id: "cache", title: "Cache", status: "in_progress", learnerFiles: ["app/src.kt"] }],
+  }, null, 2));
+
+  const result = await verifyLabStep(root, "ch-01", "cache", async () => ({ code: 0, stdout: "should not run", stderr: "" }));
+  assert.equal(result.passed, false);
+  assert.match(result.messages.join("; "), /검증 명령이 정의되지 않았습니다/);
+});
+
 test("skipped_understood requires evidence", async () => {
   const { root, manifest } = await setup();
   assert.throws(() => updateLabStep(manifest, "cache", "skipped_understood"), /근거/);

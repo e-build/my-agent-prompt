@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { buildStudyPack } from "./study-pack.ts";
+import { buildStudyPack, findLabRecordGaps } from "./study-pack.ts";
 
 test("builds a self-contained chapter study pack from README, lab evidence, and passed test", async () => {
   const root = await mkdtemp(join(tmpdir(), "study-pack-"));
@@ -49,6 +49,30 @@ test("refuses to build a study pack when the README concept note is only a place
   await assert.rejects(() => buildStudyPack(root, "ch-01-cache"), /실제 학습 내용이 있는 개념 학습 노트/);
   await writeFile(join(chapter, "README.md"), "# Cache\n\n## 개념 학습 노트\n\n아직 개념 학습 전입니다.\n");
   await assert.rejects(() => buildStudyPack(root, "ch-01-cache"), /실제 학습 내용이 있는 개념 학습 노트/);
+});
+
+test("findLabRecordGaps reports unfinished steps and missing result records before the test opens", async () => {
+  const root = await mkdtemp(join(tmpdir(), "study-pack-gaps-"));
+  const chapter = join(root, "ch-01-cache");
+  await mkdir(join(chapter, "lab"), { recursive: true });
+  await writeFile(join(chapter, "README.md"), "# Cache\n\n## 개념 학습 노트\n\n내용\n");
+  await writeFile(join(chapter, "lab", "manifest.json"), JSON.stringify({
+    steps: [
+      { id: "step-1", status: "completed" },
+      { id: "step-2", status: "completed" },
+      { id: "step-3", status: "in_progress" },
+      { id: "step-4", status: "skipped_understood", skipEvidence: "이미 증명함" },
+    ],
+  }));
+  await writeFile(join(chapter, "lab", "results.md"), "# 실습 결과\n\n- Step ID: `step-1`\n- 관찰: 확인\n- 배운 점: 이해\n");
+
+  const gaps = await findLabRecordGaps(root, "ch-01-cache");
+  assert.deepEqual(gaps?.unfinishedSteps, ["step-3"]);
+  assert.deepEqual(gaps?.missingResultSteps, ["step-2", "step-4"]);
+  assert.deepEqual(gaps?.missingSkippedEvidence, ["step-4"]);
+
+  const withoutManifest = await findLabRecordGaps(root, "ch-02-none");
+  assert.equal(withoutManifest, null);
 });
 
 test("refuses to build a study pack when a completed lab step has no result record", async () => {
