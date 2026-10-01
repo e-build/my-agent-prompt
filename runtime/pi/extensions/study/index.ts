@@ -16,7 +16,7 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawn } from "node:child_process";
-import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { withFileMutationQueue, type ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 import {
 	canAcknowledge,
@@ -36,12 +36,14 @@ import {
 import { buildDiagnosisGradeSkeleton, buildTestGradeSkeleton, findRecoverablePassedTest, markAssessmentAcknowledged, persistDiagnosisRecord, persistTestRecord, validateDiagnosisGrade, validateTestGrade } from "./assessment-grade.ts";
 import { findReusableTestSession, hasAssessmentSession } from "./session-core.ts";
 import { findStudyProjectRoot, registerStudyChapterCommand, type StudyChapterTarget } from "./study-command.ts";
-import { applyTestRecovery, loadStudyState, saveStudyState, updatePhaseState, type StudyPhase } from "./study-state.ts";
+import { applyTestRecovery, loadStudyState, saveStudyState, syncReviewPhase, updatePhaseState, type StudyPhase } from "./study-state.ts";
 import { manifestFromCurriculum, saveProjectManifest } from "./project-manifest.ts";
 import { runStudyPreflight } from "./preflight.ts";
 import { loadLabManifest, recordLabResult, saveLabManifest, updateLabStep, verifyLabStep } from "./lab-core.ts";
 import { projectPath } from "./project-path.ts";
-import { buildStudyPack, findLabRecordGaps } from "./study-pack.ts";
+import { findLabRecordGaps, validateChapterEvidence } from "./chapter-evidence.ts";
+import { buildReviewStartPage } from "./review-page.ts";
+import { completeAcknowledgedTest } from "./test-completion.ts";
 
 type DiagnosisSession = {
 	id: string;
@@ -303,33 +305,16 @@ export default function (pi: ExtensionAPI) {
 				try { payload = JSON.parse(body); } catch { return sendJson(res, 400, { error: "Invalid JSON payload" }); }
 			}
 			session.status = "acknowledged";
-			markAssessmentAcknowledged(session.projectRoot, session.id).catch((error) => console.warn("[study] failed to persist acknowledgement:", error));
+			await markAssessmentAcknowledged(session.projectRoot, session.id);
 			const grade = session.grade as any;
 			const passed = Boolean(grade?.passed);
-			let packPath: string | undefined;
-			let packError: string | undefined;
-			if (passed) {
-				try {
-					packPath = await buildStudyPack(session.projectRoot, session.chapterSlug, {
-						score: Number(grade?.totalScore ?? 0),
-						maxScore: Number(grade?.maxScore ?? session.questionSet.totalPoints),
-						passScore: session.passScore,
-					});
-				} catch (error) {
-					packError = error instanceof Error ? error.message : String(error);
-					console.warn("[study] failed to build chapter study pack:", error);
-				}
-			}
-			const nextStatus = passed ? (packPath ? "completed" : "blocked") : "relearn_required";
-			await updateProjectPhase(
-				session.projectRoot,
-				session.chapterSlug,
-				"test",
-				nextStatus,
-				{ attempt: session.attempt, score: Number(grade?.totalScore ?? 0), maxScore: Number(grade?.maxScore ?? session.questionSet.totalPoints), sessionId: session.id, ...(packError ? { reason: `복습 묶음 생성 실패: ${packError}` } : {}) },
-			);
-			if (packPath) pi.sendUserMessage(`# STUDY_PACK_CREATED\\n\\n챕터 테스트 통과 후 복습 묶음을 생성했습니다: ${packPath}`, { deliverAs: "followUp" });
-			if (packError) pi.sendUserMessage(`# STUDY_PACK_REQUIRED\\n\\n챕터 테스트는 통과했지만 복습 묶음이 완성되지 않아 test 단계를 완료 처리하지 않았습니다. README 개념 본문, lab manifest/results 기록을 보완하세요. 원인: ${packError}`, { deliverAs: "followUp" });
+			const completion = await completeAcknowledgedTest(session.projectRoot, session.chapterSlug, {
+				id: session.id, attempt: session.attempt,
+				score: Number(grade?.totalScore ?? 0), maxScore: Number(grade?.maxScore ?? session.questionSet.totalPoints),
+			}, passed);
+			if (completion.pagePath) pi.sendUserMessage(`# STUDY_REVIEW_READY\n\n복습 시작 페이지: ${completion.pagePath}\n일정이 미설정이면 간격·기준일·시간대를 먼저 확인하세요.`, { deliverAs: "followUp" });
+			if (completion.evidenceError) pi.sendUserMessage(`# STUDY_EVIDENCE_REQUIRED\n\n테스트 점수는 통과했지만 학습 근거가 누락되어 test 상태는 blocked입니다. ${completion.evidenceError}`, { deliverAs: "followUp" });
+			if (completion.navigationWarning) pi.sendUserMessage(`# STUDY_REVIEW_PAGE_WARNING\n\ntest는 completed입니다. 안내 페이지 갱신만 실패했습니다: ${completion.navigationWarning}`, { deliverAs: "followUp" });
 			deliverTestReviewToAgent(session, payload);
 			return sendJson(res, 200, { ok: true, status: "acknowledged", message: "Pi 세션으로 테스트 결과 확인 신호를 보냈습니다." });
 		}
@@ -714,26 +699,33 @@ export default function (pi: ExtensionAPI) {
 		},
 	});
 
-	// ------------------------------------------------------------------
-	// tool: study_pack_refresh
-	// ------------------------------------------------------------------
-	pi.registerTool({
-		name: "study_pack_refresh",
-		label: "Study Pack Refresh",
-		description: "챕터의 canonical README 개념 본문, lab 결과, diagnosis/test, 학습 공백을 검증해 review/study-pack.md를 생성·갱신합니다.",
-		promptSnippet: "Refresh the chapter study pack after review while preserving its recall notes",
-		parameters: Type.Object({ chapterSlug: Type.String({ description: "챕터 slug" }) }),
-		async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
-			const projectRoot = await findStudyProjectRoot(ctx?.cwd ?? process.cwd());
-			const path = await buildStudyPack(projectRoot, params.chapterSlug);
-			const record = await findRecoverablePassedTest(projectRoot, params.chapterSlug);
-			let recoveryLine = "";
-			if (record && await applyTestRecovery(projectRoot, params.chapterSlug, record)) {
-				recoveryLine = `\n출석부 복구: test → completed (시험 ${record.id}, ${record.score}/${record.maxScore})`;
-			}
-			return { content: [{ type: "text", text: `복습 묶음 갱신 완료: ${path}${recoveryLine}` }], details: { path, recovery: record ?? undefined } };
-		},
-	});
+	// Legacy name remains an alias; neither tool generates a study pack.
+	for (const name of ["study_review_refresh", "study_pack_refresh"]) {
+		pi.registerTool({
+			name,
+			label: "Study Review Refresh",
+			description: `${name === "study_pack_refresh" ? "Deprecated alias. " : ""}schedule.md를 읽어 정답 비노출 review/README.md를 갱신합니다. 기존 pack의 고유 회상 기록은 보존하며 새 pack은 생성하지 않습니다.`,
+			promptSnippet: "Refresh review navigation from the canonical schedule without copying answers",
+			parameters: Type.Object({ chapterSlug: Type.String({ description: "챕터 slug" }) }),
+			async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
+				const projectRoot = await findStudyProjectRoot(ctx?.cwd ?? process.cwd());
+				return withFileMutationQueue(projectPath(projectRoot, params.chapterSlug, "review", "README.md"), async () => {
+					const record = await findRecoverablePassedTest(projectRoot, params.chapterSlug);
+					let recoveryLine = "";
+					let recoveryWarning: string | undefined;
+					if (record) {
+						try {
+							await validateChapterEvidence(projectRoot, params.chapterSlug);
+							if (await applyTestRecovery(projectRoot, params.chapterSlug, record)) recoveryLine = `\n시험 상태 확인: completed (${record.score}/${record.maxScore})`;
+						} catch (error) { recoveryWarning = error instanceof Error ? error.message : String(error); }
+					}
+					const path = await buildReviewStartPage(projectRoot, params.chapterSlug);
+					await syncReviewPhase(projectRoot, params.chapterSlug);
+					return { content: [{ type: "text", text: `복습 시작 페이지 갱신: ${path}${recoveryLine}${recoveryWarning ? `\n학습 근거 확인 필요: ${recoveryWarning}` : ""}` }], details: { path, recoveryWarning } };
+				});
+			},
+		});
+	}
 
 	// ------------------------------------------------------------------
 	// tool: study_preflight

@@ -1,5 +1,6 @@
 import { mkdir, readFile, readdir, rename, writeFile } from "node:fs/promises";
 import { basename, join } from "node:path";
+import { recordedScheduleProgress } from "./review-page.ts";
 
 export const STUDY_STATE_VERSION = 1 as const;
 
@@ -138,9 +139,11 @@ export async function migrateChapterState(projectRoot: string, chapterSlug: stri
       : /진행 중|Attempt\s+\d+/i.test(test) && !/학습 후 생성/i.test(test)
         ? phase("in_progress", [join(chapterSlug, "test.md")])
         : phase("not_started");
-  state.review = hasRealReview(review)
+  state.review = (await recordedScheduleProgress(projectRoot, chapterSlug, review)).completed
     ? phase("completed", [join(chapterSlug, "review", "schedule.md")])
-    : phase("not_started");
+    : hasRealReview(review)
+      ? phase("in_progress", [join(chapterSlug, "review", "schedule.md")])
+      : phase("not_started");
   return state;
 }
 
@@ -216,6 +219,20 @@ export function resolveNextTarget(state: StudyState): { chapterSlug: string; pha
   }
   const reviewChapter = slugs.find((chapterSlug) => !isDone(state.chapters[chapterSlug].review.status));
   return reviewChapter ? { chapterSlug: reviewChapter, phase: "review" } : { chapterSlug: slugs[slugs.length - 1], phase: "review" };
+}
+
+export async function syncReviewPhase(projectRoot: string, chapterSlug: string): Promise<void> {
+  const state = await loadStudyState(projectRoot);
+  if (!state.chapters[chapterSlug]) return;
+  const schedule = await text(join(projectRoot, chapterSlug, "review", "schedule.md"));
+  const progress = await recordedScheduleProgress(projectRoot, chapterSlug, schedule);
+  const status: StudyPhaseStatus = progress.completed ? "completed"
+    : progress.rounds.length || hasRealReview(schedule) ? "in_progress" : "not_started";
+  state.chapters[chapterSlug].review = {
+    ...state.chapters[chapterSlug].review, status, updatedAt: now(), reason: undefined,
+    evidence: [join(chapterSlug, "review", "schedule.md")],
+  };
+  await saveStudyState(projectRoot, state);
 }
 
 export async function applyTestRecovery(

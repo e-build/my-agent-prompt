@@ -2,6 +2,16 @@
 
 브라우저 assessment와 구조화된 학습 상태를 연결하는 Pi extension.
 
+## 목차
+
+- [구성](#구성)
+- [/study-chapter 동작](#study-chapter-동작)
+- [상태 파일](#상태-파일)
+- [Assessment](#assessment)
+- [챕터 노트와 Lab 기록](#챕터-노트와-lab-기록)
+- [고정 회차형 복습](#고정-회차형-복습)
+- [테스트](#테스트)
+
 ## 구성
 
 ```text
@@ -65,7 +75,8 @@ skipped_understood / blocked
 - 챕터 `README.md`가 학습 개요와 concept 단계의 교과서형 본문을 함께 담는 canonical 문서다. 새 챕터에 `concept.md`를 만들지 않는다. state migration은 기존 프로젝트의 `concept.md`를 호환 입력으로 읽는다.
 - `lab/README.md`는 실습 계획, `lab/results.md`는 검증을 통과한 step의 측정 증거와 학습자 관찰/배운 점을 쌓는 결과 노트다.
 - `study_lab_verify`는 manifest 파일/산출물/명령/실제 JUnit test 수를 검증하고, 성공 시 observation/takeaway와 검증 결과를 `lab/results.md`에 추가한다. 실패하면 결과를 기록하거나 step을 완료하지 않는다.
-- 챕터 테스트 통과 시 `review/study-pack.md`를 생성한다. README 개념 본문, 모든 완료/스킵 lab step의 결과, 진단/테스트 및 학습 공백이 있어야 한다. `/study-review`는 회상 결과를 이 pack에 누적하고 `study_pack_refresh`로 최신 원본을 반영한다.
+- 시험 통과+확인 시 `chapter-evidence.ts`가 README 개념·최종 시험·lab 기록 검증. 누락 증거는 blocked 사유지만 `review/README.md` 생성 실패는 경고이며 시험 완료 유지.
+- README는 오프라인 단권화 교재. 중복 study-pack 신규 생성 폐지. 기존 pack 원본 유지, 고유 회상 구역은 legacy-recall.md로 멱등 보존.
 - 테스트 수·출력은 extension이 기록하고, 관찰·배운 점은 학습자가 제공한다. 확인하지 않은 로그나 결론을 만들지 않는다.
 
 도구:
@@ -73,9 +84,32 @@ skipped_understood / blocked
 - `study_preflight`: Java/Gradle/Docker/전용 서비스 검사
 - `study_lab_verify`: 파일·산출물·명령·실제 JUnit test count 검증 및 step 결과 기록
 - `study_lab_step_update`: `in_progress`, `blocked`, `skipped_understood` 기록
-- `study_pack_refresh`: 검증된 원본들로 복습 묶음 재생성, 기존 회상 섹션 보존
+- `study_review_refresh`: schedule.md 원본으로 정답 비노출 `review/README.md` 갱신. 통과+ack 시험의 별도 증거 검증 후 상태 복구 가능.
+- `study_pack_refresh`: deprecated 호환 alias. 시작 페이지만 생성하며 새 pack 생성 없음.
 
 `skipped_understood`는 reason/evidence가 필수이며 README 내용은 삭제하지 않는다.
+
+## 고정 회차형 복습
+
+- `/study-review`: 매 회차 STT/텍스트 선택 및 중간 전환. self-lecture는 실제 구두 설명 훈련, 텍스트 회상도 복습 회차 완료 가능.
+- 공통: 문서 없는 핵심 개념 회상 → 판정 → 필요한 보충. 회차별 강조점은 변경하되 같은 개념 반복 유지.
+- STRONG은 이번 보충 불필요 의미. 이후 회차 반복 대상 유지. 독립 지연 회상/힌트 후/교정 직후 결과 분리.
+- 간격·기준일·시간대는 학습자 합의 전 자동 지정 없음. 기한 경과는 실제 수행일 기록, 밀린 회차 몰아치기 금지.
+- 교재·정답·개인 오답 본문은 시작 페이지에 복사하지 않음. 일정은 schedule.md 하나, 회차 기록은 sessions/r1.md 등 append-only.
+- 일정 등록은 in_progress, 모든 회차 실제 수행과 명시적 주기 완료로 completed. 장기 기억 정착 인증 아님.
+- 시작 페이지 관리 구역 밖 메모 유지. 기존 비관리 README 덮어쓰기 중단. 기존 고유 기록 먼저 보존.
+- 로드만으로 기존 state.json을 자동 강등하지 않음. `study_review_refresh` 호출 시 schedule 원본·회차 파일로 review 상태 동기화, active core chapter/phase 유지. 날짜만 등록된 기존 일정은 in_progress로 추정.
+
+```text
+review/
+├── README.md         # 정답 비노출 현재 위치·개념 이름·원문/기록 링크
+├── schedule.md       # 일정 원본 및 고정 표 (prompts/study-review.md 참고)
+├── sessions/r1.md    # 개념별 원 응답·판정·교정·입력 모드
+├── learning-gaps.md  # 본 학습 범위 밖 항목
+└── legacy-recall.md  # 기존 pack 고유 기록 보존 (있을 때만)
+```
+
+구형 blank-recall/gap-fill/self-lecture/analogy-lock 문서는 과거 기록으로 유지. 학습 프로젝트 자동 마이그레이션은 페이지 갱신 호출 시에만 수행.
 
 ## 테스트
 

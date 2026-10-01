@@ -14,6 +14,8 @@ import {
   updatePhaseState,
 } from "./study-state.ts";
 
+import * as studyState from "./study-state.ts";
+
 async function project(): Promise<string> {
   return mkdtemp(join(tmpdir(), "study-state-"));
 }
@@ -116,4 +118,40 @@ test("persists phase updates atomically", async () => {
   assert.equal(loaded.chapters["ch-01-cache"].diagnosis.sessionId, "d1");
   const raw = await readFile(join(root, ".study", "state.json"), "utf8");
   assert.match(raw, /awaiting_review/);
+});
+
+
+test("scheduled dates do not complete a spaced review cycle", async () => {
+  const root = await project();
+  const dir = await chapter(root, "ch-01-cache");
+  await writeFile(join(dir, "review", "schedule.md"), "# 일정\n\n다음 복습: 2026-10-04\n");
+  assert.equal((await migrateChapterState(root, "ch-01-cache")).review.status, "in_progress");
+});
+
+test("review migration requires explicit cycle completion and performed round evidence", async () => {
+  const root = await project();
+  const dir = await chapter(root, "ch-01-cache");
+  await writeFile(join(dir, "review", "schedule.md"), "# 일정\n- 주기 상태: completed\n\n## 고정 회차\n\n| 회차 | 예정일 | 상태 | 실제 수행일 | 기록 |\n|---|---|---|---|---|\n| R1 | 2026-10-04 | completed | 2026-10-04 | sessions/r1.md |\n");
+  await mkdir(join(dir, "review", "sessions"));
+  await writeFile(join(dir, "review", "sessions", "r1.md"), "# R1 수행 기록\n- 원 답변: 설명\n");
+  assert.equal((await migrateChapterState(root, "ch-01-cache")).review.status, "completed");
+});
+
+
+test("review synchronization uses schedule progress without changing the active core chapter", async () => {
+  const root = await project();
+  const dir = await chapter(root, "ch-01-cache");
+  await chapter(root, "ch-02-next");
+  const state = await loadStudyState(root);
+  updatePhaseState(state, "ch-02-next", "lab", { status: "in_progress" });
+  state.chapters["ch-01-cache"].review.status = "completed";
+  await saveStudyState(root, state);
+  await writeFile(join(dir, "review", "schedule.md"), "# 일정\n- 주기 상태: in_progress\n\n## 고정 회차\n\n| 회차 | 예정일 | 상태 | 실제 수행일 | 기록 |\n|---|---|---|---|---|\n| R1 | 2026-10-04 | planned | - | - |\n");
+  assert.equal(typeof studyState.syncReviewPhase, "function");
+  await studyState.syncReviewPhase(root, "ch-01-cache");
+  const loaded = await loadStudyState(root);
+  assert.equal(loaded.chapters["ch-01-cache"].review.status, "in_progress");
+  assert.equal(loaded.activeChapter, "ch-02-next");
+  assert.equal(loaded.activePhase, "lab");
+  assert.equal(loaded.chapters["ch-02-next"].lab.status, "in_progress");
 });

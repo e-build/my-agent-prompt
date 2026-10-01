@@ -279,12 +279,9 @@ study-{slug}/
 │   │   ├── README.md       # 실습 목표/단계/완료조건/산출물 체크리스트
 │   │   └── results.md      # step별 검증 증거, 관찰, 배운 점의 누적 기록
 │   └── review/
-│       ├── study-pack.md   # concept + lab 증거 + 진단/테스트를 묶은 복습본
-│       ├── blank-recall.md # 백지 회상: 5개 핵심 아이디어 vs 학습자 답 + STRONG/WEAK/WRONG 분급
-│       ├── gap-fill.md     # WEAK/WRONG 보충 (다른 비유로 정정, recall gap만)
-│       ├── self-lecture.md # 셀프렉처: 에이전트가 호기심 많은 학생 역할
-│       ├── analogy-lock.md # 비유 잠금: 비유 2개 + 깨지는 지점 + 1문장 요약
-│       ├── schedule.md     # 주기적 반복 일정 기록
+│       ├── README.md       # 정답 비노출 복습 시작 페이지: 현재 회차·일정·개념 이름·링크
+│       ├── schedule.md     # 핵심 개념·고정 회차 일정의 원본 (학습자 합의 후 등록)
+│       ├── sessions/       # r1.md 등 회차별 원 답변·독립 회상·교정 결과 누적
 │       └── learning-gaps.md# ★ 본 학습 누락 (복습 아님, chapter 회귀 신호)
 └── ch-02-{영문-슬러그}/
 ```
@@ -296,7 +293,8 @@ study-{slug}/
 - 사전진단/테스트 HTML 템플릿은 프로젝트에 두지 않는다. extension의 공통 assessment 템플릿을 사용해 `study_diagnosis_open`은 `diagnosis.html`, `study_test_open`은 `test.html`을 생성한다.
 - `diagnosis.html`과 `test.html`은 생성 산출물이므로 다시 만들 수 있다. canonical source는 각각 `diagnosis.md`, attempt별 문제·답안·채점 결과가 누적되는 `test.md`다.
 - 챕터 `README.md`가 학습 개요와 concept 단계에서 확장되는 **유일한 canonical 개념 문서**다. README는 챕터 시작 시 목표/개념 지도/학습 흐름을 담고, 개념 학습 뒤 `개념 학습 노트` 본문을 같은 파일에 추가한다. 독립적으로 읽어도 교과서처럼 이해되게 쓰며, 채팅 요약이 아니라 구조/흐름/예시/판단 기준을 포함한다.
-- `review/study-pack.md`는 통과한 챕터 테스트 뒤 생성되는 단일 복습 묶음이다. 개념 본문, 각 lab step의 검증된 실행 증거와 학습자 설명, 진단/테스트 결과, 남은 학습 공백을 포함한다. 이후 복습 회상 결과를 누적한다.
+- `review/README.md`는 짧은 복습 시작 페이지. 교재·정답·오답 전문 복사 금지. 챕터 README가 오프라인 단권화 교재이므로 중복 study-pack 생성 금지. 기존 pack과 고유 기록은 삭제하지 않고 보존·이관.
+- 고정 회차형 복습: 매 회차 STT/텍스트 선택, 같은 핵심 개념의 지연 회상 반복. 최초 일정은 학습자와 간격·기준일·시간대 합의. 입력 방식과 회차별 강조점 분리.
 - 새 챕터에는 `concept.md`를 만들지 않는다. 기존 프로젝트의 `concept.md`는 하위 호환을 위해 읽을 수 있지만 새 내용은 README로 통합한다.
 - `lab/README.md`는 앞으로 수행할 실습 목표/단계/완료조건/산출물 체크리스트다. `lab/results.md`는 완료한 각 step의 검증 결과, 실행/관찰 증거, 학습자가 설명한 배운 점을 누적 기록한다. 검증 자동값과 학습자 서술을 구별하고, 확인하지 않은 로그/결과를 만들어내지 않는다.
 - `lab/` 산출물 형식은 도메인이 정한다: 개발/DB는 코드·쿼리·설정·로그, 글쓰기는 초안/수정본, 언어 학습은 녹음 링크/대본, 음악은 악보/리듬/녹음 기록 등.
@@ -397,9 +395,9 @@ study-{slug}/
 ```
 
 - `README.md`에는 프로젝트 생성 시 학습 목표/개념 지도/학습 흐름을 둔다. 빈 `개념 학습 노트` 헤더는 미리 만들지 않는다. `/study-chapter concept`는 실제 설명을 마친 뒤 이 섹션을 추가하고, lab/test로 넘어가기 전에 같은 README에 통합한다.
-- chapter test 통과 뒤 `review/study-pack.md`에 README 개념 본문, lab/results.md, diagnosis.md, test.md, learning-gaps.md를 모은다. 챕터 단독 복습 자료이며 `/study-review`의 회상 기록도 누적한다.
+- chapter test 통과+확인 뒤 학습 근거 검증. 시작 페이지 생성 성공 여부와 시험 completed 분리. `/study-review`는 schedule.md 원본과 sessions/ 회차 기록을 사용.
 - `lab/results.md`는 빈 템플릿으로만 생성하거나 첫 완료 step 때 extension이 만든다. `/study-chapter lab`은 검증 성공 뒤 매 step의 관찰/배운 점을 누적한다.
-- `review/study-pack.md`는 chapter test 통과 시 extension이 생성한다. `/study-review`는 회상 내용을 기록하고 `study_pack_refresh`를 호출해 최신 노트를 재구성한다.
+- `study_review_refresh`로 `review/README.md` 갱신. 기존 고유 회상은 legacy-recall.md에 보존. 일정 등록이나 안내판 존재만으로 복습 완료 처리 금지.
 
 - 챕터 `README.md`는 개념 학습 전에는 학습 지도만 포함하고, concept phase에서 실제 설명을 마친 뒤 `## 개념 학습 노트`를 채운다.
 - `lab/README.md`는 실습 전 아래 구조로 생성/최신화한다.

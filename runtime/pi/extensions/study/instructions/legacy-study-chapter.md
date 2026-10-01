@@ -603,10 +603,10 @@ before → step 1 → step 2 → after 순서로 중간 상태를 생략하지 �
    - 응답 끝에 `TEST_GRADE_JSON` marker를 반드시 포함한다.
 7. 채점 직후 자동으로 review/relearn을 시작하지 않는다. 학습자가 같은 브라우저에서 결과를 확인하고 CTA를 누를 때까지 대기한다.
 8. `# TEST_RESULTS_REVIEWED`를 받으면:
-   - 통과 상태면 `review/study-pack.md` 생성 여부를 확인한다. 생성된 묶음에는 README 개념 본문, 모든 완료/스킵 lab step 기록, diagnosis/test 결과가 포함되어야 한다.
+   - 통과 상태면 학습 근거 검증 확인. `review/README.md` 생성 실패는 안내 경고일 뿐 시험 완료 차단 사유 아님.
    - `passed: true`, `nextAction: review` → `/study-review` 흐름으로 전환한다.
    - `passed: false`, `nextAction: relearn` → weaknesses/오답 문항에 해당하는 가장 작은 개념만 재학습한다. 전체 concept/lab 반복 금지. 재학습 후 새 변형 TestQuestionSet으로 다음 attempt를 연다.
-9. test 통과 시 extension이 README, lab/results.md, diagnosis.md, test.md를 `review/study-pack.md`로 묶는다. 기록이 부족해 생성되지 않으면 누락 파일을 보완한 뒤 다시 생성한다. 이후 `/study-review`에서 회상 결과와 잔여 학습 공백을 복습 묶음에 반영한다.
+9. README는 단권화 교재. 중복 study-pack 생성 금지. 증거 검증과 안내판 생성을 분리. 복습 일정 미설정이면 고정 간격·기준일·시간대 합의 후 등록, 지연 회상을 오늘 연속 강제하지 않음.
 10. tool 호출 실패나 tool 부재 시 `/reload`, 필요하면 `bash scripts/install-pi --restore`를 안내한다. 수동 test.md 답안 작성 fallback을 제공하지 않는다.
 
 #### TEST_GRADE_JSON 계약
@@ -676,14 +676,13 @@ before → step 1 → step 2 → after 순서로 중간 상태를 생략하지 �
 ```
 
 ### review (복습)
-- 복습은 `/study-review` 커맨드로 위임한다. 에이전트는 Verifier/Reinforcer/Curious Student/Anchorer/Scheduler 역할로 5단계(blank-recall → gap-fill → self-lecture → analogy-lock → schedule)를 진행한다.
-- `review/study-pack.md`가 있으면 먼저 읽어 실제 개념 본문과 실습 증거를 확인하고, 없으면 챕터 README와 lab/results.md를 직접 확인한다.
-- blank-recall 결과와 가장 중요한 gap을 study-pack의 `복습 회상 기록`에 추가하고 `study_pack_refresh` 도구로 최신 원본과 묶는다. 기존 회상 기록을 보존한다.
-- `review/` 디렉토리가 없으면 생성한다.
-- blank-recall 결과, gap-fill 보강, 셀프렉처에서 확인된 설명 공백을 각 review 문서에 남긴다. study-pack이 있으면 해당 원본 review 파일들을 pack에 합쳐 갱신하고, 이전 회상 기록은 보존한다.
+- `/study-review`의 고정 회차형 지연 복습으로 위임. 시작 페이지 `review/README.md`, 일정 원본 schedule.md 사용.
+- 매 회차 STT/텍스트 선택, 핵심 개념 반복 회상. self-lecture는 구두 설명이나 모든 회차 필수 조건 아님.
+- 독립 지연 회상과 교정 직후 확인 구분, sessions/r1.md 등 원 답변 append-only 기록. 기존 활동별 문서 보존.
+- `study_review_refresh`로 정답 비노출 시작 페이지 갱신. 기존 pack 고유 기록 이관·원본 보존, 신규 pack 생성 금지.
 - 피드백은 본 학습 범위(README 개념 본문/lab)로 한정. 벗어나면 `review/learning-gaps.md`에 분류.
 
 ## 종료 조건
 
-- 모든 단계를 완료했으면 `review/study-pack.md`가 최신 canonical 개념·lab 결과·assessment를 포함하는지 확인한 뒤 "이 챕터 완료" 메시지와 함께 복습 묶음 경로와 다음 챕터 번호를 안내한다.
+- 본 학습 완료와 예정된 복습 주기 완료를 구분. 일정 등록만으로 review 완료 처리 금지. 다음 회차·실행 명령·`review/README.md` 안내. 복습 대기로 다음 챕터 본 학습 차단 금지.
 - 중간에 끝낼 경우 "다음에 /study-chapter 로 이어서 시작" 메시지를 남긴다.
