@@ -45,6 +45,8 @@ study/
 
 assessment phase에서 `study_diagnosis_open`/`study_test_open` 호출 없이 turn이 끝나면 extension이 1회 교정 follow-up을 전송한다.
 
+명령으로 concept를 시작할 때와 진단 결과 확인 후 자동으로 concept로 전환할 때 모두 같은 phase 지침 로더를 사용한다. `instructions/concept.md`가 두 진입 경로의 정본이며, README 본문 작성·새 concept.md 생성 금지 규칙을 별도로 복사하지 않는다.
+
 ## /study-checkpoint — 현재 학습 갈무리
 
 ```text

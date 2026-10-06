@@ -1,10 +1,10 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtemp, mkdir, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { findStudyProjectRoot, parseStudyChapterArgs, resolveChapterSlug, resolveStudyChapterTarget } from "./study-command.ts";
+import { findStudyProjectRoot, parseStudyChapterArgs, registerStudyChapterCommand, resolveChapterSlug, resolveStudyChapterTarget } from "./study-command.ts";
 import { createEmptyChapterState, saveStudyState, type StudyState } from "./study-state.ts";
 
 test("parses existing study-chapter argument forms", () => {
@@ -51,4 +51,23 @@ test("finds project root from a nested chapter directory and resolves next phase
   const target = await resolveStudyChapterTarget(ch1, "");
   assert.equal(target.chapterSlug, "ch-01-cache");
   assert.equal(target.phase, "concept");
+});
+
+test("concept command sends the current canonical phase instructions", async () => {
+  const base = await mkdtemp(join(tmpdir(), "study-command-prompt-"));
+  const root = join(base, "study-cache");
+  await mkdir(join(root, "ch-01-cache"), { recursive: true });
+  await writeFile(join(root, "ch-01-cache", "README.md"), "# 캐싱 기초\n");
+  let command: any;
+  const messages: string[] = [];
+  const notices: string[] = [];
+  registerStudyChapterCommand({
+    registerCommand: (_name: string, definition: any) => { command = definition; },
+    sendUserMessage: (prompt: string) => { messages.push(prompt); },
+  } as any);
+  await command.handler("01 concept", { cwd: root, isIdle: () => true, ui: { notify: (text: string) => notices.push(text) } });
+  assert.deepEqual(notices, []);
+  assert.equal(messages.length, 1);
+  const instructions = (await readFile(new URL("./instructions/concept.md", import.meta.url), "utf8")).trim();
+  assert.ok(messages[0].includes(instructions));
 });

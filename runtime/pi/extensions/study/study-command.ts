@@ -1,6 +1,6 @@
 import { readdir, readFile, stat } from "node:fs/promises";
 import { basename, dirname, join, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { loadPhaseInstructions } from "./phase-instructions.ts";
 import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import {
   loadStudyState,
@@ -97,14 +97,6 @@ async function chapterTitle(projectRoot: string, chapterSlug: string): Promise<s
   }
 }
 
-async function phaseInstructions(phase: StudyPhase): Promise<string> {
-  try {
-    return (await readFile(join(dirname(fileURLToPath(import.meta.url)), "instructions", `${phase}.md`), "utf8")).trim();
-  } catch {
-    return "현재 phase의 표준 학습 흐름을 진행하세요.";
-  }
-}
-
 async function phasePrompt(target: StudyChapterTarget, title: string): Promise<string> {
   const phaseState = target.state.chapters[target.chapterSlug][target.phase];
   const common = [
@@ -126,7 +118,7 @@ async function phasePrompt(target: StudyChapterTarget, title: string): Promise<s
   if (phaseState.status === "awaiting_review") {
     return [...common, "채점 결과가 브라우저에 표시됐습니다. 학습자가 결과 확인 버튼을 누를 때까지 다음 phase로 넘어가지 마세요."].join("\n");
   }
-  return [...common, await phaseInstructions(target.phase)].join("\n");
+  return [...common, await loadPhaseInstructions(target.phase)].join("\n");
 }
 
 export function registerStudyChapterCommand(
