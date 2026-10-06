@@ -6,6 +6,7 @@
 
 - [구성](#구성)
 - [/study-chapter 동작](#study-chapter-동작)
+- [/study-checkpoint — 현재 학습 갈무리](#study-checkpoint--현재-학습-갈무리)
 - [상태 파일](#상태-파일)
 - [Assessment](#assessment)
 - [챕터 노트와 Lab 기록](#챕터-노트와-lab-기록)
@@ -18,6 +19,8 @@
 study/
 ├── index.ts                    # browser bridge + tools
 ├── study-command.ts            # 기존 /study-chapter를 실제 command로 실행
+├── checkpoint-command.ts       # /study-checkpoint와 승인된 저장 도구
+├── checkpoint-core.ts          # 근거별 진도 기록 + 해당 파일만 커밋·푸시
 ├── study-state.ts              # .study/state.json + markdown migration
 ├── project-manifest.ts         # .study/project.json (stack/workspace/lab mode)
 ├── assessment-core.ts          # question schema/validation
@@ -41,6 +44,32 @@ study/
 ```
 
 assessment phase에서 `study_diagnosis_open`/`study_test_open` 호출 없이 turn이 끝나면 extension이 1회 교정 follow-up을 전송한다.
+
+## /study-checkpoint — 현재 학습 갈무리
+
+```text
+/study-checkpoint
+/study-checkpoint 04
+```
+
+- 기본 대상: `.study/state.json`의 활성 챕터. 챕터 번호·slug로 지정 가능
+- 항상 **현재 대화 정리 → 구조 검증 → 챕터 checkpoint.md에 추가 → 해당 파일만 커밋 → upstream 푸시 → 원격 커밋 검증**
+- 명령은 대화 요약 지시를 현재 agent에 전달. `study_checkpoint_publish`는 명령이 발급한 requestId와 현재 세션이 일치할 때만 Git 작업 수행
+- 기록: 현재까지의 요약, 진행 방식·선호, 원 답변/정확한 요지와 보완, 건너뛴 항목, 남은 학습, 재개 지점, 실제 실행 근거 유무
+- 확인 수준: `answer_verified`(직접 답변 확인), `self_reported`(이해 자기보고), `explained`(설명 제공), `skipped`(요청으로 건너뜀), `unverified`(미확인). 의미 판단은 agent가 실제 대화 근거로 수행하며 구조 검증이 학습 내용의 진실성을 자동 인증하지 않음
+- 기존 checkpoint와 개인 메모는 보존하고 시간순 snapshot 누적. 같은 request의 재시도는 snapshot·커밋 중복 생성 없음
+- 공식 phase·실습·시험 완료 상태는 변경하지 않음. 시험 기록·복습 pack이 아니라 **이어서 공부하기 위한 진도 기록**
+- README는 교과서 본문으로 유지. checkpoint에 본문 복사나 새 concept.md 생성 금지. 새 퀴즈를 시작하지 않음
+
+### Git 안전 조건과 실패 처리
+
+- 현재 브랜치 upstream 필요. 기존 HEAD와 실제 원격 HEAD가 같아야 함. 기존 미푸시 커밋을 함께 내보내지 않음
+- 다른 파일의 스테이징·미커밋 변경은 보존하고 커밋에서 제외
+- checkpoint 자체의 미커밋 변경·ignore·symlink, detached HEAD, 모호한 프로젝트/챕터는 중단
+- 준비 후 브랜치·HEAD·checkpoint·원격 변경 감지 시 중단. 강제 push·pull·stash·reset 수행 없음
+- 저장/커밋/푸시 결과를 각각 보고. 푸시 실패해도 기록·로컬 커밋 유지. 현재 세션에서 같은 requestId로 저장 도구를 재호출해 push 재시도 가능
+- `/reload`나 세션 교체는 pending request를 지움. 실패 후 재로드한 경우 기존 로컬 커밋을 확인하고 일반 Git 절차로 복구한 뒤 다시 명령 실행
+- 설치가 로컬 소스 symlink라면 `/reload` 후 새 명령 사용 가능
 
 ## 상태 파일
 

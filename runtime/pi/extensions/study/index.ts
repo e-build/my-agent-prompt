@@ -44,6 +44,7 @@ import { projectPath } from "./project-path.ts";
 import { findLabRecordGaps, validateChapterEvidence } from "./chapter-evidence.ts";
 import { buildReviewStartPage } from "./review-page.ts";
 import { completeAcknowledgedTest } from "./test-completion.ts";
+import { registerStudyCheckpoint } from "./checkpoint-command.ts";
 
 type DiagnosisSession = {
 	id: string;
@@ -106,6 +107,11 @@ export default function (pi: ExtensionAPI) {
 	pi.on("resources_discover", async () => ({
 		promptPaths: [promptsDir],
 	}));
+
+	registerStudyCheckpoint(pi, Type.Object({
+		requestId: Type.String({ description: "/study-checkpoint가 발급한 요청 ID" }),
+		recordJson: Type.String({ description: "summary, learningMode, topics[{topic,status,evidence,takeaway}], remaining, nextAction, executionEvidence를 포함한 JSON 문자열" }),
+	}), withFileMutationQueue);
 
 	registerStudyChapterCommand(pi, (target) => {
 		activeChapterTarget = target;
