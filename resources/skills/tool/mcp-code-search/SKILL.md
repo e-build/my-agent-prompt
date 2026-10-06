@@ -1,6 +1,6 @@
 ---
 name: mcp-code-search
-description: "Use the MCP grep server (`grep_searchGitHub`) for code search and GitHub code lookups instead of `web_search` or `code_search`. The `code_search` tool triggers an SSH passphrase prompt which blocks the workflow. The MCP grep tool searches literal code patterns across millions of public GitHub repos. Use whenever the user asks to find code examples, search GitHub repos, look up API usage patterns, or understand how libraries are used in real projects."
+description: "Use Pi's built-in MCP grep server (`mcp__grep__searchGitHub`) for code search and GitHub code lookups instead of `web_search` or `code_search`. The `code_search` tool triggers an SSH passphrase prompt which blocks the workflow. The MCP grep tool searches literal code patterns across millions of public GitHub repos. Use whenever the user asks to find code examples, search GitHub repos, look up API usage patterns, or understand how libraries are used in real projects."
 ---
 
 # MCP Code Search
@@ -9,25 +9,34 @@ description: "Use the MCP grep server (`grep_searchGitHub`) for code search and 
 
 When the user asks you to search for code, find GitHub examples, look up API usage patterns, or research how libraries are used in the wild:
 
-1. **Always prefer** the `mcp` tool with `grep_searchGitHub` over `web_search` or `code_search`
+1. **Always prefer** Pi's built-in MCP tool `mcp__grep__searchGitHub`, discovered and called through `codemode` or `tool_search`, over `web_search` or `code_search`
 2. **Only fall back** to `web_search` if the MCP grep server returns a 500 error or is unavailable
 3. **Never use** the built-in `code_search` tool — it triggers an SSH passphrase prompt and blocks the workflow
 
 ## How to Use the MCP Grep Tool
 
-The `grep_searchGitHub` tool searches for **literal code patterns** (like grep), not keywords. Search for actual code that would appear in files.
+The `mcp__grep__searchGitHub` tool searches for **literal code patterns** (like grep), not keywords. Search for actual code that would appear in files.
 
 ### Basic Usage
 
+Inside a `codemode` script, discover the tool and its current schema first:
+
+```javascript
+text(await searchTools("searchGitHub", { namespace: "mcp__grep" }));
+text(await describeTool("mcp__grep__searchGitHub"));
 ```
-mcp({
-  tool: "grep_searchGitHub",
-  args: {
-    query: "literal code pattern to search",
-    language: ["TypeScript"],
-  }
-})
+
+Then call it from `codemode`:
+
+```javascript
+const result = await tools.mcp__grep__searchGitHub({
+  query: "literal code pattern to search",
+  language: ["TypeScript"],
+});
+text(result);
 ```
+
+Alternatively, use `tool_search` when available to load `mcp__grep__searchGitHub` for a direct call. The old adapter's `mcp({ tool, args })` gateway is no longer used.
 
 ### Search Examples
 
@@ -66,4 +75,4 @@ mcp({
 
 ### Fallback
 
-If `grep_searchGitHub` returns an error (500, timeout, etc.), use `web_search` as a fallback to find what the user needs. Never use `code_search`.
+If `mcp__grep__searchGitHub` returns an error (500, timeout, etc.), use `web_search` as a fallback to find what the user needs. Never use `code_search`.
