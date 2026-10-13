@@ -1,6 +1,6 @@
 # cliproxyapi-sync Pi Extension — 로딩 및 동작 메커니즘
 
-`runtime/pi/extensions/cliproxyapi-sync.ts`가 pi에 로드되고 동작하는 전체 흐름을 설명한다.
+`runtime/pi/extensions/cliproxyapi-sync/index.ts`가 pi에 로드되고 동작하는 전체 흐름을 설명한다.
 
 ---
 
@@ -21,7 +21,7 @@
 ```
 pi 프로세스 시작
   └─► Extension 탐색 (auto-discovery / -e 플래그)
-        └─► jiti로 cliproxyapi-sync.ts 로드
+        └─► jiti로 index.ts 로드
               └─► async default export 실행 (pi 가 await)
                     ├─► cliproxyapi-sync-config.jsonc 로드
                     ├─► cliproxyapi GET /v1/models
@@ -44,16 +44,16 @@ sequenceDiagram
     participant pi as pi 프로세스
     participant FS as 파일시스템
     participant jiti as jiti (TS loader)
-    participant Ext as cliproxyapi-sync.ts
+    participant Ext as index.ts
 
-    User->>pi: pi 실행<br/>(또는 pi -e ./cliproxyapi-sync.ts)
+    User->>pi: pi 실행<br/>(또는 pi -e ./cliproxyapi-sync/index.ts)
 
     pi->>FS: Extension 경로 탐색
     Note over pi,FS: 탐색 순서:<br/>~/.pi/agent/extensions/*.ts<br/>.runtime/pi/extensions/*.ts<br/>settings.json extensions[]<br/>-e 플래그 경로
 
-    FS-->>pi: cliproxyapi-sync.ts 경로 반환
+    FS-->>pi: index.ts 경로 반환
 
-    pi->>jiti: import(cliproxyapi-sync.ts)
+    pi->>jiti: import(index.ts)
     Note over pi,jiti: TypeScript를 컴파일 없이<br/>런타임에 직접 실행
 
     jiti->>Ext: 모듈 평가 (top-level)
@@ -73,7 +73,7 @@ pi는 factory가 `async function`이면 **`await`하여 완료를 기다린 후*
 ```mermaid
 sequenceDiagram
     participant pi as pi 프로세스
-    participant Ext as cliproxyapi-sync.ts
+    participant Ext as index.ts
     participant Cfg as cliproxyapi-sync-config.jsonc
     participant Proxy as cliproxyapi 서버<br/>(localhost:8317)
     participant MDev as models.dev<br/>(api.json)
@@ -132,7 +132,7 @@ sequenceDiagram
 
 ```mermaid
 sequenceDiagram
-    participant Ext as cliproxyapi-sync.ts
+    participant Ext as index.ts
     participant piAPI as ExtensionAPI (pi)
     participant Registry as ModelRegistry
     participant Models as pi 모델 목록
@@ -192,7 +192,7 @@ sequenceDiagram
 ```mermaid
 sequenceDiagram
     participant pi as pi 프로세스
-    participant Ext as cliproxyapi-sync.ts
+    participant Ext as index.ts
     participant Proxy as cliproxyapi 서버
 
     pi->>Ext: await module.default(piAPI)

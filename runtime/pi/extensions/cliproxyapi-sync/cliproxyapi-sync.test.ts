@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { buildProviderConfigs } from "./cliproxyapi-sync.ts";
+import { buildProviderConfigs } from "./index.ts";
 
 type BuiltProviders = ReturnType<typeof buildProviderConfigs>;
 

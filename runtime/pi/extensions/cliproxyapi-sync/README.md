@@ -2,8 +2,8 @@
 
 Pi 전용 확장. 로컬 CLIProxyAPI(`router-for-me/CLIProxyAPI`) 인스턴스에서 모델을 발견해 `cp-*` provider로 등록한다.
 
-- 소스: [`cliproxyapi-sync.ts`](./cliproxyapi-sync.ts)
-- 심링크 설치: `bash scripts/install-pi --restore` → `~/.pi/agent/extensions/cliproxyapi-sync.ts`
+- 소스: [`index.ts`](./index.ts)
+- 심링크 설치: `bash scripts/install-pi --restore` → `~/.pi/agent/extensions/cliproxyapi-sync/` (디렉토리)
 
 ## 동작 흐름
 
@@ -54,7 +54,7 @@ CLIProxyAPI의 plain `/v1/models`는 OpenAI 표준 4필드(`id`, `object`, `crea
 
 ```bash
 NODE=/Users/.../node-v22.22.3-darwin-arm64/bin/node
-$NODE --test --experimental-strip-types runtime/pi/extensions/cliproxyapi-sync.test.ts
+$NODE --test --experimental-strip-types runtime/pi/extensions/cliproxyapi-sync/cliproxyapi-sync.test.ts
 ```
 
 `buildProviderConfigs` 의 context window 해석 로직을 `node:test` 로 검증한다. bun 불필요.
