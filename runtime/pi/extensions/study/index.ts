@@ -38,7 +38,7 @@ import { findReusableTestSession, hasAssessmentSession } from "./session-core.ts
 import { findStudyProjectRoot, registerStudyChapterCommand, type StudyChapterTarget } from "./study-command.ts";
 import { buildDiagnosisReviewPrompt } from "./diagnosis-review-prompt.ts";
 import { applyTestRecovery, loadStudyState, saveStudyState, syncReviewPhase, updatePhaseState, type StudyPhase } from "./study-state.ts";
-import { manifestFromCurriculum, saveProjectManifest } from "./project-manifest.ts";
+import { resolveCurriculumRoot, writeCurriculumArtifacts } from "./curriculum-core.ts";
 import { runStudyPreflight } from "./preflight.ts";
 import { loadLabManifest, recordLabResult, saveLabManifest, updateLabStep, verifyLabStep } from "./lab-core.ts";
 import { projectPath } from "./project-path.ts";
@@ -80,6 +80,7 @@ type TestSession = {
 type CurriculumSession = {
 	id: string;
 	htmlPath: string;
+	projectRoot: string;
 	projectSlug: string;
 	topic: string;
 	createdAt: number;
@@ -532,6 +533,7 @@ export default function (pi: ExtensionAPI) {
 			"# CURRICULUM_REVIEWED",
 			"",
 			`- curriculumId: ${session.id}`,
+			`- projectRoot: ${session.projectRoot}`,
 			`- projectSlug: ${session.projectSlug}`,
 			`- topic: ${session.topic}`,
 			`- nextChapter: ${data.nextChapter ?? "ch-01"}`,
@@ -552,6 +554,7 @@ export default function (pi: ExtensionAPI) {
 			"# CURRICULUM_REVISION_REQUESTED",
 			"",
 			`- curriculumId: ${session.id}`,
+			`- projectRoot: ${session.projectRoot}`,
 			`- projectSlug: ${session.projectSlug}`,
 			`- topic: ${session.topic}`,
 		];
@@ -560,7 +563,7 @@ export default function (pi: ExtensionAPI) {
 			"",
 			"학습자가 브라우저에서 커리큘럼 방향 조정을 요청했습니다.",
 			"요청 내용을 반영해 README/챕터 README/SETUP/AGENTS.md 중 필요한 파일만 수정하세요.",
-			"수정 후 다시 study_curriculum_open을 호출해 학습자가 브라우저에서 재확인하게 하세요.",
+			"수정 후 같은 projectRoot를 지정해 study_curriculum_open을 호출하고 학습자가 브라우저에서 재확인하게 하세요.",
 			"",
 			"요청 내용:",
 			data.comment?.trim() || "(내용 없음)",
@@ -720,14 +723,15 @@ export default function (pi: ExtensionAPI) {
 			"/study-init에서 README/챕터 구조를 만든 뒤 study_curriculum_open을 호출해 전체 학습 방향을 브라우저에서 확인하게 하세요. 사용자가 직접 파일을 열게 하지 마세요.",
 		],
 		parameters: Type.Object({
-			projectSlug: Type.String({ description: "학습 프로젝트 디렉토리 slug. 예: study-backend-caching. {projectSlug}/curriculum.html이 생성됩니다." }),
+			projectSlug: Type.String({ description: "학습 프로젝트 식별자. 예: study-backend-caching. 경로가 아니라 slug입니다." }),
+			projectRoot: Type.Optional(Type.String({ description: "문서와 산출물을 저장할 프로젝트 루트. 절대 경로 권장. 생략하면 같은 slug의 기존 루트를 찾고, 프로젝트 밖에서는 cwd/projectSlug를 사용합니다." })),
 			topic: Type.String({ description: "학습 주제 전체. 예: 백엔드 애플리케이션에서의 캐싱" }),
 			curriculumJson: Type.String({ description: "CurriculumPreview JSON 문자열. 템플릿의 {{CURRICULUM_JSON}}에 주입됩니다." }),
 		}),
 		async execute(_toolCallId, params, signal, _onUpdate, ctx) {
 			const cwd = ctx?.cwd ?? process.cwd();
 			const projectSlug = params.projectSlug;
-			const htmlPath = resolve(cwd, projectSlug, "curriculum.html");
+			const projectRoot = await resolveCurriculumRoot(cwd, params);
 
 			let template: string;
 			try {
@@ -736,27 +740,16 @@ export default function (pi: ExtensionAPI) {
 				throw new Error(`커리큘럼 템플릿을 찾을 수 없습니다: ${curriculumTemplatePath} (${err instanceof Error ? err.message : err})`);
 			}
 
-			let curriculumPayload: unknown;
-			try {
-				curriculumPayload = JSON.parse(params.curriculumJson);
-			} catch (err) {
-				throw new Error(`curriculumJson이 올바른 JSON이 아닙니다: ${err instanceof Error ? err.message : err}`);
-			}
-			await saveProjectManifest(resolve(cwd, projectSlug), manifestFromCurriculum(curriculumPayload, projectSlug, params.topic));
-
-			const html = template
-				.replace(/{{PROJECT_SLUG}}/g, escapeForHtml(projectSlug))
-				.replace(/{{TOPIC}}/g, escapeForHtml(params.topic))
-				.replace("{{CURRICULUM_JSON}}", params.curriculumJson);
-
-			await mkdir(dirname(htmlPath), { recursive: true });
-			await writeFile(htmlPath, html, "utf8");
+			const { htmlPath } = await withFileMutationQueue(projectRoot, () =>
+				writeCurriculumArtifacts(cwd, { ...params, projectRoot }, template),
+			);
 
 			const port = await startServer();
 			const id = randomUUID().replace(/-/g, "").slice(0, 12);
 			const session: CurriculumSession = {
 				id,
 				htmlPath,
+				projectRoot,
 				projectSlug,
 				topic: params.topic,
 				createdAt: Date.now(),
@@ -776,13 +769,14 @@ export default function (pi: ExtensionAPI) {
 						text: [
 							`✅ 학습 설계 미리보기 브라우저 세션을 열었습니다.`,
 							`URL: ${browserUrl}`,
+							`프로젝트 루트: ${projectRoot}`,
 							`생성 파일: ${htmlPath}`,
 							``,
 							`학습자는 브라우저에서 전체 학습 목차와 방향을 확인한 뒤 "이 방향으로 시작" 또는 "방향 조정 요청"을 누르면 됩니다. 결과는 이 Pi 세션으로 자동 전송됩니다.`,
 						].join("\n"),
 					},
 				],
-				details: { url: browserUrl, id, htmlPath, port },
+				details: { url: browserUrl, id, htmlPath, projectRoot, port },
 			};
 		},
 	});

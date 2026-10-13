@@ -1,5 +1,7 @@
-import { readdir, readFile, stat } from "node:fs/promises";
-import { basename, dirname, join, resolve } from "node:path";
+import { readFile } from "node:fs/promises";
+import { join } from "node:path";
+import { findStudyProjectRoot } from "./project-root.ts";
+export { findStudyProjectRoot } from "./project-root.ts";
 import { loadPhaseInstructions } from "./phase-instructions.ts";
 import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import {
@@ -19,36 +21,6 @@ export type StudyChapterTarget = {
   phase: StudyPhase;
   state: StudyState;
 };
-
-async function isDirectory(path: string): Promise<boolean> {
-  try {
-    return (await stat(path)).isDirectory();
-  } catch {
-    return false;
-  }
-}
-
-async function hasChapters(path: string): Promise<boolean> {
-  try {
-    return (await readdir(path, { withFileTypes: true })).some((entry) => entry.isDirectory() && /^ch-\d+-/.test(entry.name));
-  } catch {
-    return false;
-  }
-}
-
-export async function findStudyProjectRoot(cwd: string): Promise<string> {
-  let current = resolve(cwd);
-  while (true) {
-    if (basename(current).startsWith("study-") && await hasChapters(current)) return current;
-    const parent = dirname(current);
-    if (parent === current) break;
-    current = parent;
-  }
-  const entries = await readdir(cwd, { withFileTypes: true });
-  const projects = entries.filter((entry) => entry.isDirectory() && entry.name.startsWith("study-")).map((entry) => join(cwd, entry.name));
-  for (const project of projects) if (await hasChapters(project)) return project;
-  throw new Error(`현재 경로에서 study-* 프로젝트를 찾지 못했습니다: ${cwd}`);
-}
 
 export function parseStudyChapterArgs(args: string): { chapterArg?: string; phaseArg?: StudyPhase } {
   const tokens = args.trim().split(/\s+/).filter(Boolean);

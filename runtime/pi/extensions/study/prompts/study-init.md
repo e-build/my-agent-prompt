@@ -10,18 +10,26 @@ argument-hint: "<학습주제>"
 `학습 주제`는 반드시 `$ARGUMENTS` 전체를 사용한다. `$1`만 사용하지 않는다. 예: `/study-init 백엔드 애플리케이션에서의 캐싱`이면 주제는 `백엔드`가 아니라 `백엔드 애플리케이션에서의 캐싱`이다.
 만약 학습 주제가 `주제를 지정하세요`로 남아 있으면 프로젝트를 만들지 말고 사용자에게 `/study-init <학습주제>` 형식으로 다시 실행하라고 안내한다.
 
-현재 cwd(세션 기준 디렉토리) 아래에 새 학습 프로젝트를 세팅한다.
+사용자 브리프 확인 후 학습 프로젝트의 실제 루트(`projectRoot`)를 먼저 확정하고, 모든 문서와 산출물을 그 루트 하나에 세팅한다. 현재 cwd가 이미 프로젝트 안이면 같은 slug를 한 번 더 붙이지 않는다.
 이 커맨드가 표준 구조와 원칙을 자체 정의한다.
 외부 레퍼런스 프로젝트를 읽지 말고, 아래 스펙만 기준으로 주제에 맞는 실제 개념을 채운다.
 개발/기술 주제는 가능한 예시 중 하나일 뿐이며, 언어·운동·음악·경영·글쓰기·자격증·학문 등 모든 학습 분야에 맞게 일반화한다.
 
 ## 1. 디렉토리
-사용자 브리프 확인 후 `study-{slug}`를 생성한다. slug 규칙:
+사용자 브리프 확인 후 `projectSlug`와 `projectRoot`를 확정한다. `projectSlug`는 `study-{slug}` 형식의 식별자이며 경로가 아니다. slug 규칙:
 - 소문자, 띄어쓰기→하이픈, 버전 숫자는 유지
 - 한글/비영어 주제는 의미가 유지되는 짧은 영문 slug로 변환
 - "영어 회화" → `study-english-conversation`
 - "재무회계" → `study-financial-accounting`
 - "Redis 7" → `study-redis7`
+
+루트 결정 규칙:
+- 프로젝트 밖에서 신규 생성: 기본 대상은 `cwd/projectSlug`. 사용자 지정 경로가 있으면 그 절대 경로를 사용한다.
+- 현재 cwd 또는 상위가 이미 같은 학습 프로젝트: 기존 루트 재사용. 챕터/`app/` 안에서도 해당 루트 사용. `projectRoot/projectSlug` 중첩 생성 금지.
+- 기존 프로젝트 안에서 `/study-init` 실행: 기존 커리큘럼 수정인지 별도 신규 생성인지 먼저 확인. 기존 README/챕터/학습 기록의 묵시적 덮어쓰기 금지.
+- 다른 프로젝트 신규 생성: 현재 프로젝트의 하위 폴더가 아니라 별도 루트를 명시적으로 확정한다.
+- 후보가 여러 개면 첫 프로젝트를 임의 선택하지 않는다. 대상을 확인한다.
+- 파일 생성 전 확정한 절대 `projectRoot`를 안내하고, 문서 생성과 `study_curriculum_open`에 같은 경로를 사용한다.
 
 ## 2. 학습 설계 브리프 인터뷰
 
@@ -234,11 +242,12 @@ type CurriculumPreview = {
    - 각 챕터의 학습 목표를 보고 `lab.mode`를 결정한다. 명령 자체가 목표면 `cli`, 애플리케이션 구조가 목표면 `application`, 문서 산출물이 목표면 `document`, 둘 다 필요하면 `mixed`다.
    - 공통 코드 프로젝트가 필요하면 챕터별 별도 프로젝트 대신 `environment.sharedWorkspace` 하나를 재사용한다.
 4. `study_curriculum_open` tool을 호출한다. 필수 인자:
-   - `projectSlug`: 학습 프로젝트 디렉토리 slug (예: `study-backend-caching`)
+   - `projectSlug`: 학습 프로젝트 식별자 (예: `study-backend-caching`). 경로가 아니다.
+   - `projectRoot`: README/챕터를 생성한 실제 루트의 절대 경로. tool에서는 선택 인자지만 init은 확정한 경로를 명시한다.
    - `topic`: 학습 주제 전체
    - `curriculumJson`: 위 JSON을 문자열로
 5. 브라우저에서 학습자가 “이 방향으로 시작 →”을 누르면 `# CURRICULUM_REVIEWED` 신호가 들어온다.
-6. 브라우저에서 학습자가 “방향 조정 요청”을 보내면 `# CURRICULUM_REVISION_REQUESTED` 신호가 들어온다. 그때 필요한 파일만 수정하고 다시 `study_curriculum_open`을 호출한다.
+6. 브라우저에서 학습자가 “방향 조정 요청”을 보내면 `# CURRICULUM_REVISION_REQUESTED` 신호가 들어온다. 신호의 `projectRoot` 아래 필요한 파일만 수정하고, 같은 `projectRoot`로 다시 `study_curriculum_open`을 호출한다.
 7. `# CURRICULUM_REVIEWED` 신호를 받은 뒤에만 아래 3줄 구조로 ch-01 diagnosis를 안내한다.
 
 ```text

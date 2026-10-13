@@ -6,6 +6,7 @@
 
 - [구성](#구성)
 - [/study-chapter 동작](#study-chapter-동작)
+- [프로젝트 경로 정책](#프로젝트-경로-정책)
 - [/study-checkpoint — 현재 학습 갈무리](#study-checkpoint--현재-학습-갈무리)
 - [상태 파일](#상태-파일)
 - [Assessment](#assessment)
@@ -22,6 +23,8 @@ study/
 ├── checkpoint-command.ts       # /study-checkpoint와 승인된 저장 도구
 ├── checkpoint-core.ts          # 근거별 진도 기록 + 해당 파일만 커밋·푸시
 ├── study-state.ts              # .study/state.json + markdown migration
+├── project-root.ts             # slug·명시적 root·기존 프로젝트 공통 경로 결정
+├── curriculum-core.ts          # 같은 루트의 curriculum.html + manifest 저장
 ├── project-manifest.ts         # .study/project.json (stack/workspace/lab mode)
 ├── assessment-core.ts          # question schema/validation
 ├── assessment-grade.ts         # grade 검증 + diagnosis/test 자동 기록
@@ -46,6 +49,21 @@ study/
 assessment phase에서 `study_diagnosis_open`/`study_test_open` 호출 없이 turn이 끝나면 extension이 1회 교정 follow-up을 전송한다.
 
 명령으로 concept를 시작할 때와 진단 결과 확인 후 자동으로 concept로 전환할 때 모두 같은 phase 지침 로더를 사용한다. `instructions/concept.md`가 두 진입 경로의 정본이며, README 본문 작성·새 concept.md 생성 금지 규칙을 별도로 복사하지 않는다.
+
+## 프로젝트 경로 정책
+
+**`projectSlug`는 식별자, `projectRoot`는 실제 저장 위치.** 문서·HTML·manifest·학습 상태는 프로젝트 루트 하나에서 관리.
+
+- `study_curriculum_open`에 선택적 `projectRoot` 지원. `/study-init`은 문서 생성 전에 확정한 절대 루트를 명시적으로 전달.
+- 루트·챕터·`app/` 내부 호출: 같은 slug의 기존 프로젝트 루트 재사용. `cwd/projectSlug`를 무조건 덧붙이지 않음.
+- 프로젝트 밖 호출: 요청한 slug의 `cwd/projectSlug` 사용. 다른 프로젝트가 여러 개 있어도 요청한 slug만 선택.
+- 일반 진단·시험·실습·checkpoint 탐색: 현재 또는 상위 프로젝트 우선. 상위 디렉토리의 후보가 여러 개면 오류, 첫 후보 임의 선택 금지.
+- 명시적 `projectRoot`: 루트 이름·요청 slug·기존 manifest slug 일치 검증. 다른 프로젝트 내부의 중첩 루트는 거부하고 별도 루트 요구.
+- 잘못된 slug·JSON·manifest·루트 불일치는 산출물 쓰기 전에 오류. 커리큘럼 HTML과 manifest는 같은 루트에 저장.
+- 기존 프로젝트에서 init 재실행: 커리큘럼 수정과 신규 생성 구분부터 확인. 기존 문서·학습 기록의 묵시적 덮어쓰기 금지.
+- `.study/project.json`은 환경·챕터 설정, `.study/state.json`은 진행 상태. 역할이 다르므로 하나로 합치지 않음.
+
+설치가 원본 저장소 symlink이면 변경 후 `/reload`로 새 도구 스키마·프롬프트 적용. 현재 세션의 기존 브라우저 bridge는 reload 시 종료되므로 제출 대기 여부 먼저 확인.
 
 ## /study-checkpoint — 현재 학습 갈무리
 
