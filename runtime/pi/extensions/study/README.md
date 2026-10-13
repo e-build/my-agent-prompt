@@ -122,6 +122,8 @@ skipped_understood / blocked
 ## 챕터 노트와 Lab 기록
 
 - 챕터 `README.md`가 학습 개요와 concept 단계의 교과서형 본문을 함께 담는 canonical 문서다. 새 챕터에 `concept.md`를 만들지 않는다. state migration은 기존 프로젝트의 `concept.md`를 호환 입력으로 읽는다.
+- 설명·교재 품질 원칙(맥락 먼저 제시, 핵심 한 문장 → 예시·그림 → 보충, 보충은 재구성, 챕터 범위 통제, 용어 통일, 시퀀스 다이어그램 기준)은 `instructions/*.md`가 정본이다. 여러 프롬프트에 같은 문구를 복사하지 않고 phase 지침 로더로 전달한다.
+- 프로젝트별 선호(언어·버전·문법 수준·예제 제공 방식·용어)는 각 프로젝트의 AGENTS.md와 루트 README에 기록한다. extension 지침은 도메인 무반 규칙만 담는다.
 - `lab/README.md`는 실습 계획, `lab/results.md`는 검증을 통과한 step의 측정 증거와 학습자 관찰/배운 점을 쌓는 결과 노트다.
 - `study_lab_verify`는 manifest 파일/산출물/명령/실제 JUnit test 수를 검증하고, 성공 시 observation/takeaway와 검증 결과를 `lab/results.md`에 추가한다. 실패하면 결과를 기록하거나 step을 완료하지 않는다.
 - 시험 통과+확인 시 `chapter-evidence.ts`가 README 개념·최종 시험·lab 기록 검증. 누락 증거는 blocked 사유지만 `review/README.md` 생성 실패는 경고이며 시험 완료 유지.

@@ -52,7 +52,7 @@ export async function buildDiagnosisReviewPrompt(session: DiagnosisReviewContext
     grade.learningPreference === "explain_first"
       ? "학습자가 먼저 설명을 요청했습니다. 같은 회상 질문을 다시 요구하지 말고 쉬운 설명→예시→중간 상태→원리 순서로 설명하세요. 이해 확인은 이후 변형 문제에서 하세요."
       : "이제 diagnosis.md의 결과와 챕터 README의 학습 목표를 기준으로 개념 학습을 시작하세요.",
-    "학습자가 강조한 pinpoint는 학습 범위 변경이나 우선순위 override가 아니라 비중 조절 신호입니다. 전체 개념 흐름은 유지하고, pinpoint와 연결된 개념의 설명 밀도·예시·확인 질문만 조금 늘립니다.",
+    "학습자가 강조한 pinpoint는 학습 범위 변경이나 우선순위 override가 아니라 해당 개념의 설명 방식과 깊이를 조정하라는 신호입니다. 전체 개념 흐름은 유지하고, 필요하면 예시·비유·중간 상태를 바꾸거나 기존 설명을 재구성하세요. 분량을 늘리는 것 자체를 해결책으로 삼지 않습니다. 학습자가 명시적으로 범위 변경을 요청하면 커리큘럼 정합성을 확인한 뒤 반영하세요.",
     "",
     await loadPhaseInstructions("concept"),
   );

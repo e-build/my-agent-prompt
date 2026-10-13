@@ -20,7 +20,9 @@ test("review handoff preserves assessment metadata, weaknesses and pinpoints", a
   for (const text of ["DIAGNOSIS_RESULTS_REVIEWED", "diagnosis-1", "ch-01-cache", "캐싱 기초", "67/100", "level: normal", "ready_to_continue", "concept_gap: CAS 동작", "q5 (0/10, wrong): CAS 동작? — 예시 요청", session.diagnosisMdPath]) {
     assert.ok(prompt.includes(text), text);
   }
-  assert.match(prompt, /비중 조절 신호/);
+  assert.match(prompt, /설명 방식과 깊이를 조정하라는 신호/);
+  assert.match(prompt, /분량을 늘리는 것 자체를 해결책으로 삼지 않습니다/);
+  assert.doesNotMatch(prompt, /설명 밀도·예시·확인 질문만 조금 늘립니다/);
 });
 
 test("explain_first keeps explanation before recall questions", async () => {

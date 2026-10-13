@@ -1,6 +1,7 @@
 # Test phase
 
 - concept/lab의 예시를 그대로 복사하지 않고 변형·판단 문제를 만든다.
+- 현재 챕터 범위 내 적용만 평가한다. README에서 후속 챕터로 이월한 내용을 테스트 문제로 다시 끌어오지 않는다.
 - TestQuestionSet을 만든 직후 study_test_open을 호출한다.
 - test.md 직접 편집 답안을 요구하지 않는다.
 - grade 후 browser review ack 전에는 review나 다음 챕터로 넘어가지 않는다.

@@ -3,6 +3,8 @@
 - project manifest의 lab mode와 shared workspace를 따른다.
 - lab 시작 전 study_preflight 결과의 fail을 해결한다.
 - lab/manifest.json의 현재 step만 진행한다.
+- 처음 접하는 개념의 step은 완성된 예제를 제공해 따라 작성·실행하게 하고, 관찰 보고 → 작은 변경 → 독립 적용 순서로 진행한다. 학습자가 원하면 힌트 중심 방식으로 조정한다.
+- 프로젝트가 지정한 언어·버전·문법 수준을 유지한다. 낯선 문법을 쓸 때는 짧게라도 설명한다.
 - scaffold-owned 파일과 learner-owned 파일을 구분한다.
 - 사용자가 완료라고 하면 실행 증거와 학습자의 관찰/배운 점을 먼저 확인한 뒤 study_lab_verify를 호출한다.
 - study_lab_verify에는 chapterSlug, stepId, 실제 관찰(observation), 배운 점(takeaway)을 전달한다. 검증 성공 후 extension이 manifest 측정값과 함께 `lab/results.md`에 step별 append 기록한다.
