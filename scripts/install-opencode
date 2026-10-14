@@ -6,8 +6,10 @@ set -euo pipefail
 # Resources:
 #   adapters/opencode/commands/ → ~/.config/opencode/commands/   (slash commands)
 #   adapters/opencode/agents/   → ~/.config/opencode/agents/     (subagent definitions)
-#   resources/skills/           → ~/.config/opencode/skills/      (Agent Skills)
 #   runtime/opencode/plugins/   → ~/.config/opencode/plugins/     (OpenCode plugins)
+#
+# Agent Skills are NOT installed here: OpenCode reads the cross-agent
+# standard location ~/.agents/skills/ natively. Run scripts/install-skills.
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 OC="${OPENCODE_HOME:-$HOME/.config/opencode}"
@@ -28,7 +30,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 echo "Installing OpenCode resources → $OC"
-mkdir -p "$OC"/{commands,agents,skills,plugins}
+mkdir -p "$OC"/{commands,agents,plugins}
 
 # 1. Command adapters
 for f in "$ROOT/adapters/opencode/commands/"*.md; do
@@ -44,11 +46,11 @@ for f in "$ROOT/adapters/opencode/agents/"*.md; do
 done
 echo "  ✓ agent definitions → agents/"
 
-# 3. Agent Skills
-for d in $(find "$ROOT/resources/skills" -name SKILL.md -exec dirname {} \;); do
-  ln -sfn "$d" "$OC/skills/$(basename "$d")"
-done
-echo "  ✓ skills → skills/"
+# 3. Agent Skills → ~/.agents/skills/ (cross-agent standard)
+#    OpenCode reads it natively. Run scripts/install-skills.
+if [[ ! -d "$HOME/.agents/skills" ]]; then
+  echo "  ℹ skills: run 'bash scripts/install-skills' (→ ~/.agents/skills/)"
+fi
 
 # 4. Plugins (cliproxyapi-sync)
 if [[ -d "$ROOT/runtime/opencode/plugins/cliproxyapi-sync" ]]; then

@@ -6,7 +6,6 @@ set -euo pipefail
 # Resources:
 #   adapters/pi/commands/   → ~/.pi/agent/prompts/        (slash commands)
 #   resources/commands/     → ~/.pi/agent/commands/        (shared command bodies)
-#   resources/skills/       → ~/.pi/agent/skills/          (Agent Skills)
 #   runtime/pi/extensions/  → ~/.pi/agent/extensions/      (Pi extensions)
 #   runtime/pi/themes/      → ~/.pi/agent/themes/          (Pi themes)
 #   runtime/pi/bin/pi       → ~/.local/bin/pi              (compact launcher)
@@ -45,7 +44,11 @@ cleanup_legacy_links() {
     "$ROOT/bodies"
     "$ROOT/skills"
     "$ROOT/pi"
-  )
+    # Agent Skills moved to the cross-agent standard location
+  # ~/.agents/skills/ (see scripts/install-skills). Old per-tool links that
+  # pointed into this repo are pruned by cleanup_legacy_links below.
+  "$ROOT/resources/skills"
+)
   local dir link target root
 
   for dir in "$PI_HOME/prompts" "$PI_HOME/skills" "$PI_HOME/extensions"; do
@@ -89,12 +92,11 @@ if [[ "$RESTORE" == "1" ]]; then
     echo "  ✓ command bodies → commands/"
   fi
 
-  # 3. Agent Skills → skills/
-  mkdir -p "$PI_HOME/skills"
-  for d in $(find "$ROOT/resources/skills" -name SKILL.md -exec dirname {} \;); do
-    ln -sfn "$d" "$PI_HOME/skills/$(basename "$d")"
-  done
-  echo "  ✓ skills installed"
+  # 3. Agent Skills → ~/.agents/skills/ (cross-agent standard)
+  #    Pi reads ~/.agents/skills/ natively. Run scripts/install-skills.
+  if [[ ! -d "$HOME/.agents/skills" ]]; then
+    echo "  ℹ skills: run 'bash scripts/install-skills' (→ ~/.agents/skills/)"
+  fi
 
   # 4. Pi extensions → extensions/ (skip docs/tests/config)
   if [[ -d "$ROOT/runtime/pi/extensions" ]]; then

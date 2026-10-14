@@ -1,0 +1,103 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Install Agent Skills from the canonical resources/ to the cross-agent
+# standard location ~/.agents/skills/ (Agent Skills specification).
+#
+# Tool support for ~/.agents/skills/:
+#   Pi, OpenCode        — native support, no bridge needed
+#   Claude Code         — reads ~/.claude/skills/ only → bridge symlinks
+#   Codex               — reads ~/.codex/skills/ (not automated yet)
+#
+# Also migrates legacy per-tool skill links that pointed directly into this
+# repo (~/.pi/agent/skills/, ~/.config/opencode/skills/) so each skill is
+# discovered exactly once via the standard location.
+#
+# Usage:
+#   bash scripts/install-skills            # install + migrate
+#   bash scripts/install-skills --no-bridge  # skip ~/.claude/skills bridge
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+AGENTS_SKILLS_DIR="${AGENTS_SKILLS_DIR:-$HOME/.agents/skills}"
+CLAUDE_SKILLS_DIR="${CLAUDE_SKILLS_DIR:-$HOME/.claude/skills}"
+BRIDGE_CLAUDE=1
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --no-bridge) BRIDGE_CLAUDE=0; shift ;;
+    -h|--help)
+      sed -n '2,16p' "$0" | sed 's/^# \{0,1\}//'
+      exit 0
+      ;;
+    *) echo "error: unknown argument: $1" >&2; exit 1 ;;
+  esac
+done
+
+echo "Installing Agent Skills → $AGENTS_SKILLS_DIR"
+mkdir -p "$AGENTS_SKILLS_DIR"
+
+installed=0
+skipped=0
+
+# 1. Canonical skills → ~/.agents/skills/<name>
+for d in $(find "$ROOT/resources/skills" -name SKILL.md -exec dirname {} \;); do
+  name="$(basename "$d")"
+  dst="$AGENTS_SKILLS_DIR/$name"
+
+  # Guard: never touch a real (non-symlink) directory the user manages.
+  if [[ -d "$dst" && ! -L "$dst" ]]; then
+    echo "  ⚠ skipped $name: real directory exists at $dst (user-managed)"
+    skipped=$((skipped + 1))
+    continue
+  fi
+
+  ln -sfn "$d" "$dst"
+  installed=$((installed + 1))
+done
+echo "  ✓ $installed skill(s) installed, $skipped skipped"
+
+# 2. Claude Code bridge: ~/.claude/skills/<name> → ~/.agents/skills/<name>
+if [[ "$BRIDGE_CLAUDE" == "1" && -d "$HOME/.claude" ]]; then
+  mkdir -p "$CLAUDE_SKILLS_DIR"
+  bridged=0
+  for d in $(find "$ROOT/resources/skills" -name SKILL.md -exec dirname {} \;); do
+    name="$(basename "$d")"
+    src="$AGENTS_SKILLS_DIR/$name"
+    dst="$CLAUDE_SKILLS_DIR/$name"
+
+    # Only bridge skills that actually landed in the standard location.
+    [[ -e "$src" ]] || continue
+
+    # Guard: never touch a real (non-symlink) directory the user manages.
+    if [[ -d "$dst" && ! -L "$dst" ]]; then
+      echo "  ⚠ bridge skipped $name: real directory exists at $dst"
+      continue
+    fi
+
+    ln -sfn "../../.agents/skills/$name" "$dst"
+    bridged=$((bridged + 1))
+  done
+  echo "  ✓ $bridged Claude bridge link(s) → $CLAUDE_SKILLS_DIR"
+fi
+
+# 3. Migrate legacy per-tool links that pointed into this repo.
+#    Pi and OpenCode read ~/.agents/skills/ natively, so per-tool copies
+#    only cause duplicate discovery / name-collision warnings.
+migrated=0
+for dir in "$HOME/.pi/agent/skills" "$HOME/.config/opencode/skills"; do
+  [[ -d "$dir" ]] || continue
+  for link in "$dir"/*; do
+    [[ -L "$link" ]] || continue
+    target="$(readlink "$link")"
+    if [[ "$target" == "$ROOT/resources/skills" || "$target" == "$ROOT/resources/skills"/* ]]; then
+      rm -f "$link"
+      migrated=$((migrated + 1))
+    fi
+  done
+done
+[[ "$migrated" -gt 0 ]] && echo "  ✓ removed $migrated legacy per-tool skill link(s)"
+
+echo ""
+echo "✅ Skills install complete."
+echo "   Pi / OpenCode read $AGENTS_SKILLS_DIR natively."
+echo "   Codex needs manual links in ~/.codex/skills/ (see scripts/install-codex)."

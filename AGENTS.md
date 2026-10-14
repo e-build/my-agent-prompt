@@ -40,8 +40,9 @@ integrations/       # 외부 서비스 연동
   cliproxyapi/      #   CLI Proxy API 서버 구성 + Claude Code/Codex 연동 가이드
 
 scripts/            # 설치 및 검증 스크립트
-  install-pi        #   Pi 자원 배포
-  install-opencode  #   OpenCode 자원 배포
+  install-skills    #   Agent Skills → ~/.agents/skills/ (표준 위치, 전 도구 공유)
+  install-pi        #   Pi 자원 배포 (스킬 제외)
+  install-opencode  #   OpenCode 자원 배포 (스킬 제외)
   install-claude    #   Claude Code 안내 (미구현)
   install-codex     #   Codex 안내 (미구현)
   check-resources   #   구조 무결성 검증
@@ -75,6 +76,9 @@ scripts/            # 설치 및 검증 스크립트
 ## 설치
 
 ```bash
+# 스킬만 표준 위치에 설치 (Pi·OpenCode 네이티브, Claude Code 브릿지 자동)
+bash scripts/install-skills
+
 # Pi 전체 설치
 bash scripts/install-pi --restore --copy-config
 
@@ -88,6 +92,15 @@ bash scripts/install-codex    # 안내만 출력
 # 구조 무결성 검증
 bash scripts/check-resources
 ```
+
+## 스킬 배포 (Agent Skills 표준)
+
+`resources/skills/`의 스킬은 도구별 경로가 아니라 Agent Skills 표준 위치 `~/.agents/skills/`로 심링크된다.
+
+- **Pi, OpenCode**: 표준 위치를 네이티브로 읽는다. 별도 링크 불필요.
+- **Claude Code**: `~/.claude/skills/`만 읽으므로 `install-skills`가 브릿지 심링크를 만든다.
+- **Codex**: `~/.codex/skills/`를 읽는다. 아직 자동화되지 않았다.
+- 사용자가 직접 관리하는 실제 디렉터리는 절대 덮어쓰지 않는다.
 
 ---
 
