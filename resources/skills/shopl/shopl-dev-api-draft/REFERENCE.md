@@ -1,274 +1,148 @@
 # API Draft 상세 컨벤션
 
-## 1. 프로젝트 컨벤션 요약
+## 목차
 
-### 1.1 모듈 구조
+1. [문서 범위 판정](#1-문서-범위-판정)
+2. [요청·응답 작성 규칙](#2-요청응답-작성-규칙)
+3. [예시](#3-예시)
+4. [실제 계약 확인](#4-실제-계약-확인)
+5. [내부 설계 기록 분리](#5-내부-설계-기록-분리)
+6. [검증 체크리스트](#6-검증-체크리스트)
 
-Shopl은 멀티모듈 + 도메인 우선 패키지 구조를 사용한다. breakdown §14.1 확정 기준:
+## 1. 문서 범위 판정
 
-| 레이어 | 모듈 | 패키지 예시 |
-|---|---|---|
-| Controller / DTO / Application(Facade) | `api/` | `com.planetory.io.feature.workplace_attendance` |
-| Domain / Infrastructure(Reader, Repo) | `shopl-api/` | 신규 집계 도메인 |
+기본 산출물은 클라이언트 개발자가 변경할 요청·응답 계약만 읽는 문서. 모든 API 후보를 나열하는 내부 설계 문서와 구분.
 
-### 1.2 HTTP/Routing
-
-- **필터·조건 기반 조회는 POST + RequestBody** (기존 `AttendancePeriodQueryController` 참조)
-- 관리자 화면: `/admin/attendance/workplaces/**`
-- 인증: `CommonParamInfo` (hidden `@Parameter`) 주입
-
-### 1.3 API spec 출력 형태 (중요)
-
-API spec 문서는 **순수 JSON 형태**로 작성한다. **DTO 클래스명을 포함하지 않는다**.
-
-- **금지**: `WorkplaceAttendanceXxxRequest`, `WorkplaceAttendanceXxxResponse` 같은 클래스명을 섹션 헤더나 응답 정의에 붙이지 않는다.
-- **금지**: pseudo-class code block (`ClassName { field: Type }` 형태)을 사용하지 않는다.
-- **요청**: 필드 표로 정의 (필드·타입·필수·설명·예시). 클래스명 없이 `### X.Y Request` 헤더만.
-- **응답**: JSON 예시 block (` ```json `)으로 정의. 값과 인라인 주석으로 구조를 보여준다.
-- 아래 §1.3.1의 Kotlin DTO 패턴은 **구현 시 참고용**이며 spec 문서에 직접 넣지 않는다.
-
-#### 1.3.1 구현용 DTO 패턴 (참고만 — spec 문서에 미포함)
-
-```kotlin
-// Request: outer class 내부 data class
-class WorkplaceAttendanceXxxRequest {
-    data class Filter(
-        val field: Type,
-    )
-}
-
-// Response: data class
-data class WorkplaceAttendanceXxxResponse(
-    val field: Type,
-)
-```
-
-Swagger: `@Schema(name = "...", description = "...")`, `requiredMode = Schema.RequiredMode.REQUIRED`
-
-### 1.4 페이징
-
-**요청**: `PageRequest<SortType>`
-```kotlin
-data class PageRequest<out PageSortType>(
-    val sortType: PageSortType?,
-    val direction: Sort.Direction = Sort.Direction.ASC,
-    val page: Int,          // 0-based
-    val records: Int,       // page size
-)
-```
-
-**응답**: `PageResponse<T>` 또는 `PageResponseWithAdditionalInfo<T, AdditionalInfo>`
-- `content`, `totalElements`, `page`, `size`, `isLast`
-
-### 1.5 예외
-
-AGENTS.md 규칙: raw throw 금지. 프로젝트 전용 `ErrorCode` enum 정의 후 `throwEx()` / `wrapEx(errorData)` 사용.
-
-```java
-public interface ErrorCode {
-    HttpStatus retrieveHttpStatus();
-    String retrieveErrorCode();
-    String retrieveErrorMessage();
-    default ResponseErrorException throwEx() { throw ResponseErrorException.of(this); }
-    default ResponseErrorException wrapEx(Object errorData) { return ResponseErrorException.of(this, errorData); }
-}
-```
-
-신규 API 전용 `ErrorCode` 예: `WorkplaceAttendanceErrorCode`
-
-### 1.6 CommonParamInfo 권한 메서드
-
-```java
-boolean isAdmin()    // 관리자 + 슈퍼관리자
-boolean isLeader()   // 리더
-boolean isOperator() // 운영자
-boolean isUser()     // 일반 직원
-```
-
----
-
-## 2. 문서 구조 템플릿
-
-```md
-# <기능명> — API 초안 설계
-> 상태: 초안 (Draft) | 작성일: YYYY-MM-DD
-> 근거: [breakdown 문서](./backend-implementation-breakdown.md) + 정책 문서
-
-## 목차 (API 목록까지)
-1. 문서 목적과 범위
-2. 설계 전제와 컨벤션
-3. 공통 타입/Enum 정의
-4. API 목록 요약 (표)
-5~. 개별 API 명세 (각 API마다 1개 섹션)
-N. 기존 API 재사용 매핑
-N+1. 미확정/설계 검토 필요 항목
-```
-
-## 3. Enum 정의 규칙
-
-### 3.1 명명
-
-- enum 값: 영문 `SCREAMING_SNAKE_CASE`
-- 한글 표시명을 표의 별도 컬럼으로
-
-### 3.2 필수 포함 정보
-
-각 enum 표에는 최소한:
-- enum 상수 값
-- 한글 표시명
-- 집계 기준 근무지 (해당 시)
-- default 선택 여부 (해당 시)
-- 비고 (해당 시)
-
-### 3.3 템플릿 동적 항목
-
-스케줄 템플릿처럼 동적으로 늘어나는 항목은:
-- enum 값 예시: `SCHEDULE_METRIC_TEMPLATE:{templateId}`
-- 표시명: 템플릿명 (동적)
-- 요청 파라미터로 templateId 목록을 별도 필드(`includeScheduleTemplateIds`)로 분리
-
----
-
-## 4. API 명세 작성 규칙
-
-### 4.1 엔드포인트 네이밍
-
-- `POST /admin/attendance/workplaces/daily/{기능명}`
-- `POST /admin/attendance/workplaces/monthly/{기능명}`
-- path variable이 필요한 경우: `POST /admin/attendance/workplaces/{workplaceId}/detail`
-
-### 4.2 Request
-
-**필드 표**로 정의. 클래스명은 붙이지 않는다. 헤더에는 **전송 방식을 명시**한다.
-
-| 헤더 형식 | 의미 |
+| 변경 내용 | api-draft 포함 여부 |
 |---|---|
-| `### X.Y Request (body)` | POST RequestBody (JSON body) |
-| `### X.Y Request (param)` | GET Query Parameter |
-| `### X.Y Request (path + body)` | path variable + POST RequestBody |
-| `### X.Y Request (path + param)` | path variable + GET Query Parameter |
+| 응답 Boolean 필드 추가 | 포함 |
+| 요청 필드 삭제·타입·필수 여부·허용 enum 변경 | 포함 |
+| 응답 구조 또는 필드 의미의 명시적 계약 변경 | 포함 |
+| 신규 API | 포함. 필요한 요청·응답 전체 정의 |
+| 삭제 API | method·path와 삭제 사실만 표시 |
+| 저장 가격을 0으로 정규화하는 내부 처리 | 이것만으로는 제외 |
+| 저장값을 그대로 반환하는 기존 조회 API | 조회 계약 변경이 없다면 제외 |
+| Excel 열 제거·파서 수정, multipart 필드와 응답 계약은 동일 | 제외. 파일 양식 안내는 별도 문서 |
+| 계산·성능 개선·Repository 변경 | 요청·응답 계약이 같다면 제외 |
+| 영향 가능성만 있는 연관 API | 제외 |
 
-필드 표는 전송 방식과 무관하게 동일 형식:
+- `요청·응답 계약 변경`은 `코드 변경`이나 `데이터값 변경`과 다름.
+- 사용자가 “실제 요청·응답이 변경된 것만” 요청하면 구현된 계약만 포함. 미구현 후보·후속 예정 API 제외.
+- 변경 API가 없으면 “요청·응답 계약 변경 없음.”으로 끝내고 API 목록을 억지로 채우지 않음.
 
-| 필드 | 타입 | 필수 | 설명 | 예시 |
-|---|---|---|---|---|
-| `date` | LocalDate | ✅ | 조회 날짜 | `2026-07-09` |
-| `workplaceIds` | Set\<String\> | ❌ | 근무지 필터 | `["WP001"]` |
+## 2. 요청·응답 작성 규칙
 
-path variable이 있는 경우 필드 표 아래에 `path variable` 안내문으로 별도 표기.
+### 공통 형식
 
-**JSON 예시 (body 전용)**: `(body)` Request는 응답과 동일한 JSON 예시 block을 field table 아래에 추가한다. 동일한 `[타입, non null|nullable] 설명` 주석 포맷을 사용한다.
+1. 기능명 헤더.
+2. `METHOD /path`.
+3. `### 요청`.
+4. `### 응답`.
+
+- 변경 없는 쪽: `변경 없음.`만 작성.
+- 변경된 쪽: 무엇이 추가·수정·삭제됐는지와 필요한 타입·필수 여부·의미만 작성.
+- `응답 필드 추가`, `요청 변경 항목`, `응답 추가 필드만 발췌:` 같은 별도 헤더·도입 문구 사용 금지.
+- 기존 API의 권한·페이징·예외·전체 enum·구현 경로가 그대로라면 반복하지 않음.
+- 오류 응답 계약이 변경됐다면 `응답` 아래 변경된 HTTP 상태·오류 코드·발생 조건만 추가. 원인 구현 설명 제외.
+
+### JSON
+
+- body는 `json` 코드 블록으로 표현. DTO 클래스명·Kotlin/Java 타입 선언 금지.
+- **인라인 주석, `...`, `/* 재사용 */` 등 비표준 JSON 금지**. 예시는 그대로 파싱 가능해야 함.
+- 타입·필수 여부·enum 설명은 JSON 밖의 짧은 문장으로 작성.
+- 기존 API는 변경된 필드와 그 위치를 보여주는 최소 중첩 구조만 표시. 변경 없는 필드로 전체 예시를 채우지 않음.
+- 삭제 필드는 JSON에 남기지 않고 문장으로 삭제 사실 표기.
+- 변경이 없다면 body 예시도 없음.
+- path/query/header/multipart는 JSON body가 아님. 변경된 이름·타입·전송 위치를 짧게 표시.
+
+## 3. 예시
+
+### 응답 필드 추가
+
+````md
+## 1. 정책 요약 조회
+
+`GET /admin/example/{id}`
+
+### 요청
+
+변경 없음.
+
+### 응답
+
+`hasFixedAmountCommission` 추가 — Boolean, 항상 포함.
+
+- `true`: 고정 금액 커미션 포함.
+- `false`: 고정 금액 커미션 없음.
 
 ```json
 {
-  "date": "2026-07-09",        // [LocalDate, non null] 조회 날짜
-  "workplaceIds": ["WP001", "WP002"]  // [Set<String>, nullable] 근무지 필터
+  "hasFixedAmountCommission": true
 }
 ```
+````
 
-`(path + body)`인 경우 path variable은 JSON 밖에 주석으로 표기한다.
+### 요청 필드 수정
 
-### 4.3 Response
+````md
+## 1. 예시 수정
 
-**JSON 예시 block**으로 정의. pseudo-class 구문(`ClassName { field: Type }`)이나 DTO 클래스명은 사용하지 않는다.
+`PUT /admin/example/{id}`
 
-**주석 포맷 (필수)**: 모든 필드에 `[타입, nullable 여부] 설명` 포맷의 인라인 주석을 단다. 요청의 필드 표와 동일한 정보 밀도를 유지한다.
+### 요청
+
+`title` 필수로 변경 — String.
 
 ```json
 {
-  "total": 0,                    // [Long, non null] 전체 근무지 수
-  "statuses": [                  // [List, non null] 상태별 집계
-    {
-      "status": "BEFORE_WORK",   // [Enum, non null] 근무지 상태
-      "count": 0                  // [Long, non null] 근무지 수
-    }
-  ]
+  "title": "새 제목"
 }
 ```
 
-**주석 작성 규칙**:
-- 포맷: `// [타입, non null|nullable] 설명`
-- 타입: `String`, `Long`, `Int`, `Boolean`, `BigDecimal`, `LocalDate`, `LocalDateTime`, `LocalTime`, `List`, `Object`, `Map`, `Enum`
-- nullable 여부: `non null` 또는 `nullable` (nullable 여부)
-- nullable 필드는 예시값 `null`로 표시한다.
-- 중첩 객체는 JSON 중첩 구조로 표현한다.
-- 다른 섹션의 구조를 재사용하는 경우 `{ /* §8.4 schedule 구조 */ }` 형태로 참조 가능.
+### 응답
 
-### 4.4 페이징 정보 명시
+변경 없음.
+````
 
-- API별 page size (기본값, 선택 가능값)
-- 정렬 기준 enum (`SortType`)
-- `additionalInfo` 필요 여부
+### 피해야 할 작성
 
-### 4.5 예외 케이스
+- “저장 로직 변경”을 이유로 요청·응답이 같은 API까지 목록에 추가.
+- 변경된 응답이 하나뿐인데 템플릿 다운로드·업로드·연관 조회 API를 함께 나열.
+- `### 응답 필드 추가` → 헤더는 `### 응답` 사용.
+- `응답 추가 필드만 발췌:` → 불필요한 문구 없이 바로 JSON 작성.
+- 변경 없는 요청의 전체 body와 필드 표를 재작성.
+- 주석 달린 JSON을 “순수 JSON”이라고 설명.
 
-표 형식:
+## 4. 실제 계약 확인
 
-| HTTP | ErrorCode | 조건 |
-|---|---|---|
-| 403 | `NO_PERMISSION` | 직원 역할 |
-| 400 | `INVALID_PARAMS` | date 누락 |
+- 프로젝트 AGENTS/convention을 우선하고 유사 API는 확인용으로만 사용.
+- 기존 Controller의 method/path를 확인. 조회라는 이유만으로 POST로 바꾸거나 기존 GET을 무시하지 않음.
+- Request DTO → Command/Mapper와 View → Response Mapper까지 확인해 실제 전송 필드 결정.
+- JSON 이름은 실제 직렬화 기준. `isLast()` 등 접근자 이름을 곧바로 wire 필드명으로 단정하지 않음.
+- 페이징의 `size`/`records`/cursor와 enum은 해당 API 계약 기준. 다른 기능의 형식을 복사하지 않음.
+- enum 정확값·default·null 허용·누락 가능 여부는 정책과 실제 코드 교차 확인.
+- 클래스명·내부 DB 값·서버 인증 컨텍스트를 임의 요청 필드로 노출하지 않음.
+- 구현 전 초안은 합의된 변경만 작성. 미확정 필드·경로·오류 코드를 사실처럼 확정하지 않음.
 
----
+## 5. 내부 설계 기록 분리
 
-## 5. Cross-Reference 링크화 규칙
-
-### 5.1 문서 간 참조
-
-| 대상 | 링크 패턴 |
-|---|---|
-| 같은 문서 섹션 | `[섹션 N.M](#nn-헤딩명)` |
-| breakdown 문서 | `[breakdown 섹션 N.M](./backend-implementation-breakdown.md#nn-헤딩명)` |
-| 정책 문서 | `[정책 섹션 N](0X-policy-문서명.md#n-헤딩명)` |
-
-### 5.2 헤딩 앵커 생성 규칙
-
-GitHub Flavored Markdown 기준:
-1. 소문자 변환
-2. 영문/숫자/공백/하이픈 외 제거
-3. 공백 → `-`
-4. 중복 앵커는 `-1`, `-2` 접미사
-
-예: `### 3.4 출퇴근 탭 조회 항목 (최대 8개 선택)` → `#34-출퇴근-탭-조회-항목-최대-8개-선택`
-
-### 5.3 URL 내 괄호 인코딩
-
-파일명에 `(` `)`가 포함된 경우 URL 인코딩:
-- `03-policy-근무 현황(근무지).md` → `03-policy-근무-현황%28근무지%29.md`
-
-마크다운 `](url)` 구문에서 `)`를 URL 종료로 인식하기 때문.
-
-### 5.4 치환 시 주의
-
-`breakdown 섹션 10.1` 과 `breakdown 섹션 10` 같은 중첩 패턴은 **긴 문자열부터 먼저** 치환해야 한다. 그렇지 않으면 `[breakdown 섹션 10](./...).1` 로 깨진다.
-
-### 5.5 코드 주석 내 참조
-
-`// 섹션 3.2`, `// 섹션 8.4 재사용` 등 코드 블록/DTO 필드 주석에 있는 섹션 참조는 변수·타입을 가리키는 것이므로 링크화하지 않는다.
-
----
+- 권한 조사, Q-ID, 정책 근거, API 후보, 구현 계획, 테스트 결과 등은 breakdown 또는 별도 내부 문서에 보관.
+- 기존 상세 초안을 보존할 필요가 있으면 `api-design-notes.md` 등으로 분리. 단순 축약마다 무조건 복제하지 않음.
+- 클라이언트용 `api-draft.md`에는 내부 문서 내용을 다시 나열하지 않음.
+- 기존 참조가 상세 API 앵커를 가리키면 보존한 내부 문서로 갱신.
+- 교차 참조는 실제 Markdown 링크 사용. 없는 섹션 앵커·이중 링크 방지.
+- 전체 신규 API 설계를 명시적으로 요청받았을 때만 공통 enum·권한·페이징·예외 등 전체 계약까지 확장. 그래도 요청/응답 헤더와 유효한 JSON 원칙 유지.
 
 ## 6. 검증 체크리스트
 
-문서 작성 완료 후:
-
-- [ ] breakdown §9의 모든 API 후보가 명세에 포함되었는가
-- [ ] 각 API에 Request(필드 표)/Response(JSON 예시)/예외 케이스가 모두 기재되었는가
-- [ ] **Request 헤더에 전송 방식(body/param/path)이 명시되었는가**
-- [ ] **Request(body) JSON 예시 block이 field table 아래에 추가되었는가** (응답과 동일한 주석 포맷)
-- [ ] **응답 JSON의 모든 필드에 `[타입, non null|nullable] 설명` 주석이 있는가**
-- [ ] **DTO 클래스명이 섹션 헤더/응답 정의에 포함되지 않았는가** (`XxxRequest`, `XxxResponse` 금지)
-- [ ] **응답이 pseudo-class 구문이 아닌 JSON 예시인가** (`ClassName { ... }` 금지)
-- [ ] 페이징이 필요한 API에 page/records 파라미터 + 응답 구조 명시
-- [ ] 모든 enum이 정책 문서 값과 1:1 대응하는가 (교차 검증)
-- [ ] 모든 `섹션 N` 참조가 실제 markdown 링크로 변환되었는가 (코드 주석 제외)
-- [ ] `[[` 이중 링크 없음
-- [ ] URL에 미인코딩 괄호 `(` `)` 없음
-- [ ] breakdown §16에 api-draft.md 링크 추가 확인
-- [ ] 미확정/검토 필요 항목 섹션이 비어있지 않은가
-
----
-
-## 7. 전체 예시
-
-`docs/근무지별-출퇴근/api-draft.md` 참조.
+- [ ] 실제 요청·응답 계약 변경 API만 남겼는가?
+- [ ] 내부 저장·검증·Excel 변경을 API 계약 변경으로 잘못 포함하지 않았는가?
+- [ ] API별 헤더가 `요청`·`응답`인가?
+- [ ] 변경 없는 쪽은 `변경 없음.` 한 줄인가?
+- [ ] 변경된 필드·의미만 짧게 설명했는가?
+- [ ] 불필요한 “추가 필드만 발췌” 도입 문구를 제거했는가?
+- [ ] 모든 JSON 코드 블록이 주석 제거 없이 파싱되는가?
+- [ ] 기존 API 예시에 변경 없는 전체 body를 반복하지 않았는가?
+- [ ] 실제 method/path·직렬화 필드·타입·필수 여부·enum과 일치하는가?
+- [ ] 후보 계약·내부 구현 설명을 분리했는가?
+- [ ] 문서 링크·앵커가 유효한가?
