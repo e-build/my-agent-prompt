@@ -4,12 +4,12 @@ set -euo pipefail
 # Install Claude Code resources from this repo.
 #
 # Claude Code support is not yet fully implemented.
-# Currently, the shared resources in this repo serve as canonical source
-# that can be manually referenced or symlinked as needed.
+# Command adapters are not implemented; skill bridges are already available
+# through install-skills and sync-external-skills. See resources/external-skills.md.
 #
 # Planned paths:
 #   adapters/claude/commands/ → ~/.claude/commands/
-#   resources/skills/         → ~/.claude/skills/
+# Skill bridge: ~/.claude/skills/ → ~/.agents/skills/ (separate installers)
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
@@ -20,8 +20,13 @@ echo "  resources/skills/     — Agent Skills (canonical source)"
 echo "  resources/commands/   — Shared command bodies"
 echo "  resources/references/ — Reusable rules and guides"
 echo ""
-echo "To use with Claude Code, manually symlink or copy the resources"
-echo "you need to ~/.claude/skills/ or ~/.claude/commands/."
+echo "Skills (separate; creates bridges when ~/.claude exists):"
+echo "  bash scripts/install-skills          — locally maintained skills"
+echo "  python3 scripts/sync-external-skills  — registered external skills"
+echo "  External source updates require explicit --update."
+echo "  See resources/external-skills.md for later-session requests and compatibility."
+echo "  Skill bridges do not register upstream plugins or subagents."
+echo "Commands need manual wrappers in ~/.claude/commands/."
 echo ""
 echo "To add proper adapter support, create adapters/claude/commands/"
 echo "with Claude Code-compatible wrapper files."

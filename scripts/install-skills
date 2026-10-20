@@ -1,8 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Install Agent Skills from the canonical resources/ to the cross-agent
+# Install locally maintained skills from resources/skills/ to the
 # standard location ~/.agents/skills/ (Agent Skills specification).
+# External skills are separate: python3 scripts/sync-external-skills [source-id]
+# Explicit updates only: python3 scripts/sync-external-skills --update [source-id]
+# See resources/external-skills.md for management and later-session requests.
 #
 # Tool support for ~/.agents/skills/:
 #   Pi, OpenCode        — native support, no bridge needed

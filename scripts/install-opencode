@@ -10,6 +10,8 @@ set -euo pipefail
 #
 # Agent Skills are NOT installed here: OpenCode reads the cross-agent
 # standard location ~/.agents/skills/ natively. Run scripts/install-skills.
+# External skills: python3 scripts/sync-external-skills [source-id].
+# No upstream updates here; see resources/external-skills.md.
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 OC="${OPENCODE_HOME:-$HOME/.config/opencode}"
@@ -19,6 +21,11 @@ usage() {
 Usage:
   bash scripts/install-opencode    # install all OpenCode resources
   bash scripts/install-opencode -h # show this help
+
+Skills (separate):
+  bash scripts/install-skills         # locally maintained skills
+  python3 scripts/sync-external-skills # registered external skills
+  See resources/external-skills.md; updates require explicit --update.
 EOF
 }
 

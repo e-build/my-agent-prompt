@@ -1,0 +1,16 @@
+{
+  "sources": [
+    {
+      "id": "im-not-ai",
+      "url": "https://github.com/epoko77-ai/im-not-ai.git",
+      "branch": "main",
+      "category": "writing",
+      "skills": [
+        { "name": "humanize", "path": "skills/humanize" },
+        { "name": "humanize-korean", "path": "skills/humanize-korean" },
+        { "name": "humanize-redo", "path": "skills/humanize-redo" },
+        { "name": "humanize-scan", "path": "skills/humanize-scan" }
+      ]
+    }
+  ]
+}

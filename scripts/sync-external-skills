@@ -1,0 +1,144 @@
+#!/usr/bin/env python3
+"""Install external skills from references; update upstream only with --update."""
+import argparse
+import json
+import os
+from pathlib import Path, PurePosixPath
+import re
+import subprocess
+import sys
+
+ROOT = Path(__file__).resolve().parent.parent
+
+
+def git(repo, *args):
+    command = ['git']
+    if repo is not None:
+        command += ['-C', str(repo)]
+    result = subprocess.run(command + list(args), capture_output=True, text=True)
+    if result.returncode:
+        raise ValueError(result.stderr.strip() or 'Git command failed')
+    return result.stdout.strip()
+
+
+def load_sources(path):
+    sources = json.loads(path.read_text())['sources']
+    ids, names = set(), set()
+    for source in sources:
+        identifier = source['id']
+        if not re.fullmatch(r'[a-z0-9][a-z0-9-]*', identifier) or identifier in ids:
+            raise ValueError(f'Invalid or duplicate source id: {identifier}')
+        ids.add(identifier)
+        if not source['url'] or source['url'].startswith('-'):
+            raise ValueError(f'{identifier}: invalid repository URL')
+        branch = source['branch']
+        if branch.startswith('-'):
+            raise ValueError(f'{identifier}: invalid branch')
+        git(None, 'check-ref-format', f'refs/heads/{branch}')
+        for skill in source['skills']:
+            name = skill['name']
+            if not re.fullmatch(r'[a-z0-9][a-z0-9-]*', name) or name in names:
+                raise ValueError(f'Invalid or duplicate skill name: {name}')
+            names.add(name)
+            relative = PurePosixPath(skill['path'])
+            if relative.is_absolute() or '..' in relative.parts or not relative.parts:
+                raise ValueError(f'{name}: skill path must stay inside the source repository')
+    return sources
+
+
+def check_link(destination, target):
+    if destination.is_symlink():
+        if destination.resolve() == target.resolve():
+            return
+    elif not destination.exists():
+        return
+    raise ValueError(f'Refusing to replace existing path: {destination}')
+
+
+def install_link(destination, target):
+    if not destination.is_symlink():
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        destination.symlink_to(target, target_is_directory=True)
+
+
+def sync_source(source, sources_dir, update):
+    repo = sources_dir / source['id']
+    if repo.is_symlink():
+        raise ValueError(f'Refusing symlink source directory: {repo}')
+    if not repo.exists():
+        sources_dir.mkdir(parents=True, exist_ok=True)
+        git(None, 'clone', '--branch', source['branch'], '--single-branch', '--', source['url'], str(repo))
+    else:
+        if not (repo / '.git').is_dir():
+            raise ValueError(f'Not a managed Git clone: {repo}')
+        if git(repo, 'remote', 'get-url', 'origin') != source['url']:
+            raise ValueError(f'{repo}: origin differs from manifest; refusing synchronization')
+        if git(repo, 'symbolic-ref', '--short', 'HEAD') != source['branch']:
+            raise ValueError(f'{repo}: branch differs from manifest')
+        if git(repo, 'status', '--porcelain', '--untracked-files=all'):
+            raise ValueError(f'{repo}: local changes; refusing synchronization')
+        if update:
+            branch = source['branch']
+            remote_ref = f'refs/remotes/origin/{branch}'
+            git(repo, 'fetch', 'origin', f'+refs/heads/{branch}:{remote_ref}')
+            head = git(repo, 'rev-parse', 'HEAD')
+            if git(repo, 'merge-base', 'HEAD', remote_ref) != head:
+                raise ValueError(f'{repo}: local commits or rewritten upstream; fast-forward not possible')
+            git(repo, 'merge', '--ff-only', remote_ref)
+    return repo
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('source', nargs='?', help='Source id; default: all registered sources')
+    parser.add_argument('--update', action='store_true', help='Fetch and fast-forward existing clones')
+    parser.add_argument('--no-bridge', action='store_true', help='Do not install Claude Code links')
+    args = parser.parse_args()
+
+    manifest = Path(os.environ.get('EXTERNAL_SKILLS_MANIFEST', ROOT / 'resources/external-skills.json'))
+    sources = load_sources(manifest)
+    if args.source:
+        sources = [source for source in sources if source['id'] == args.source]
+        if not sources:
+            raise ValueError(f'Unknown source: {args.source}')
+    sources_dir = Path(os.environ.get('EXTERNAL_SKILLS_SOURCES_DIR',
+                                    Path.home() / '.local/share/agent-skills/sources')).expanduser().resolve()
+    skills_dir = Path(os.environ.get('AGENTS_SKILLS_DIR', Path.home() / '.agents/skills')).expanduser().absolute()
+    bridge_dir = Path(os.environ.get('CLAUDE_SKILLS_DIR', Path.home() / '.claude/skills')).expanduser().absolute()
+    bridge = not args.no_bridge and (Path.home() / '.claude').is_dir()
+
+    links = []
+    for source in sources:
+        for skill in source['skills']:
+            target = sources_dir / source['id'] / skill['path']
+            links.append((skills_dir / skill['name'], target))
+            if bridge:
+                links.append((bridge_dir / skill['name'], skills_dir / skill['name']))
+    # Check every destination before cloning or changing any installed links.
+    for destination, target in links:
+        check_link(destination, target)
+
+    for source in sources:
+        repo = sync_source(source, sources_dir, args.update)
+        for skill in source['skills']:
+            target = (repo / skill['path']).resolve()
+            try:
+                target.relative_to(repo.resolve())
+            except ValueError:
+                raise ValueError(f"{skill['name']}: resolved path escapes repository")
+            if not (target / 'SKILL.md').is_file():
+                raise ValueError(f'Missing SKILL.md: {target}')
+        print(f"{source['id']}: {source['branch']} @ {git(repo, 'rev-parse', '--short', 'HEAD')}")
+
+    for destination, target in links:
+        install_link(destination, target)
+        print(f'  {destination} -> {target}')
+    print('External skills synchronized. Existing clones update only with --update.')
+
+
+if __name__ == '__main__':
+    try:
+        main()
+    except (ValueError, KeyError, TypeError, OSError) as error:
+        print(f'error: {error}', file=sys.stderr)
+        sys.exit(1)
