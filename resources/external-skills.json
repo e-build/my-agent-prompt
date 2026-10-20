@@ -11,6 +11,15 @@
         { "name": "humanize-redo", "path": "skills/humanize-redo" },
         { "name": "humanize-scan", "path": "skills/humanize-scan" }
       ]
+    },
+    {
+      "id": "diagram-design",
+      "url": "https://github.com/cathrynlavery/diagram-design.git",
+      "branch": "main",
+      "category": "design",
+      "skills": [
+        { "name": "diagram-design", "path": "skills/diagram-design" }
+      ]
     }
   ]
 }

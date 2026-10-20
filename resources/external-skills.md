@@ -86,7 +86,7 @@ python3 scripts/sync-external-skills --update
 python3 scripts/sync-external-skills --no-bridge
 ```
 
-현재 목록은 `im-not-ai`의 `main`을 추적하며, `writing` 분류의 `humanize`, `humanize-korean`, `humanize-redo`, `humanize-scan` 선택. `commit-ko` 제외.
+현재 목록은 `im-not-ai`의 `main`을 추적하며, `writing` 분류의 `humanize`, `humanize-korean`, `humanize-redo`, `humanize-scan` 선택(`commit-ko` 제외). `diagram-design`의 `main`을 추적하며, `design` 분류의 `diagram-design` 선택.
 
 업데이트는 새 upstream 지침을 받아들이는 작업이므로 변경 내용 검토 권장. 출력의 커밋 해시와 클론의 Git 이력으로 수신 버전 확인 가능. upstream 설치 스크립트는 실행하지 않음.
 
