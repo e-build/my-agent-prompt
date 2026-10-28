@@ -16,6 +16,7 @@ runtime/pi/
 │   ├── flow-title.ts          (맞춤형 시작 헤더)
 │   ├── cliproxyapi-sync/      (cliproxy model 동기화 — 별도 설정 파일)
 │   ├── filechanges/           (/filechanges 변경사항 리뷰/되돌리기)
+│   ├── prompt-snippets/       (/snippets, Ctrl+S — 다음 메시지에 규칙 한 번 적용)
 │   └── study/                 (/study-init, /study-chapter, /study-review + 인터랙티브 사전진단 브라우저 세션)
 ├── themes/                ← Pi 테마 10종 (nebula-pulse, tokyo-night 등)
 ├── config/
@@ -60,4 +61,5 @@ code ~/.pi/agent/settings.json
 | `flow-title.ts` | (자동) | 시작 시 헤더 (full/minimal 모드, `/welcome mode minimal` 전환) |
 | `cliproxyapi-sync/` | (자동) | 로컬 CLIProxyAPI 모델을 `cp-*` provider로 자동 등록 ([README](./extensions/cliproxyapi-sync/README.md)) |
 | `filechanges/` | `/filechanges`<br>`/filechanges-accept`<br>`/filechanges-decline` | Pi edit/write 내역 리뷰 (select list), diff 확인, 일괄 승인/되돌리기 |
+| `prompt-snippets/` | `/snippets` · `Ctrl+S` | 다음 메시지 앞·뒤에 규칙 한 번 적용. 사용자 지정 `Explain clearly` 스니펫 포함 ([README](./extensions/prompt-snippets/README.md)) |
 | `study/` | `/study-init`<br>`/study-chapter`<br>`/study-review` | 학습 프로젝트 + 인터랙티브 사전진단 브라우저 세션 (위 study extension 섹션 참조) |
