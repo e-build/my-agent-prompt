@@ -14,6 +14,8 @@ const packageDir = process.env.PI_PACKAGE_DIR || join(
   "@earendil-works/pi-coding-agent",
 );
 const { loadExtensions } = await import(pathToFileURL(join(packageDir, "dist/core/extensions/loader.js")).href);
+const { ExtensionRunner } = await import(pathToFileURL(join(packageDir, "dist/core/extensions/runner.js")).href);
+const { KeybindingsManager } = await import(pathToFileURL(join(packageDir, "dist/core/keybindings.js")).href);
 const keys = { space: " ", enter: "\r", escape: "\u001b", tab: "\t", down: "\u001b[B", up: "\u001b[A" };
 
 async function setup(t, fixtures = { "rule.md": "---\nname: Rule\n---\nRule body" }) {
@@ -60,7 +62,7 @@ async function setup(t, fixtures = { "rule.md": "---\nname: Rule\n---\nRule body
   };
   await emit("session_start");
   return {
-    extension, ctx, widgets, notices, emit, dir,
+    extension, runtime: loaded.runtime, ctx, widgets, notices, emit, dir,
     menu: async (...actions) => {
       script = actions;
       await extension.commands.get("snippets").handler("", ctx);
@@ -69,11 +71,23 @@ async function setup(t, fixtures = { "rule.md": "---\nname: Rule\n---\nRule body
   };
 }
 
-test("registers /snippets and Ctrl+S through the installed Pi loader", async (t) => {
+test("registers /snippets and Ctrl+Alt+S through the installed Pi loader", async (t) => {
   const { extension } = await setup(t);
   assert.ok(extension.commands.has("snippets"));
-  assert.ok(extension.shortcuts.has("ctrl+s"));
+  assert.ok(extension.shortcuts.has("ctrl+alt+s"));
+  assert.equal(extension.shortcuts.has("ctrl+s"), false);
   assert.equal(extension.shortcuts.has("alt+s"), false);
+});
+
+test("shortcut resolution has no conflicts with Pi default keybindings", async (t) => {
+  const { extension, runtime, ctx, dir } = await setup(t);
+  // These services are not used by getShortcuts; UI is supplied only to collect diagnostics.
+  const runner = new ExtensionRunner([extension], runtime, dir, {}, {});
+  runner.setUIContext(ctx.ui);
+  const keybindings = new KeybindingsManager();
+  const shortcuts = runner.getShortcuts(keybindings.getEffectiveConfig());
+  assert.deepEqual(runner.getShortcutDiagnostics(), []);
+  assert.ok(shortcuts.has("ctrl+alt+s"));
 });
 
 test("applies the bundled user instruction once, then clears the widget", async (t) => {

@@ -49,7 +49,7 @@ Please be direct and specific. Show every intermediate step. Explain it in a way
 
 - 생성: `runtime/pi/extensions/prompt-snippets/README.md`
 - 수정: `runtime/pi/README.md`의 확장 구조·목록.
-- `/snippets`, `Ctrl+S`, Space, Tab, Enter, Esc 안내.
+- `/snippets`, `Ctrl+Alt+S`, Space, Tab, Enter, Esc 안내.
 - 자동 갱신 없는 vendored snapshot임을 명시.
 
 ## 검증
@@ -73,4 +73,13 @@ git diff --check
 - 임시 HOME/PI_HOME의 `scripts/install-pi --restore`: 종료 코드 0. 확장 디렉터리 심링크와 스니펫 1개 확인.
 - 최초 도입 시 고정 upstream 커밋과 `index.ts` 바이트 일치 확인. 이후 사용자 요청으로 단축키와 해당 주석을 `Alt+S`에서 `Ctrl+S`로 변경.
 - 원본 SHA-256: `b8f8183b1e0ff7251753c6f415fa59e511d9e776a97d4a09159540b6618388a7`.
-- 실제 터미널 수동 검증과 전역 설치는 수행하지 않음.
+- 최초 도입 검증 당시 실제 터미널 수동 검증과 전역 설치는 수행하지 않음. 이후 요청으로 전역 확장 심링크 연결 완료.
+
+### 단축키 충돌 회귀 수정
+
+- 원인: 등록만 확인하는 테스트는 Pi 기본 키와의 충돌 진단을 실행하지 않았음. `Ctrl+S`는 `app.models.save` 등 기본 액션과 중복.
+- 실제 `ExtensionRunner.getShortcuts`에서 스크린샷과 동일한 경고 재현.
+- 사용자 선택에 따라 스니펫을 `Ctrl+Alt+S`로 이동. Pi 기본 단축키와 전역 keybindings.json 변경 없음.
+- 회귀 테스트: 기본 `KeybindingsManager`와 실제 runner로 충돌 진단이 비어 있는지 확인. 수정 전 2개 실패, 수정 후 9개 전체 통과.
+- 글로벌 심링크 경로와 현재 사용자 키바인딩으로 검증: `ctrl+alt+s` 등록, 충돌 진단 0개.
+- 구조 검사와 `git diff --check` 통과.

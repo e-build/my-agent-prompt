@@ -27,7 +27,7 @@ bash scripts/install-pi --restore
 
 기존 설치 스크립트가 이 디렉터리를 `~/.pi/agent/extensions/prompt-snippets`에 연결. 위 명령은 다른 레포 Pi 자원도 함께 설치하며, 설정 예시를 복사하는 `--copy-config`는 불필요. 설치 후 Pi에서 `/reload` 실행 또는 재시작.
 
-1. `/snippets` 또는 `Ctrl+S`로 메뉴 열기.
+1. `/snippets` 또는 `Ctrl+Alt+S`로 메뉴 열기. Pi 기본 `Ctrl+S`와 충돌하지 않는 조합.
 2. `↑`·`↓`로 이동, `Space`로 선택 전환.
 3. `Tab`으로 전체 본문 미리보기. 미리보기의 `↑`·`↓`는 스크롤, `Tab`·`Esc`는 목록 복귀.
 4. 목록에서 `Enter`로 선택 적용, `Esc`로 이번 변경 취소.
@@ -71,7 +71,7 @@ node --test runtime/pi/extensions/prompt-snippets/prompt-snippets.test.mjs
 bash scripts/check-resources --quiet
 ```
 
-테스트는 설치된 Pi의 실제 확장 로더와 pi-tui 키 처리 사용. 입력과 위젯 UI만 테스트 드라이버로 대체하며, 실제 터미널 표시를 수동 확인한 것은 아님. 임시 디렉터리에서만 스니펫 변경.
+테스트는 설치된 Pi의 실제 확장 로더, 기본 키바인딩 충돌 검사(`ExtensionRunner.getShortcuts`), pi-tui 키 처리 사용. 입력과 위젯 UI만 테스트 드라이버로 대체하며, 실제 터미널 표시를 수동 확인한 것은 아님. 임시 디렉터리에서만 스니펫 변경.
 
 전역 npm 설치 경로에서 `@earendil-works/pi-coding-agent` 탐색. 다른 위치에 설치했다면 패키지 루트 지정:
 
@@ -85,6 +85,6 @@ PI_PACKAGE_DIR=/path/to/node_modules/@earendil-works/pi-coding-agent \
 - 원본 저장소: [amosblomqvist/pi-config](https://github.com/amosblomqvist/pi-config)
 - 원본 확장: [`extensions/prompt-snippets/index.ts`](https://github.com/amosblomqvist/pi-config/blob/f82da563ab05d66729492d64c7ed4e96db3663f3/extensions/prompt-snippets/index.ts)
 - 기준 커밋: `f82da563ab05d66729492d64c7ed4e96db3663f3`
-- `index.ts`는 해당 커밋 기반. 로컬 변경: 메뉴 단축키를 `Alt+S`에서 `Ctrl+S`로 변경. 자동 upstream 업데이트 없음.
+- `index.ts`는 해당 커밋 기반. 로컬 변경: 메뉴 단축키를 `Alt+S`에서 `Ctrl+Alt+S`로 변경. 중간에 사용한 `Ctrl+S`는 Pi 기본 기능과 충돌하여 제외. 자동 upstream 업데이트 없음.
 - 로컬 추가분: 사용자 스니펫 1개, 회귀 테스트, 이 문서.
 - 확인한 upstream 트리에 라이선스 파일이 없고 GitHub license API도 404 응답. **공개 저장소라는 이유만으로 자유 이용·재배포 가능하다고 간주하지 않음.** 임의 라이선스 부여 없이 출처 보존. 외부 배포 전에는 작성자 이용 허락 또는 적용 조건 확인 필요.
