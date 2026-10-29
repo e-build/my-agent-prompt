@@ -22,7 +22,12 @@ function question(id: string, type: string, points = 10) {
     prompt: `${id} prompt`,
     points,
     ...(type === "single-choice" || type === "multiple-choice"
-      ? { options: [{ id: "A", text: "A" }, { id: "B", text: "B" }] }
+      ? {
+          options: [
+            { id: "A", text: "A" },
+            { id: "B", text: "B" },
+          ],
+        }
       : {}),
   };
 }
@@ -47,7 +52,9 @@ function diagnosisPayload() {
 }
 
 function testPayload() {
-  const questions = Array.from({ length: 5 }, (_, i) => question(`t${i + 1}`, i < 3 ? "single-choice" : i === 3 ? "short-answer" : "essay", 20));
+  const questions = Array.from({ length: 5 }, (_, i) =>
+    question(`t${i + 1}`, i < 3 ? "single-choice" : i === 3 ? "short-answer" : "essay", 20),
+  );
   return {
     version: "1.0",
     chapterSlug: "ch-01",
@@ -90,7 +97,11 @@ test("requires question points to equal totalPoints", () => {
 
 test("accepts context metadata and rejects explanatory short-answer prompts", () => {
   const payload = testPayload();
-  Object.assign(payload.questions[0], { context: "Shopl read-only cache", assumptions: ["refresh 실패"], learningObjective: "무기한 stale 구분" });
+  Object.assign(payload.questions[0], {
+    context: "Shopl read-only cache",
+    assumptions: ["refresh 실패"],
+    learningObjective: "무기한 stale 구분",
+  });
   assert.doesNotThrow(() => validateAssessmentQuestionSet(payload, "test"));
   const invalid = testPayload();
   invalid.questions[3].prompt = "왜 위험한지 설명하시오";
@@ -98,11 +109,26 @@ test("accepts context metadata and rejects explanatory short-answer prompts", ()
 });
 
 test("extracts diagnosis and test marker JSON independently", () => {
-  const diagnosis = extractMarkedJson(`${DIAGNOSIS_GRADE_START}\n\`\`\`json\n{"diagnosisId":"d1"}\n\`\`\`\n${DIAGNOSIS_GRADE_END}`, DIAGNOSIS_GRADE_START, DIAGNOSIS_GRADE_END);
-  const grade = extractMarkedJson(`${TEST_GRADE_START}\n{"testId":"t1"}\n${TEST_GRADE_END}`, TEST_GRADE_START, TEST_GRADE_END);
+  const diagnosis = extractMarkedJson(
+    `${DIAGNOSIS_GRADE_START}\n\`\`\`json\n{"diagnosisId":"d1"}\n\`\`\`\n${DIAGNOSIS_GRADE_END}`,
+    DIAGNOSIS_GRADE_START,
+    DIAGNOSIS_GRADE_END,
+  );
+  const grade = extractMarkedJson(
+    `${TEST_GRADE_START}\n{"testId":"t1"}\n${TEST_GRADE_END}`,
+    TEST_GRADE_START,
+    TEST_GRADE_END,
+  );
   assert.deepEqual(diagnosis, { diagnosisId: "d1" });
   assert.deepEqual(grade, { testId: "t1" });
-  assert.equal(extractMarkedJson(`${TEST_GRADE_START}{bad}${TEST_GRADE_END}`, TEST_GRADE_START, TEST_GRADE_END), null);
+  assert.equal(
+    extractMarkedJson(
+      `${TEST_GRADE_START}{bad}${TEST_GRADE_END}`,
+      TEST_GRADE_START,
+      TEST_GRADE_END,
+    ),
+    null,
+  );
 });
 
 test("resolves pass boundary and next action", () => {

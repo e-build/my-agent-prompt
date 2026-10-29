@@ -1,5 +1,6 @@
 export type AssessmentKind = "diagnosis" | "test";
-export type QuestionType = "single-choice" | "multiple-choice" | "short-answer" | "essay" | "code" | "sql";
+export type QuestionType =
+  "single-choice" | "multiple-choice" | "short-answer" | "essay" | "code" | "sql";
 export type AssessmentStatus = "open" | "submitted" | "graded" | "acknowledged";
 export type TestNextAction = "review" | "relearn";
 
@@ -102,10 +103,15 @@ export const DIAGNOSIS_GRADE_END = "<!--DIAGNOSIS_GRADE_JSON_END-->";
 export const TEST_GRADE_START = "<!--TEST_GRADE_JSON_START-->";
 export const TEST_GRADE_END = "<!--TEST_GRADE_JSON_END-->";
 
-export function validateAssessmentQuestionSet(payload: unknown, kind: AssessmentKind): asserts payload is AssessmentQuestionSet | TestQuestionSet {
-  if (!payload || typeof payload !== "object") throw new Error("questionsJson object가 필요합니다.");
+export function validateAssessmentQuestionSet(
+  payload: unknown,
+  kind: AssessmentKind,
+): asserts payload is AssessmentQuestionSet | TestQuestionSet {
+  if (!payload || typeof payload !== "object")
+    throw new Error("questionsJson object가 필요합니다.");
   const value = payload as Record<string, unknown>;
-  if (!Array.isArray(value.questions)) throw new Error("questionsJson.questions 배열이 필요합니다.");
+  if (!Array.isArray(value.questions))
+    throw new Error("questionsJson.questions 배열이 필요합니다.");
   if (!Array.isArray(value.sections)) throw new Error("questionsJson.sections 배열이 필요합니다.");
 
   const questions = value.questions as Array<Record<string, unknown>>;
@@ -119,25 +125,49 @@ export function validateAssessmentQuestionSet(payload: unknown, kind: Assessment
     if (ids.has(id)) throw new Error(`중복 문항 id입니다: ${id}`);
     ids.add(id);
     if (!isQuestionType(question.type)) throw new Error(`${id}의 type이 올바르지 않습니다.`);
-    if (typeof question.prompt !== "string" || !question.prompt.trim()) throw new Error(`${id}의 prompt가 필요합니다.`);
-    if (typeof question.sectionId !== "string" || !question.sectionId.trim()) throw new Error(`${id}의 sectionId가 필요합니다.`);
-    if (question.context != null && (typeof question.context !== "string" || !question.context.trim())) throw new Error(`${id}의 context는 비어있지 않은 문자열이어야 합니다.`);
-    if (question.assumptions != null && (!Array.isArray(question.assumptions) || question.assumptions.some((item) => typeof item !== "string" || !item.trim()))) throw new Error(`${id}의 assumptions는 비어있지 않은 문자열 배열이어야 합니다.`);
-    if (question.learningObjective != null && (typeof question.learningObjective !== "string" || !question.learningObjective.trim())) throw new Error(`${id}의 learningObjective는 비어있지 않은 문자열이어야 합니다.`);
-    if ((question.type === "short-answer" || question.type === "code" || question.type === "sql") && /(왜|설명하|비교하|판단하|근거)/.test(question.prompt)) {
+    if (typeof question.prompt !== "string" || !question.prompt.trim())
+      throw new Error(`${id}의 prompt가 필요합니다.`);
+    if (typeof question.sectionId !== "string" || !question.sectionId.trim())
+      throw new Error(`${id}의 sectionId가 필요합니다.`);
+    if (
+      question.context != null &&
+      (typeof question.context !== "string" || !question.context.trim())
+    )
+      throw new Error(`${id}의 context는 비어있지 않은 문자열이어야 합니다.`);
+    if (
+      question.assumptions != null &&
+      (!Array.isArray(question.assumptions) ||
+        question.assumptions.some((item) => typeof item !== "string" || !item.trim()))
+    )
+      throw new Error(`${id}의 assumptions는 비어있지 않은 문자열 배열이어야 합니다.`);
+    if (
+      question.learningObjective != null &&
+      (typeof question.learningObjective !== "string" || !question.learningObjective.trim())
+    )
+      throw new Error(`${id}의 learningObjective는 비어있지 않은 문자열이어야 합니다.`);
+    if (
+      (question.type === "short-answer" || question.type === "code" || question.type === "sql") &&
+      /(왜|설명하|비교하|판단하|근거)/.test(question.prompt)
+    ) {
       throw new Error(`${id} 단답형 문항은 설명·비교·판단을 요구하면 안 됩니다. essay로 바꾸세요.`);
     }
     const points = Number(question.points);
-    if (!Number.isFinite(points) || points <= 0) throw new Error(`${id}의 points는 0보다 커야 합니다.`);
+    if (!Number.isFinite(points) || points <= 0)
+      throw new Error(`${id}의 points는 0보다 커야 합니다.`);
     sum += points;
-    if ((question.type === "single-choice" || question.type === "multiple-choice") && (!Array.isArray(question.options) || question.options.length < 2)) {
+    if (
+      (question.type === "single-choice" || question.type === "multiple-choice") &&
+      (!Array.isArray(question.options) || question.options.length < 2)
+    ) {
       throw new Error(`${id} 선택형 문항에는 2개 이상의 options가 필요합니다.`);
     }
   }
 
   const totalPoints = Number(value.totalPoints);
-  if (!Number.isFinite(totalPoints) || totalPoints <= 0) throw new Error("totalPoints는 0보다 커야 합니다.");
-  if (Math.abs(sum - totalPoints) > 0.0001) throw new Error(`문항 배점 합계(${sum})와 totalPoints(${totalPoints})가 일치해야 합니다.`);
+  if (!Number.isFinite(totalPoints) || totalPoints <= 0)
+    throw new Error("totalPoints는 0보다 커야 합니다.");
+  if (Math.abs(sum - totalPoints) > 0.0001)
+    throw new Error(`문항 배점 합계(${sum})와 totalPoints(${totalPoints})가 일치해야 합니다.`);
 
   if (kind === "diagnosis") validateDiagnosisComposition(questions);
   else validateTestFields(value, totalPoints);
@@ -147,8 +177,12 @@ export function validateDiagnosisComposition(questions: Array<Record<string, unk
   const total = questions.length;
   if (total < 10) throw new Error(`사전진단은 최소 10문항이어야 합니다. 현재 ${total}문항입니다.`);
 
-  const objective = questions.filter((q) => q.type === "single-choice" || q.type === "multiple-choice").length;
-  const shortAnswer = questions.filter((q) => q.type === "short-answer" || q.type === "code" || q.type === "sql").length;
+  const objective = questions.filter(
+    (q) => q.type === "single-choice" || q.type === "multiple-choice",
+  ).length;
+  const shortAnswer = questions.filter(
+    (q) => q.type === "short-answer" || q.type === "code" || q.type === "sql",
+  ).length;
   const essay = questions.filter((q) => q.type === "essay").length;
   const expectedObjective = Math.round(total * 0.7);
   const expectedShortAnswer = Math.round(total * 0.2);
@@ -156,7 +190,11 @@ export function validateDiagnosisComposition(questions: Array<Record<string, unk
   const tolerance = total === 10 ? 0 : 1;
   const within = (actual: number, expected: number) => Math.abs(actual - expected) <= tolerance;
 
-  if (!within(objective, expectedObjective) || !within(shortAnswer, expectedShortAnswer) || !within(essay, expectedEssay)) {
+  if (
+    !within(objective, expectedObjective) ||
+    !within(shortAnswer, expectedShortAnswer) ||
+    !within(essay, expectedEssay)
+  ) {
     throw new Error(
       `사전진단 문항 비중은 객관식 약 70%, 주관식 약 20%, 서술형 약 10%여야 합니다. ` +
         `현재: 총 ${total}문항 / 객관식 ${objective} / 주관식 ${shortAnswer} / 서술형 ${essay}. ` +
@@ -171,10 +209,15 @@ export function validateTestFields(value: Record<string, unknown>, totalPoints: 
     throw new Error(`passScore는 0보다 크고 totalPoints(${totalPoints}) 이하여야 합니다.`);
   }
   const attempt = Number(value.attempt);
-  if (!Number.isInteger(attempt) || attempt < 1) throw new Error("attempt는 1 이상의 정수여야 합니다.");
+  if (!Number.isInteger(attempt) || attempt < 1)
+    throw new Error("attempt는 1 이상의 정수여야 합니다.");
 }
 
-export function extractMarkedJson(text: string, startMarker: string, endMarker: string): unknown | null {
+export function extractMarkedJson(
+  text: string,
+  startMarker: string,
+  endMarker: string,
+): unknown | null {
   const startIdx = text.indexOf(startMarker);
   if (startIdx < 0) return null;
   const endIdx = text.indexOf(endMarker, startIdx + startMarker.length);
@@ -189,7 +232,9 @@ export function extractMarkedJson(text: string, startMarker: string, endMarker: 
   }
 }
 
-export function resolvePassed(grade: Pick<TestGrade, "totalScore" | "passScore"> & { passed?: boolean }): boolean {
+export function resolvePassed(
+  grade: Pick<TestGrade, "totalScore" | "passScore"> & { passed?: boolean },
+): boolean {
   if (typeof grade.passed === "boolean") return grade.passed;
   return Number(grade.totalScore) >= Number(grade.passScore);
 }
@@ -207,5 +252,12 @@ export function canAcknowledge(status: AssessmentStatus): boolean {
 }
 
 function isQuestionType(value: unknown): value is QuestionType {
-  return value === "single-choice" || value === "multiple-choice" || value === "short-answer" || value === "essay" || value === "code" || value === "sql";
+  return (
+    value === "single-choice" ||
+    value === "multiple-choice" ||
+    value === "short-answer" ||
+    value === "essay" ||
+    value === "code" ||
+    value === "sql"
+  );
 }

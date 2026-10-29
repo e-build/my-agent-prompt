@@ -30,7 +30,10 @@ async function chapter(root: string, slug: string): Promise<string> {
 test("stub markdown migrates to not_started", async () => {
   const root = await project();
   const dir = await chapter(root, "ch-01-cache");
-  await writeFile(join(dir, "diagnosis.md"), "# 사전진단 결과\n\n- 상태: 대기\n\n아직 채점 전입니다.\n");
+  await writeFile(
+    join(dir, "diagnosis.md"),
+    "# 사전진단 결과\n\n- 상태: 대기\n\n아직 채점 전입니다.\n",
+  );
   await writeFile(join(dir, "concept.md"), "# 개념 노트\n\n아직 개념 학습 전입니다.\n");
   await writeFile(join(dir, "lab", "README.md"), "# 실습\n\n## 단계\n- [ ] 1.\n");
   await writeFile(join(dir, "test.md"), "# 테스트\n\n학습 후 생성됩니다.\n");
@@ -61,8 +64,14 @@ test("uses the chapter README as canonical concept and supports legacy concept.m
 test("real chapter records migrate to completed and relearn states", async () => {
   const root = await project();
   const dir = await chapter(root, "ch-02-read-through");
-  await writeFile(join(dir, "diagnosis.md"), "- 상태: 채점 완료\n- diagnosisId: abc\n- 총점: 80 / 100\n");
-  await writeFile(join(dir, "concept.md"), "# Chapter\n\n## 이 장에서 배우는 것\n" + "x".repeat(600));
+  await writeFile(
+    join(dir, "diagnosis.md"),
+    "- 상태: 채점 완료\n- diagnosisId: abc\n- 총점: 80 / 100\n",
+  );
+  await writeFile(
+    join(dir, "concept.md"),
+    "# Chapter\n\n## 이 장에서 배우는 것\n" + "x".repeat(600),
+  );
   await writeFile(join(dir, "lab", "README.md"), "# Lab\n\n- [x] 1\n- [~] 2\n");
   await writeFile(join(dir, "lab", "result.md"), "evidence\n");
   await writeFile(join(dir, "test.md"), "Attempt 1\n미통과 — 재학습 필요\npassed: false\n");
@@ -111,7 +120,12 @@ test("persists phase updates atomically", async () => {
   const root = await project();
   await chapter(root, "ch-01-cache");
   const state = await loadStudyState(root);
-  updatePhaseState(state, "ch-01-cache", "diagnosis", { status: "awaiting_review", sessionId: "d1", score: 80, maxScore: 100 });
+  updatePhaseState(state, "ch-01-cache", "diagnosis", {
+    status: "awaiting_review",
+    sessionId: "d1",
+    score: 80,
+    maxScore: 100,
+  });
   await saveStudyState(root, state);
   const loaded = await loadStudyState(root);
   assert.equal(loaded.chapters["ch-01-cache"].diagnosis.status, "awaiting_review");
@@ -119,7 +133,6 @@ test("persists phase updates atomically", async () => {
   const raw = await readFile(join(root, ".study", "state.json"), "utf8");
   assert.match(raw, /awaiting_review/);
 });
-
 
 test("scheduled dates do not complete a spaced review cycle", async () => {
   const root = await project();
@@ -131,12 +144,14 @@ test("scheduled dates do not complete a spaced review cycle", async () => {
 test("review migration requires explicit cycle completion and performed round evidence", async () => {
   const root = await project();
   const dir = await chapter(root, "ch-01-cache");
-  await writeFile(join(dir, "review", "schedule.md"), "# 일정\n- 주기 상태: completed\n\n## 고정 회차\n\n| 회차 | 예정일 | 상태 | 실제 수행일 | 기록 |\n|---|---|---|---|---|\n| R1 | 2026-10-04 | completed | 2026-10-04 | sessions/r1.md |\n");
+  await writeFile(
+    join(dir, "review", "schedule.md"),
+    "# 일정\n- 주기 상태: completed\n\n## 고정 회차\n\n| 회차 | 예정일 | 상태 | 실제 수행일 | 기록 |\n|---|---|---|---|---|\n| R1 | 2026-10-04 | completed | 2026-10-04 | sessions/r1.md |\n",
+  );
   await mkdir(join(dir, "review", "sessions"));
   await writeFile(join(dir, "review", "sessions", "r1.md"), "# R1 수행 기록\n- 원 답변: 설명\n");
   assert.equal((await migrateChapterState(root, "ch-01-cache")).review.status, "completed");
 });
-
 
 test("review synchronization uses schedule progress without changing the active core chapter", async () => {
   const root = await project();
@@ -146,7 +161,10 @@ test("review synchronization uses schedule progress without changing the active 
   updatePhaseState(state, "ch-02-next", "lab", { status: "in_progress" });
   state.chapters["ch-01-cache"].review.status = "completed";
   await saveStudyState(root, state);
-  await writeFile(join(dir, "review", "schedule.md"), "# 일정\n- 주기 상태: in_progress\n\n## 고정 회차\n\n| 회차 | 예정일 | 상태 | 실제 수행일 | 기록 |\n|---|---|---|---|---|\n| R1 | 2026-10-04 | planned | - | - |\n");
+  await writeFile(
+    join(dir, "review", "schedule.md"),
+    "# 일정\n- 주기 상태: in_progress\n\n## 고정 회차\n\n| 회차 | 예정일 | 상태 | 실제 수행일 | 기록 |\n|---|---|---|---|---|\n| R1 | 2026-10-04 | planned | - | - |\n",
+  );
   assert.equal(typeof studyState.syncReviewPhase, "function");
   await studyState.syncReviewPhase(root, "ch-01-cache");
   const loaded = await loadStudyState(root);

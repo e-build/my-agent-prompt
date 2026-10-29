@@ -6,9 +6,14 @@ type MutationQueue = <T>(filePath: string, operation: () => Promise<T>) => Promi
 
 function prompt(request: CheckpointRequest): string {
   return [
-    "# STUDY_CHECKPOINT_REQUEST", "",
-    `- requestId: ${request.id}`, `- projectRoot: ${request.projectRoot}`,
-    `- chapterSlug: ${request.chapterSlug}`, `- phase: ${request.phase}`, `- checkpointPath: ${request.checkpointPath}`, "",
+    "# STUDY_CHECKPOINT_REQUEST",
+    "",
+    `- requestId: ${request.id}`,
+    `- projectRoot: ${request.projectRoot}`,
+    `- chapterSlug: ${request.chapterSlug}`,
+    `- phase: ${request.phase}`,
+    `- checkpointPath: ${request.checkpointPath}`,
+    "",
     "현재 대화(학습자의 메시지 주석 답변 포함), 기존 checkpoint, 챕터 README 및 진도 기록을 읽어 학습 내용을 갈무리하세요.",
     "새 퀴즈나 다음 학습을 시작하지 마세요. 교과서 본문을 checkpoint에 복사하거나 새 concept.md를 만들지 마세요.",
     "실제 답변과 보완을 기록하고, 관찰하지 않은 실행·성공·통과를 만들지 마세요. 상태별 근거를 분리하세요:",
@@ -37,7 +42,9 @@ export function registerStudyCheckpoint(
   dependencies: Dependencies = { prepare: prepareCheckpoint, publish: publishCheckpoint },
 ): void {
   let pending: { request: CheckpointRequest; sessionId: string } | undefined;
-  pi.on("session_start", () => { pending = undefined; });
+  pi.on("session_start", () => {
+    pending = undefined;
+  });
   pi.registerCommand("study-checkpoint", {
     description: "현재 학습 진도를 갈무리하고 checkpoint만 커밋·푸시",
     handler: async (args: string, ctx: ExtensionCommandContext) => {
@@ -46,8 +53,14 @@ export function registerStudyCheckpoint(
         return;
       }
       try {
-        if (pending?.request.savedDigest && !pending.request.commit) throw new Error("이전 checkpoint 저장 후 커밋에 실패했습니다. 이전 요청을 먼저 재시도하세요.");
-        if (pending?.request.commit) throw new Error("이전 checkpoint 요청을 먼저 재시도하거나 /reload 후 Git 상태를 확인하세요.");
+        if (pending?.request.savedDigest && !pending.request.commit)
+          throw new Error(
+            "이전 checkpoint 저장 후 커밋에 실패했습니다. 이전 요청을 먼저 재시도하세요.",
+          );
+        if (pending?.request.commit)
+          throw new Error(
+            "이전 checkpoint 요청을 먼저 재시도하거나 /reload 후 Git 상태를 확인하세요.",
+          );
         const request = await dependencies.prepare(ctx.cwd, args);
         pending = { request, sessionId: ctx.sessionManager.getSessionId() };
         pi.sendUserMessage(prompt(request));
@@ -59,16 +72,26 @@ export function registerStudyCheckpoint(
   pi.registerTool({
     name: "study_checkpoint_publish",
     label: "Study checkpoint",
-    description: "/study-checkpoint가 승인한 현재 세션의 requestId에 한해 학습 기록을 검증·저장하고 해당 파일만 커밋·푸시합니다. 기록의 학습 이해도는 agent가 실제 대화 근거로 판단해야 합니다. phase 완료는 변경하지 않습니다.",
+    description:
+      "/study-checkpoint가 승인한 현재 세션의 requestId에 한해 학습 기록을 검증·저장하고 해당 파일만 커밋·푸시합니다. 기록의 학습 이해도는 agent가 실제 대화 근거로 판단해야 합니다. phase 완료는 변경하지 않습니다.",
     parameters,
-    async execute(_toolCallId, params: { requestId: string; recordJson: string }, signal, _onUpdate, ctx) {
-      if (!pending || pending.request.id !== params.requestId) throw new Error("/study-checkpoint 명령으로 준비한 requestId가 필요합니다.");
-      if (pending.sessionId !== ctx.sessionManager.getSessionId()) throw new Error("checkpoint 요청의 세션이 다릅니다.");
+    async execute(
+      _toolCallId,
+      params: { requestId: string; recordJson: string },
+      signal,
+      _onUpdate,
+      ctx,
+    ) {
+      if (!pending || pending.request.id !== params.requestId)
+        throw new Error("/study-checkpoint 명령으로 준비한 requestId가 필요합니다.");
+      if (pending.sessionId !== ctx.sessionManager.getSessionId())
+        throw new Error("checkpoint 요청의 세션이 다릅니다.");
       if (signal?.aborted) throw new Error("checkpoint 작업이 취소됐습니다.");
       const record = JSON.parse(params.recordJson);
       const authorized = pending;
       const result = await mutationQueue(authorized.request.checkpointPath, async () => {
-        if (pending !== authorized || signal?.aborted) throw new Error("checkpoint 요청이 변경되거나 취소됐습니다.");
+        if (pending !== authorized || signal?.aborted)
+          throw new Error("checkpoint 요청이 변경되거나 취소됐습니다.");
         return dependencies.publish(authorized.request, record);
       });
       if (result.pushed) pending = undefined;

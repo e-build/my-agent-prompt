@@ -4,6 +4,7 @@ import type {
   AssessmentQuestionResult,
   AssessmentQuestionSet,
   DiagnosisGrade,
+  DiagnosisQuestionSet,
   TestGrade,
   TestQuestionSet,
 } from "./assessment-core.ts";
@@ -17,7 +18,8 @@ function requiredString(value: unknown, label: string): string {
 }
 
 function requiredStringArray(value: unknown, label: string): string[] {
-  if (!Array.isArray(value) || value.some((item) => typeof item !== "string")) throw new Error(`${label}는 문자열 배열이어야 합니다.`);
+  if (!Array.isArray(value) || value.some((item) => typeof item !== "string"))
+    throw new Error(`${label}는 문자열 배열이어야 합니다.`);
   return value as string[];
 }
 
@@ -25,7 +27,10 @@ function pushError(errors: string[], error: unknown): void {
   errors.push(error instanceof Error ? error.message : String(error));
 }
 
-function validateResults(raw: unknown, questionSet: AssessmentQuestionSet): AssessmentQuestionResult[] {
+function validateResults(
+  raw: unknown,
+  questionSet: AssessmentQuestionSet,
+): AssessmentQuestionResult[] {
   if (!Array.isArray(raw)) throw new Error("grade.results 배열이 필요합니다.");
   const byQuestion = new Map(questionSet.questions.map((question) => [question.id, question]));
   const seen = new Set<string>();
@@ -56,25 +61,38 @@ function validateResults(raw: unknown, questionSet: AssessmentQuestionSet): Asse
     seen.add(id);
     const score = Number(value.score);
     const maxScore = Number(value.maxScore);
-    if (!Number.isFinite(score) || score < 0 || score > question.points) errors.push(`${id} score는 0~${question.points} 범위여야 합니다.`);
-    if (maxScore !== question.points) errors.push(`${id} maxScore(${Number.isFinite(maxScore) ? maxScore : "NaN"})는 문항 배점(${question.points})과 같아야 합니다.`);
-    if (!STATUSES.has(String(value.status))) errors.push(`${id} status가 올바르지 않습니다. correct|partial|wrong|unanswered 중 하나여야 합니다.`);
+    if (!Number.isFinite(score) || score < 0 || score > question.points)
+      errors.push(`${id} score는 0~${question.points} 범위여야 합니다.`);
+    if (maxScore !== question.points)
+      errors.push(
+        `${id} maxScore(${Number.isFinite(maxScore) ? maxScore : "NaN"})는 문항 배점(${question.points})과 같아야 합니다.`,
+      );
+    if (!STATUSES.has(String(value.status)))
+      errors.push(
+        `${id} status가 올바르지 않습니다. correct|partial|wrong|unanswered 중 하나여야 합니다.`,
+      );
     for (const field of ["correctAnswer", "explanation", "advice"] as const) {
-      if (typeof value[field] !== "string" || !(value[field] as string).trim()) errors.push(`${id} ${field}가 필요합니다.`);
+      if (typeof value[field] !== "string" || !(value[field] as string).trim())
+        errors.push(`${id} ${field}가 필요합니다.`);
     }
     results.push({
       id,
       score: Number.isFinite(score) ? score : 0,
       maxScore: question.points,
-      status: STATUSES.has(String(value.status)) ? (value.status as AssessmentQuestionResult["status"]) : "wrong",
+      status: STATUSES.has(String(value.status))
+        ? (value.status as AssessmentQuestionResult["status"])
+        : "wrong",
       correctAnswer: typeof value.correctAnswer === "string" ? value.correctAnswer : "",
       explanation: typeof value.explanation === "string" ? value.explanation : "",
       advice: typeof value.advice === "string" ? value.advice : "",
     });
   }
-  const missing = questionSet.questions.map((question) => question.id).filter((id) => !seen.has(id));
+  const missing = questionSet.questions
+    .map((question) => question.id)
+    .filter((id) => !seen.has(id));
   if (missing.length) errors.push(`grade.results에 누락된 문항이 있습니다: ${missing.join(", ")}`);
-  if (errors.length) throw new Error(`채점 JSON 오류 ${errors.length}건:\n- ${errors.join("\n- ")}`);
+  if (errors.length)
+    throw new Error(`채점 JSON 오류 ${errors.length}건:\n- ${errors.join("\n- ")}`);
   return results;
 }
 
@@ -82,7 +100,9 @@ function scoreSumOf(results: AssessmentQuestionResult[]): number {
   return results.reduce((sum, result) => sum + result.score, 0);
 }
 
-export function gradeResultsSkeleton(questionSet: AssessmentQuestionSet): Array<Record<string, unknown>> {
+export function gradeResultsSkeleton(
+  questionSet: AssessmentQuestionSet,
+): Array<Record<string, unknown>> {
   return questionSet.questions.map((question) => ({
     id: question.id,
     score: 0,
@@ -94,7 +114,10 @@ export function gradeResultsSkeleton(questionSet: AssessmentQuestionSet): Array<
   }));
 }
 
-export function buildTestGradeSkeleton(questionSet: TestQuestionSet, testId: string): Record<string, unknown> {
+export function buildTestGradeSkeleton(
+  questionSet: TestQuestionSet,
+  testId: string,
+): Record<string, unknown> {
   return {
     kind: "study-test-grade",
     testId,
@@ -110,7 +133,10 @@ export function buildTestGradeSkeleton(questionSet: TestQuestionSet, testId: str
   };
 }
 
-export function buildDiagnosisGradeSkeleton(questionSet: DiagnosisQuestionSet, diagnosisId: string): Record<string, unknown> {
+export function buildDiagnosisGradeSkeleton(
+  questionSet: DiagnosisQuestionSet,
+  diagnosisId: string,
+): Record<string, unknown> {
   return {
     kind: "study-diagnosis-grade",
     diagnosisId,
@@ -124,16 +150,26 @@ export function buildDiagnosisGradeSkeleton(questionSet: DiagnosisQuestionSet, d
   };
 }
 
-export function validateDiagnosisGrade(raw: unknown, diagnosisId: string, questionSet: AssessmentQuestionSet): DiagnosisGrade {
+export function validateDiagnosisGrade(
+  raw: unknown,
+  diagnosisId: string,
+  questionSet: AssessmentQuestionSet,
+): DiagnosisGrade {
   if (!raw || typeof raw !== "object") throw new Error("diagnosis grade object가 필요합니다.");
   const value = raw as Record<string, unknown>;
-  if (value.kind !== "study-diagnosis-grade") throw new Error("diagnosis grade kind가 올바르지 않습니다.");
-  if (value.diagnosisId !== diagnosisId) throw new Error(`diagnosisId가 현재 세션(${diagnosisId})과 일치해야 합니다.`);
+  if (value.kind !== "study-diagnosis-grade")
+    throw new Error("diagnosis grade kind가 올바르지 않습니다.");
+  if (value.diagnosisId !== diagnosisId)
+    throw new Error(`diagnosisId가 현재 세션(${diagnosisId})과 일치해야 합니다.`);
   const results = validateResults(value.results, questionSet);
   const totalScore = scoreSumOf(results);
   const maxScore = Number(value.maxScore);
-  if (maxScore !== questionSet.totalPoints) throw new Error(`maxScore(${Number.isFinite(maxScore) ? maxScore : "NaN"})와 totalPoints(${questionSet.totalPoints})가 일치해야 합니다.`);
-  if (!new Set(["slow", "normal", "fast"]).has(String(value.level))) throw new Error("level은 slow|normal|fast 중 하나여야 합니다.");
+  if (maxScore !== questionSet.totalPoints)
+    throw new Error(
+      `maxScore(${Number.isFinite(maxScore) ? maxScore : "NaN"})와 totalPoints(${questionSet.totalPoints})가 일치해야 합니다.`,
+    );
+  if (!new Set(["slow", "normal", "fast"]).has(String(value.level)))
+    throw new Error("level은 slow|normal|fast 중 하나여야 합니다.");
   return {
     kind: "study-diagnosis-grade",
     diagnosisId,
@@ -147,16 +183,24 @@ export function validateDiagnosisGrade(raw: unknown, diagnosisId: string, questi
   };
 }
 
-export function validateTestGrade(raw: unknown, testId: string, questionSet: TestQuestionSet): TestGrade {
+export function validateTestGrade(
+  raw: unknown,
+  testId: string,
+  questionSet: TestQuestionSet,
+): TestGrade {
   if (!raw || typeof raw !== "object") throw new Error("test grade object가 필요합니다.");
   const value = raw as Record<string, unknown>;
   if (value.kind !== "study-test-grade") throw new Error("test grade kind가 올바르지 않습니다.");
   if (value.testId !== testId) throw new Error(`testId가 현재 세션(${testId})과 일치해야 합니다.`);
-  if (Number(value.attempt) !== questionSet.attempt) throw new Error(`attempt가 현재 시도(${questionSet.attempt})와 일치해야 합니다.`);
+  if (Number(value.attempt) !== questionSet.attempt)
+    throw new Error(`attempt가 현재 시도(${questionSet.attempt})와 일치해야 합니다.`);
   const results = validateResults(value.results, questionSet);
   const totalScore = scoreSumOf(results);
   const maxScore = Number(value.maxScore);
-  if (maxScore !== questionSet.totalPoints) throw new Error(`maxScore(${Number.isFinite(maxScore) ? maxScore : "NaN"})와 totalPoints(${questionSet.totalPoints})가 일치해야 합니다.`);
+  if (maxScore !== questionSet.totalPoints)
+    throw new Error(
+      `maxScore(${Number.isFinite(maxScore) ? maxScore : "NaN"})와 totalPoints(${questionSet.totalPoints})가 일치해야 합니다.`,
+    );
   const passed = totalScore >= questionSet.passScore;
   return {
     kind: "study-test-grade",
@@ -174,9 +218,16 @@ export function validateTestGrade(raw: unknown, testId: string, questionSet: Tes
 }
 
 function answerMap(submission: unknown): Map<string, unknown> {
-  const payload = submission && typeof submission === "object" ? submission as Record<string, unknown> : {};
-  const answers = Array.isArray(payload.answers) ? payload.answers : Array.isArray(submission) ? submission : [];
-  return new Map((answers as Array<Record<string, unknown>>).map((answer) => [String(answer.id), answer.answer]));
+  const payload =
+    submission && typeof submission === "object" ? (submission as Record<string, unknown>) : {};
+  const answers = Array.isArray(payload.answers)
+    ? payload.answers
+    : Array.isArray(submission)
+      ? submission
+      : [];
+  return new Map(
+    (answers as Array<Record<string, unknown>>).map((answer) => [String(answer.id), answer.answer]),
+  );
 }
 
 function answerText(value: unknown): string {
@@ -185,25 +236,35 @@ function answerText(value: unknown): string {
   return typeof value === "string" ? value : JSON.stringify(value);
 }
 
-function resultMarkdown(questionSet: AssessmentQuestionSet, results: AssessmentQuestionResult[], submission: unknown): string {
+function resultMarkdown(
+  questionSet: AssessmentQuestionSet,
+  results: AssessmentQuestionResult[],
+  submission: unknown,
+): string {
   const answers = answerMap(submission);
   const resultById = new Map(results.map((result) => [result.id, result]));
-  return questionSet.questions.map((question) => {
-    const result = resultById.get(question.id)!;
-    return [
-      `### ${question.id}. ${question.prompt}`,
-      "",
-      `- 제출 답안: ${answerText(answers.get(question.id))}`,
-      `- 점수: ${result.score}/${result.maxScore}`,
-      `- 상태: ${result.status}`,
-      `- 정답/모범 답안: ${result.correctAnswer}`,
-      `- 해설: ${result.explanation}`,
-      `- 보완점: ${result.advice}`,
-    ].join("\n");
-  }).join("\n\n");
+  return questionSet.questions
+    .map((question) => {
+      const result = resultById.get(question.id)!;
+      return [
+        `### ${question.id}. ${question.prompt}`,
+        "",
+        `- 제출 답안: ${answerText(answers.get(question.id))}`,
+        `- 점수: ${result.score}/${result.maxScore}`,
+        `- 상태: ${result.status}`,
+        `- 정답/모범 답안: ${result.correctAnswer}`,
+        `- 해설: ${result.explanation}`,
+        `- 보완점: ${result.advice}`,
+      ].join("\n");
+    })
+    .join("\n\n");
 }
 
-async function writeStructuredRecord(projectRoot: string, id: string, record: unknown): Promise<void> {
+async function writeStructuredRecord(
+  projectRoot: string,
+  id: string,
+  record: unknown,
+): Promise<void> {
   const path = join(projectRoot, ".study", "assessments", `${id}.json`);
   await mkdir(dirname(path), { recursive: true });
   await writeFile(path, `${JSON.stringify(record, null, 2)}\n`, "utf8");
@@ -216,7 +277,10 @@ type StoredAssessmentRecord = {
   acknowledgedAt?: string;
 };
 
-export async function markAssessmentAcknowledged(projectRoot: string, id: string): Promise<boolean> {
+export async function markAssessmentAcknowledged(
+  projectRoot: string,
+  id: string,
+): Promise<boolean> {
   const path = join(projectRoot, ".study", "assessments", `${id}.json`);
   let record: StoredAssessmentRecord & Record<string, unknown>;
   try {
@@ -230,9 +294,17 @@ export async function markAssessmentAcknowledged(projectRoot: string, id: string
   return true;
 }
 
-export type RecoverablePassedTest = { id: string; attempt: number; score: number; maxScore: number };
+export type RecoverablePassedTest = {
+  id: string;
+  attempt: number;
+  score: number;
+  maxScore: number;
+};
 
-export async function findRecoverablePassedTest(projectRoot: string, chapterSlug: string): Promise<RecoverablePassedTest | null> {
+export async function findRecoverablePassedTest(
+  projectRoot: string,
+  chapterSlug: string,
+): Promise<RecoverablePassedTest | null> {
   const dir = join(projectRoot, ".study", "assessments");
   let entries: string[];
   try {
@@ -252,7 +324,12 @@ export async function findRecoverablePassedTest(projectRoot: string, chapterSlug
     if (record.grade?.passed !== true || !record.acknowledgedAt) continue;
     const attempt = Number(record.grade.attempt ?? 1);
     if (!best || attempt > best.attempt) {
-      best = { id: file.replace(/\.json$/, ""), attempt, score: Number(record.grade.totalScore ?? 0), maxScore: Number(record.grade.maxScore ?? 0) };
+      best = {
+        id: file.replace(/\.json$/, ""),
+        attempt,
+        score: Number(record.grade.totalScore ?? 0),
+        maxScore: Number(record.grade.maxScore ?? 0),
+      };
     }
   }
   return best;
@@ -280,7 +357,9 @@ export async function persistDiagnosisRecord(args: {
     "",
     "## 취약 분야",
     "",
-    ...(args.grade.weaknesses.length ? args.grade.weaknesses.map((item) => `- ${item}`) : ["- 없음"]),
+    ...(args.grade.weaknesses.length
+      ? args.grade.weaknesses.map((item) => `- ${item}`)
+      : ["- 없음"]),
     "",
     "## 권장 학습 방향",
     "",
@@ -293,7 +372,12 @@ export async function persistDiagnosisRecord(args: {
   ].join("\n");
   await mkdir(dirname(path), { recursive: true });
   await writeFile(path, markdown, "utf8");
-  await writeStructuredRecord(args.projectRoot, args.grade.diagnosisId, { kind: "diagnosis", questionSet: args.questionSet, submission: args.submission, grade: args.grade });
+  await writeStructuredRecord(args.projectRoot, args.grade.diagnosisId, {
+    kind: "diagnosis",
+    questionSet: args.questionSet,
+    submission: args.submission,
+    grade: args.grade,
+  });
 }
 
 export async function persistTestRecord(args: {
@@ -305,7 +389,11 @@ export async function persistTestRecord(args: {
 }): Promise<void> {
   const path = projectPath(args.projectRoot, args.mdPath);
   let existing = "";
-  try { existing = await readFile(path, "utf8"); } catch { /* new file */ }
+  try {
+    existing = await readFile(path, "utf8");
+  } catch {
+    /* new file */
+  }
   const marker = `<!-- STUDY_TEST_ATTEMPT:${args.questionSet.attempt} -->`;
   if (!existing.includes(marker)) {
     const block = [
@@ -323,7 +411,9 @@ export async function persistTestRecord(args: {
       "",
       "### 취약 분야",
       "",
-      ...(args.grade.weaknesses.length ? args.grade.weaknesses.map((item) => `- ${item}`) : ["- 없음"]),
+      ...(args.grade.weaknesses.length
+        ? args.grade.weaknesses.map((item) => `- ${item}`)
+        : ["- 없음"]),
       "",
       "### 권장 다음 행동",
       "",
@@ -334,9 +424,16 @@ export async function persistTestRecord(args: {
       resultMarkdown(args.questionSet, args.grade.results, args.submission),
       "",
     ].join("\n");
-    const prefix = existing.trim() ? `${existing.trimEnd()}\n\n` : `# 테스트 — ${args.questionSet.chapterTitle}\n\n`;
+    const prefix = existing.trim()
+      ? `${existing.trimEnd()}\n\n`
+      : `# 테스트 — ${args.questionSet.chapterTitle}\n\n`;
     await mkdir(dirname(path), { recursive: true });
     await writeFile(path, `${prefix}${block}`, "utf8");
   }
-  await writeStructuredRecord(args.projectRoot, args.grade.testId, { kind: "test", questionSet: args.questionSet, submission: args.submission, grade: args.grade });
+  await writeStructuredRecord(args.projectRoot, args.grade.testId, {
+    kind: "test",
+    questionSet: args.questionSet,
+    submission: args.submission,
+    grade: args.grade,
+  });
 }

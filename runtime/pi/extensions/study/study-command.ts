@@ -22,13 +22,17 @@ export type StudyChapterTarget = {
   state: StudyState;
 };
 
-export function parseStudyChapterArgs(args: string): { chapterArg?: string; phaseArg?: StudyPhase } {
+export function parseStudyChapterArgs(args: string): {
+  chapterArg?: string;
+  phaseArg?: StudyPhase;
+} {
   const tokens = args.trim().split(/\s+/).filter(Boolean);
   if (!tokens.length) return {};
   if (PHASES.has(tokens[0] as StudyPhase)) return { phaseArg: tokens[0] as StudyPhase };
   const chapterArg = tokens[0];
   const phaseArg = tokens[1] as StudyPhase | undefined;
-  if (phaseArg && !PHASES.has(phaseArg)) throw new Error(`단계는 diagnosis|concept|lab|test|review 중 하나여야 합니다: ${phaseArg}`);
+  if (phaseArg && !PHASES.has(phaseArg))
+    throw new Error(`단계는 diagnosis|concept|lab|test|review 중 하나여야 합니다: ${phaseArg}`);
   return { chapterArg, phaseArg };
 }
 
@@ -48,7 +52,10 @@ export function resolveChapterSlug(state: StudyState, chapterArg?: string): stri
   throw new Error(`챕터가 여러 개 일치합니다: ${candidates.join(", ")}`);
 }
 
-export async function resolveStudyChapterTarget(cwd: string, args: string): Promise<StudyChapterTarget> {
+export async function resolveStudyChapterTarget(
+  cwd: string,
+  args: string,
+): Promise<StudyChapterTarget> {
   const projectRoot = await findStudyProjectRoot(cwd);
   const state = await loadStudyState(projectRoot);
   const { chapterArg, phaseArg } = parseStudyChapterArgs(args);
@@ -82,13 +89,22 @@ async function phasePrompt(target: StudyChapterTarget, title: string): Promise<s
     "",
   ];
   if (phaseState.status === "awaiting_submission") {
-    return [...common, "브라우저 assessment가 열려 있고 답안 제출을 기다리는 중입니다. 새 assessment를 만들지 말고 제출을 기다리세요."].join("\n");
+    return [
+      ...common,
+      "브라우저 assessment가 열려 있고 답안 제출을 기다리는 중입니다. 새 assessment를 만들지 말고 제출을 기다리세요.",
+    ].join("\n");
   }
   if (phaseState.status === "awaiting_grade") {
-    return [...common, "답안은 제출됐고 채점을 기다리는 중입니다. 새 assessment나 다음 phase를 시작하지 마세요."].join("\n");
+    return [
+      ...common,
+      "답안은 제출됐고 채점을 기다리는 중입니다. 새 assessment나 다음 phase를 시작하지 마세요.",
+    ].join("\n");
   }
   if (phaseState.status === "awaiting_review") {
-    return [...common, "채점 결과가 브라우저에 표시됐습니다. 학습자가 결과 확인 버튼을 누를 때까지 다음 phase로 넘어가지 마세요."].join("\n");
+    return [
+      ...common,
+      "채점 결과가 브라우저에 표시됐습니다. 학습자가 결과 확인 버튼을 누를 때까지 다음 phase로 넘어가지 마세요.",
+    ].join("\n");
   }
   return [...common, await loadPhaseInstructions(target.phase)].join("\n");
 }

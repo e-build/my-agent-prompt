@@ -9,7 +9,10 @@ async function fixture(schedule = "") {
   const root = await mkdtemp(join(tmpdir(), "review-page-"));
   const dir = join(root, "ch-01-cache", "review");
   await mkdir(dir, { recursive: true });
-  await writeFile(join(root, "ch-01-cache", "README.md"), "# Cache\n\n## 개념 학습 노트\n\n正解 SECRET ANSWER\n");
+  await writeFile(
+    join(root, "ch-01-cache", "README.md"),
+    "# Cache\n\n## 개념 학습 노트\n\n正解 SECRET ANSWER\n",
+  );
   await writeFile(join(dir, "blank-recall.md"), "오답 교정 SECRET CORRECTION\n");
   if (schedule) await writeFile(join(dir, "schedule.md"), schedule);
   return { root, dir };
@@ -74,15 +77,28 @@ test("distinguishes overdue, today, and future rounds without using the wall clo
 test("scheduled dates alone never mean that the review cycle is complete", () => {
   assert.equal(typeof review.scheduleProgress, "function");
   assert.equal(review.scheduleProgress(schedule, "2026-10-05").completed, false);
-  assert.equal(review.scheduleProgress("# 일정\n다음 복습 2026-10-04\n완료", "2026-10-05").completed, false);
-  const done = schedule.replace("주기 상태: in_progress", "주기 상태: completed").replace("R2 | 2026-10-04 | planned | - | -", "R2 | 2026-10-04 | completed | 2026-10-04 | sessions/r2.md");
+  assert.equal(
+    review.scheduleProgress("# 일정\n다음 복습 2026-10-04\n완료", "2026-10-05").completed,
+    false,
+  );
+  const done = schedule
+    .replace("주기 상태: in_progress", "주기 상태: completed")
+    .replace(
+      "R2 | 2026-10-04 | planned | - | -",
+      "R2 | 2026-10-04 | completed | 2026-10-04 | sessions/r2.md",
+    );
   assert.equal(review.scheduleProgress(done, "2026-10-05").completed, true);
-  assert.equal(review.scheduleProgress(done.replace("completed | 2026-10-04", "completed | -"), "2026-10-05").completed, false);
+  assert.equal(
+    review.scheduleProgress(done.replace("completed | 2026-10-04", "completed | -"), "2026-10-05")
+      .completed,
+    false,
+  );
 });
 
 test("preserves legacy pack recall idempotently without deleting or exposing it", async () => {
   const { root, dir } = await fixture(schedule);
-  const pack = "# 묶음\nSECRET ANSWER\n## 복습 회상 기록\n\n고유 회상 기록\n\n### Review 기록 원본\nSECRET CORRECTION\n";
+  const pack =
+    "# 묶음\nSECRET ANSWER\n## 복습 회상 기록\n\n고유 회상 기록\n\n### Review 기록 원본\nSECRET CORRECTION\n";
   await writeFile(join(dir, "study-pack.md"), pack);
   await build(root);
   const archive = await readFile(join(dir, "legacy-recall.md"), "utf8");
@@ -95,7 +111,9 @@ test("preserves legacy pack recall idempotently without deleting or exposing it"
 });
 
 test("rejects external and parent traversal links from schedule metadata", async () => {
-  const unsafe = schedule.replace("../README.md#개념-학습-노트", "javascript:alert(1)").replace("sessions/r1.md", "../../../secret.md");
+  const unsafe = schedule
+    .replace("../README.md#개념-학습-노트", "javascript:alert(1)")
+    .replace("sessions/r1.md", "../../../secret.md");
   const { root, dir } = await fixture(unsafe);
   await build(root);
   assert.doesNotMatch(await readFile(join(dir, "README.md"), "utf8"), /javascript:|secret\.md/);
@@ -117,9 +135,13 @@ test("refuses to overwrite a preexisting unmanaged review README", async () => {
   assert.match(await readFile(join(dir, "README.md"), "utf8"), /고유 기록/);
 });
 
-
 test("a completion marker with missing round records is not displayed as a completed cycle", async () => {
-  const done = schedule.replace("주기 상태: in_progress", "주기 상태: completed").replace("R2 | 2026-10-04 | planned | - | -", "R2 | 2026-10-04 | completed | 2026-10-04 | sessions/r2.md");
+  const done = schedule
+    .replace("주기 상태: in_progress", "주기 상태: completed")
+    .replace(
+      "R2 | 2026-10-04 | planned | - | -",
+      "R2 | 2026-10-04 | completed | 2026-10-04 | sessions/r2.md",
+    );
   const { root, dir } = await fixture(done);
   await build(root);
   assert.match(await readFile(join(dir, "README.md"), "utf8"), /복습 주기 미완료/);

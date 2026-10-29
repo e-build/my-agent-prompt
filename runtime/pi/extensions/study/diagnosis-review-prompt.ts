@@ -7,7 +7,10 @@ export type DiagnosisReviewContext = {
   diagnosisMdPath: string | null;
 };
 
-export async function buildDiagnosisReviewPrompt(session: DiagnosisReviewContext, payload: unknown): Promise<string> {
+export async function buildDiagnosisReviewPrompt(
+  session: DiagnosisReviewContext,
+  payload: unknown,
+): Promise<string> {
   const grade = (payload && typeof payload === "object" ? payload : {}) as {
     score?: number;
     maxScore?: number;
@@ -40,7 +43,10 @@ export async function buildDiagnosisReviewPrompt(session: DiagnosisReviewContext
     lines.push("- 학습자가 강조한 pinpoint:");
     for (const item of learnerPinpoints) {
       const label = item.id ?? "unknown";
-      const score = item.score != null && item.maxScore != null ? ` (${item.score}/${item.maxScore}, ${item.status ?? "checked"})` : "";
+      const score =
+        item.score != null && item.maxScore != null
+          ? ` (${item.score}/${item.maxScore}, ${item.status ?? "checked"})`
+          : "";
       const comment = item.comment ? ` — ${item.comment}` : "";
       lines.push(`  - ${label}${score}: ${item.prompt ?? ""}${comment}`);
     }

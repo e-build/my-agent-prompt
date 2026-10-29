@@ -8,7 +8,9 @@ import { applyTestRecovery } from "./study-state.ts";
 async function main(): Promise<void> {
   const [projectRoot, chapterSlug] = process.argv.slice(2);
   if (!projectRoot || !chapterSlug) {
-    console.error("usage: node --experimental-strip-types study-recover.ts <projectRoot> <chapterSlug>");
+    console.error(
+      "usage: node --experimental-strip-types study-recover.ts <projectRoot> <chapterSlug>",
+    );
     process.exit(2);
   }
   await validateChapterEvidence(projectRoot, chapterSlug);
@@ -18,12 +20,17 @@ async function main(): Promise<void> {
     process.exit(1);
   }
   const recovered = await applyTestRecovery(projectRoot, chapterSlug, record);
-  console.log(recovered
-    ? `복구 완료: test → completed (시험 ${record.id}, ${record.score}/${record.maxScore}, attempt ${record.attempt})`
-    : "대상 챕터 상태를 찾지 못했습니다.");
+  console.log(
+    recovered
+      ? `복구 완료: test → completed (시험 ${record.id}, ${record.score}/${record.maxScore}, attempt ${record.attempt})`
+      : "대상 챕터 상태를 찾지 못했습니다.",
+  );
   if (recovered) {
-    try { console.log(`review: ${await buildReviewStartPage(projectRoot, chapterSlug)}`); }
-    catch (error) { console.warn(`안내 페이지만 갱신 실패: ${error instanceof Error ? error.message : error}`); }
+    try {
+      console.log(`review: ${await buildReviewStartPage(projectRoot, chapterSlug)}`);
+    } catch (error) {
+      console.warn(`안내 페이지만 갱신 실패: ${error instanceof Error ? error.message : error}`);
+    }
   }
   process.exit(recovered ? 0 : 1);
 }

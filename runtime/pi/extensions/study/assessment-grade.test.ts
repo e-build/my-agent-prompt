@@ -4,7 +4,13 @@ import { mkdtemp, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { buildDiagnosisGradeSkeleton, buildTestGradeSkeleton, persistTestRecord, validateDiagnosisGrade, validateTestGrade } from "./assessment-grade.ts";
+import {
+  buildDiagnosisGradeSkeleton,
+  buildTestGradeSkeleton,
+  persistTestRecord,
+  validateDiagnosisGrade,
+  validateTestGrade,
+} from "./assessment-grade.ts";
 import type { AssessmentQuestionSet, TestQuestionSet } from "./assessment-core.ts";
 
 function set(): TestQuestionSet {
@@ -19,7 +25,17 @@ function set(): TestQuestionSet {
     attempt: 1,
     sections: [{ id: "core", title: "Core", questionIds: ["q1", "q2"] }],
     questions: [
-      { id: "q1", type: "single-choice", sectionId: "core", prompt: "One?", points: 10, options: [{ id: "A", text: "A" }, { id: "B", text: "B" }] },
+      {
+        id: "q1",
+        type: "single-choice",
+        sectionId: "core",
+        prompt: "One?",
+        points: 10,
+        options: [
+          { id: "A", text: "A" },
+          { id: "B", text: "B" },
+        ],
+      },
       { id: "q2", type: "essay", sectionId: "core", prompt: "Explain", points: 10 },
     ],
   };
@@ -38,8 +54,24 @@ function grade() {
     weaknesses: ["q2"],
     recommendation: "Review q2",
     results: [
-      { id: "q1", score: 10, maxScore: 10, status: "correct", correctAnswer: "A", explanation: "Because", advice: "None" },
-      { id: "q2", score: 5, maxScore: 10, status: "partial", correctAnswer: "Model", explanation: "Partial", advice: "More detail" },
+      {
+        id: "q1",
+        score: 10,
+        maxScore: 10,
+        status: "correct",
+        correctAnswer: "A",
+        explanation: "Because",
+        advice: "None",
+      },
+      {
+        id: "q2",
+        score: 5,
+        maxScore: 10,
+        status: "partial",
+        correctAnswer: "Model",
+        explanation: "Partial",
+        advice: "More detail",
+      },
     ],
   };
 }
@@ -80,13 +112,17 @@ test("rejects assessment markdown paths outside the project", async () => {
   const root = await mkdtemp(join(tmpdir(), "assessment-grade-"));
   const questionSet = set();
   const validated = validateTestGrade(grade(), "t1", questionSet);
-  await assert.rejects(() => persistTestRecord({
-    projectRoot: root,
-    mdPath: "../outside.md",
-    questionSet,
-    submission: { answers: [] },
-    grade: validated,
-  }), /프로젝트 밖 경로/);
+  await assert.rejects(
+    () =>
+      persistTestRecord({
+        projectRoot: root,
+        mdPath: "../outside.md",
+        questionSet,
+        submission: { answers: [] },
+        grade: validated,
+      }),
+    /프로젝트 밖 경로/,
+  );
 });
 
 test("builds prefilled grade skeletons from the active question set", () => {
@@ -98,7 +134,10 @@ test("builds prefilled grade skeletons from the active question set", () => {
   assert.equal(testSkeleton.passScore, 14);
   assert.deepEqual(
     testSkeleton.results.map((result: any) => [result.id, result.maxScore]),
-    [["q1", 10], ["q2", 10]],
+    [
+      ["q1", 10],
+      ["q2", 10],
+    ],
   );
 
   const questionSet = set() as AssessmentQuestionSet;
@@ -118,7 +157,9 @@ test("aggregates every results-array validation error into one repair message", 
     () => validateTestGrade(broken, "t1", set()),
     (error: unknown) => {
       const message = error instanceof Error ? error.message : String(error);
-      return /q1 maxScore/.test(message) && /q1 correctAnswer/.test(message) && /q2 status/.test(message);
+      return (
+        /q1 maxScore/.test(message) && /q1 correctAnswer/.test(message) && /q2 status/.test(message)
+      );
     },
   );
 });
@@ -131,7 +172,12 @@ test("persists test attempts append-only and structured assessment record", asyn
     projectRoot: root,
     mdPath: "ch-01/test.md",
     questionSet,
-    submission: { answers: [{ id: "q1", answer: "A" }, { id: "q2", answer: "Text" }] },
+    submission: {
+      answers: [
+        { id: "q1", answer: "A" },
+        { id: "q2", answer: "Text" },
+      ],
+    },
     grade: validated,
   };
   await persistTestRecord(args);

@@ -15,12 +15,20 @@ export function findReusableTestSession<T extends SessionLike>(
   attempt: number,
 ): T | null {
   for (const session of sessions) {
-    if (session.chapterSlug === chapterSlug && session.attempt === attempt && session.status === "open") return session;
+    if (
+      session.chapterSlug === chapterSlug &&
+      session.attempt === attempt &&
+      session.status === "open"
+    )
+      return session;
   }
   return null;
 }
 
-export function hasAssessmentSession<T extends ChapterSessionLike>(sessions: Iterable<T>, chapterSlug: string): boolean {
+export function hasAssessmentSession<T extends ChapterSessionLike>(
+  sessions: Iterable<T>,
+  chapterSlug: string,
+): boolean {
   for (const session of sessions) {
     if (session.chapterSlug === chapterSlug) return true;
   }

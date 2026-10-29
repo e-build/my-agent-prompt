@@ -71,20 +71,29 @@ function hasRealDiagnosis(content: string): boolean {
   return /상태:\s*채점 완료|총점:\s*\d+\s*\/\s*\d+|diagnosisId:/i.test(content);
 }
 
-function hasRealConcept(chapterReadme: string, legacyConcept: string): { completed: boolean; evidence?: string } {
-  const readmeConcept = chapterReadme.match(/##\s*개념 학습 노트\s*\n([\s\S]*?)(?=\n##\s|$)/)?.[1]?.trim() ?? "";
+function hasRealConcept(
+  chapterReadme: string,
+  legacyConcept: string,
+): { completed: boolean; evidence?: string } {
+  const readmeConcept =
+    chapterReadme.match(/##\s*개념 학습 노트\s*\n([\s\S]*?)(?=\n##\s|$)/)?.[1]?.trim() ?? "";
   if (readmeConcept && !/아직\s*개념\s*학습\s*전/.test(readmeConcept)) {
     return { completed: true, evidence: "README.md" };
   }
   if (!legacyConcept.trim()) return { completed: false };
-  if (/아직\s*개념\s*학습\s*전|#\s*개념\s*노트\s*\n\s*아직/i.test(legacyConcept)) return { completed: false };
-  const completed = /##\s*(이 장에서 배우는 것|핵심 개념|단계별 작동 원리)/.test(legacyConcept) || legacyConcept.length > 500;
+  if (/아직\s*개념\s*학습\s*전|#\s*개념\s*노트\s*\n\s*아직/i.test(legacyConcept))
+    return { completed: false };
+  const completed =
+    /##\s*(이 장에서 배우는 것|핵심 개념|단계별 작동 원리)/.test(legacyConcept) ||
+    legacyConcept.length > 500;
   return completed ? { completed, evidence: "concept.md" } : { completed: false };
 }
 
 function hasPassedTest(content: string): boolean {
   if (needsRelearn(content)) return false;
-  return /\bPASSED\b|passed:\s*true|통과\s*여부:\s*(PASSED|통과)|총점\s*\d+\s*\/\s*\d+\s*→\s*통과|채점 결과:\s*\*\*\d+\s*\/\s*\d+\s*\(통과\)/i.test(content);
+  return /\bPASSED\b|passed:\s*true|통과\s*여부:\s*(PASSED|통과)|총점\s*\d+\s*\/\s*\d+\s*→\s*통과|채점 결과:\s*\*\*\d+\s*\/\s*\d+\s*\(통과\)/i.test(
+    content,
+  );
 }
 
 function needsRelearn(content: string): boolean {
@@ -109,13 +118,19 @@ async function inferLab(chapterDir: string): Promise<PhaseState> {
   const hasCompletedMarks = /-\s*\[(x|~)\]/i.test(readme);
   const hasOpenMarks = /-\s*\[\s\]/.test(readme);
   if (artifacts.length > 0 || (hasCompletedMarks && !hasOpenMarks)) {
-    return phase("completed", [join(basename(chapterDir), "lab"), ...artifacts.map((name) => join(basename(chapterDir), "lab", name))]);
+    return phase("completed", [
+      join(basename(chapterDir), "lab"),
+      ...artifacts.map((name) => join(basename(chapterDir), "lab", name)),
+    ]);
   }
   if (/##\s*목표|##\s*단계/.test(readme) && readme.length > 300) return phase("in_progress");
   return phase("not_started");
 }
 
-export async function migrateChapterState(projectRoot: string, chapterSlug: string): Promise<ChapterState> {
+export async function migrateChapterState(
+  projectRoot: string,
+  chapterSlug: string,
+): Promise<ChapterState> {
   const dir = join(projectRoot, chapterSlug);
   const diagnosis = await text(join(dir, "diagnosis.md"));
   const chapterReadme = await text(join(dir, "README.md"));
@@ -188,7 +203,8 @@ export async function saveStudyState(projectRoot: string, state: StudyState): Pr
 export async function loadStudyState(projectRoot: string): Promise<StudyState> {
   try {
     const parsed = JSON.parse(await readFile(studyStatePath(projectRoot), "utf8")) as StudyState;
-    if (parsed.version !== STUDY_STATE_VERSION || !parsed.chapters) throw new Error("unsupported study state");
+    if (parsed.version !== STUDY_STATE_VERSION || !parsed.chapters)
+      throw new Error("unsupported study state");
     return parsed;
   } catch {
     const migrated = await migrateStudyState(projectRoot);
@@ -209,7 +225,9 @@ export function resolveNextPhase(chapter: ChapterState): StudyPhase {
   return "review";
 }
 
-export function resolveNextTarget(state: StudyState): { chapterSlug: string; phase: StudyPhase } | null {
+export function resolveNextTarget(
+  state: StudyState,
+): { chapterSlug: string; phase: StudyPhase } | null {
   const slugs = Object.keys(state.chapters).sort();
   if (!slugs.length) return null;
   const corePhases: StudyPhase[] = ["diagnosis", "concept", "lab", "test"];
@@ -217,8 +235,12 @@ export function resolveNextTarget(state: StudyState): { chapterSlug: string; pha
     const phaseName = corePhases.find((name) => !isDone(state.chapters[chapterSlug][name].status));
     if (phaseName) return { chapterSlug, phase: phaseName };
   }
-  const reviewChapter = slugs.find((chapterSlug) => !isDone(state.chapters[chapterSlug].review.status));
-  return reviewChapter ? { chapterSlug: reviewChapter, phase: "review" } : { chapterSlug: slugs[slugs.length - 1], phase: "review" };
+  const reviewChapter = slugs.find(
+    (chapterSlug) => !isDone(state.chapters[chapterSlug].review.status),
+  );
+  return reviewChapter
+    ? { chapterSlug: reviewChapter, phase: "review" }
+    : { chapterSlug: slugs[slugs.length - 1], phase: "review" };
 }
 
 export async function syncReviewPhase(projectRoot: string, chapterSlug: string): Promise<void> {
@@ -226,10 +248,16 @@ export async function syncReviewPhase(projectRoot: string, chapterSlug: string):
   if (!state.chapters[chapterSlug]) return;
   const schedule = await text(join(projectRoot, chapterSlug, "review", "schedule.md"));
   const progress = await recordedScheduleProgress(projectRoot, chapterSlug, schedule);
-  const status: StudyPhaseStatus = progress.completed ? "completed"
-    : progress.rounds.length || hasRealReview(schedule) ? "in_progress" : "not_started";
+  const status: StudyPhaseStatus = progress.completed
+    ? "completed"
+    : progress.rounds.length || hasRealReview(schedule)
+      ? "in_progress"
+      : "not_started";
   state.chapters[chapterSlug].review = {
-    ...state.chapters[chapterSlug].review, status, updatedAt: now(), reason: undefined,
+    ...state.chapters[chapterSlug].review,
+    status,
+    updatedAt: now(),
+    reason: undefined,
     evidence: [join(chapterSlug, "review", "schedule.md")],
   };
   await saveStudyState(projectRoot, state);

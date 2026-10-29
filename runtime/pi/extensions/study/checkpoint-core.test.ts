@@ -10,14 +10,25 @@ import { createEmptyChapterState, saveStudyState } from "./study-state.ts";
 const record = {
   summary: "상황형 퀴즈로 개념 확인 중. 실행 검증 없음.",
   learningMode: "대화형 퀴즈, Mermaid 설명",
-  topics: [{ topic: "TTL", status: "answer_verified", evidence: "학습자: 저장 시점부터 60초", takeaway: "만료와 갱신은 별개" }],
+  topics: [
+    {
+      topic: "TTL",
+      status: "answer_verified",
+      evidence: "학습자: 저장 시점부터 60초",
+      takeaway: "만료와 갱신은 별개",
+    },
+  ],
   remaining: ["부분 hit 코드 리뷰"],
   nextAction: "사용자의 진행 요청 후 부분 hit 리뷰",
   executionEvidence: "없음. 코드와 Redis 명령을 실행하지 않았음.",
 };
 
 function git(cwd: string, ...args: string[]): string {
-  return execFileSync("git", args, { cwd, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }).trim();
+  return execFileSync("git", args, {
+    cwd,
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "pipe"],
+  }).trim();
 }
 
 async function fixture(t: any) {
@@ -35,9 +46,16 @@ async function fixture(t: any) {
   await writeFile(join(root, "ch-01-cache/README.md"), "# Cache\n");
   await writeFile(join(root, "ch-02-pattern/README.md"), "# Pattern\n");
   await saveStudyState(root, {
-    version: 1, projectRoot: root, createdAt: "x", updatedAt: "x",
-    activeChapter: "ch-02-pattern", activePhase: "concept",
-    chapters: { "ch-01-cache": createEmptyChapterState(), "ch-02-pattern": createEmptyChapterState() },
+    version: 1,
+    projectRoot: root,
+    createdAt: "x",
+    updatedAt: "x",
+    activeChapter: "ch-02-pattern",
+    activePhase: "concept",
+    chapters: {
+      "ch-01-cache": createEmptyChapterState(),
+      "ch-02-pattern": createEmptyChapterState(),
+    },
   });
   git(root, "add", ".");
   git(root, "commit", "-m", "initial");
@@ -52,7 +70,7 @@ test("checkpoint core exports required operations", () => {
   assert.equal(typeof core.validateCheckpointRecord, "function");
 });
 
-test("active chapter is preferred without advancing or modifying study state", async t => {
+test("active chapter is preferred without advancing or modifying study state", async (t) => {
   const { root } = await fixture(t);
   const before = await readFile(join(root, ".study/state.json"), "utf8");
   const request = await core.prepareCheckpoint(root, "");
@@ -66,11 +84,18 @@ test("active chapter is preferred without advancing or modifying study state", a
 test("invalid records and unsupported evidence statuses are rejected", () => {
   assert.deepEqual(core.validateCheckpointRecord(record), record);
   assert.throws(() => core.validateCheckpointRecord({ ...record, nextAction: " " }), /nextAction/);
-  assert.throws(() => core.validateCheckpointRecord({ ...record, topics: [{ ...record.topics[0], status: "completed" }] }), /status/);
+  assert.throws(
+    () =>
+      core.validateCheckpointRecord({
+        ...record,
+        topics: [{ ...record.topics[0], status: "completed" }],
+      }),
+    /status/,
+  );
   assert.throws(() => core.validateCheckpointRecord({ ...record, topics: [] }), /topics/);
 });
 
-test("publishes only checkpoint while preserving unrelated staged and unstaged changes", async t => {
+test("publishes only checkpoint while preserving unrelated staged and unstaged changes", async (t) => {
   const { root, remote } = await fixture(t);
   await writeFile(join(root, "staged.txt"), "unrelated staged\n");
   git(root, "add", "staged.txt");
@@ -81,7 +106,10 @@ test("publishes only checkpoint while preserving unrelated staged and unstaged c
   assert.equal(result.saved, true);
   assert.equal(result.pushed, true);
   assert.equal(result.commit, git(remote, "rev-parse", "refs/heads/main"));
-  assert.equal(git(root, "show", "--format=", "--name-only", "HEAD"), "ch-02-pattern/checkpoint.md");
+  assert.equal(
+    git(root, "show", "--format=", "--name-only", "HEAD"),
+    "ch-02-pattern/checkpoint.md",
+  );
   assert.equal(git(root, "diff", "--cached", "--name-only"), "staged.txt");
   assert.match(git(root, "diff", "--", "ch-01-cache/README.md"), /unrelated modification/);
   assert.equal(await readFile(join(root, ".study/state.json"), "utf8"), beforeState);
@@ -90,11 +118,13 @@ test("publishes only checkpoint while preserving unrelated staged and unstaged c
   assert.match(text, /실행 검증 없음/);
 });
 
-test("appends snapshots without overwriting previous recall or duplicating a retry", async t => {
+test("appends snapshots without overwriting previous recall or duplicating a retry", async (t) => {
   const { root } = await fixture(t);
   const path = join(root, "ch-02-pattern/checkpoint.md");
   await writeFile(path, "# 기존 기록\n\n개인 회상 원문 보존\n");
-  git(root, "add", "."); git(root, "commit", "-m", "old checkpoint"); git(root, "push");
+  git(root, "add", ".");
+  git(root, "commit", "-m", "old checkpoint");
+  git(root, "push");
   const request = await core.prepareCheckpoint(root, "");
   const first = await core.publishCheckpoint(request, record);
   const second = await core.publishCheckpoint(request, record);
@@ -104,7 +134,7 @@ test("appends snapshots without overwriting previous recall or duplicating a ret
   assert.equal(text.split(`<!-- checkpoint:${request.id} -->`).length - 1, 1);
 });
 
-test("dirty checkpoint is rejected before replacing any user content", async t => {
+test("dirty checkpoint is rejected before replacing any user content", async (t) => {
   const { root } = await fixture(t);
   const path = join(root, "ch-02-pattern/checkpoint.md");
   await writeFile(path, "unsaved user note\n");
@@ -112,23 +142,24 @@ test("dirty checkpoint is rejected before replacing any user content", async t =
   assert.equal(await readFile(path, "utf8"), "unsaved user note\n");
 });
 
-test("checkpoint changes after prepare are rejected", async t => {
+test("checkpoint changes after prepare are rejected", async (t) => {
   const { root } = await fixture(t);
   const request = await core.prepareCheckpoint(root, "");
   await writeFile(join(root, "ch-02-pattern/checkpoint.md"), "concurrent note\n");
   await assert.rejects(core.publishCheckpoint(request, record), /미커밋|변경/);
 });
 
-test("unpushed unrelated commits are rejected without pushing them", async t => {
+test("unpushed unrelated commits are rejected without pushing them", async (t) => {
   const { root, remote } = await fixture(t);
   const old = git(remote, "rev-parse", "refs/heads/main");
   await writeFile(join(root, "unrelated.txt"), "x");
-  git(root, "add", "."); git(root, "commit", "-m", "unrelated");
+  git(root, "add", ".");
+  git(root, "commit", "-m", "unrelated");
   await assert.rejects(core.prepareCheckpoint(root, ""), /원격|미푸시/);
   assert.equal(git(remote, "rev-parse", "refs/heads/main"), old);
 });
 
-test("push failure preserves saved record and commit and supports push-only retry", async t => {
+test("push failure preserves saved record and commit and supports push-only retry", async (t) => {
   const { root, remote } = await fixture(t);
   const request = await core.prepareCheckpoint(root, "");
   const hook = join(remote, "hooks/pre-receive");

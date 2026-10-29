@@ -11,8 +11,12 @@ async function fixture(t: { after: (fn: () => Promise<void>) => void }) {
   return base;
 }
 const params = {
-  projectSlug: "study-cache", topic: "Cache",
-  curriculumJson: JSON.stringify({ projectSlug: "study-cache", phases: [{ chapters: [{ slug: "ch-01-cache", title: "Cache" }] }] }),
+  projectSlug: "study-cache",
+  topic: "Cache",
+  curriculumJson: JSON.stringify({
+    projectSlug: "study-cache",
+    phases: [{ chapters: [{ slug: "ch-01-cache", title: "Cache" }] }],
+  }),
 };
 const template = "<h1>{{PROJECT_SLUG}}</h1><h2>{{TOPIC}}</h2><script>{{CURRICULUM_JSON}}</script>";
 
@@ -29,7 +33,10 @@ test("curriculum writer keeps HTML and manifest at one root on repeated nested c
     assert.equal(result.projectRoot, root);
     assert.equal(result.htmlPath, join(root, "curriculum.html"));
     assert.ok((await readFile(result.htmlPath, "utf8")).includes(params.curriculumJson));
-    assert.equal(JSON.parse(await readFile(join(root, ".study", "project.json"), "utf8")).projectSlug, params.projectSlug);
+    assert.equal(
+      JSON.parse(await readFile(join(root, ".study", "project.json"), "utf8")).projectSlug,
+      params.projectSlug,
+    );
     await assert.rejects(access(join(cwd, params.projectSlug)), { code: "ENOENT" });
   }
 });
@@ -47,7 +54,14 @@ test("curriculum writer creates artifacts at an explicit root", async (t) => {
 test("payload slug mismatch fails before any artifact is created", async (t) => {
   const write = writeCurriculumArtifacts;
   const base = await fixture(t);
-  await assert.rejects(write(base, { ...params, curriculumJson: JSON.stringify({ projectSlug: "study-other" }) }, template), /일치/);
+  await assert.rejects(
+    write(
+      base,
+      { ...params, curriculumJson: JSON.stringify({ projectSlug: "study-other" }) },
+      template,
+    ),
+    /일치/,
+  );
   await assert.rejects(access(join(base, params.projectSlug)), { code: "ENOENT" });
 });
 
@@ -61,7 +75,10 @@ test("invalid curriculum JSON fails before any artifact is created", async (t) =
 test("invalid root fails before any artifact is created", async (t) => {
   const write = writeCurriculumArtifacts;
   const base = await fixture(t);
-  await assert.rejects(write(base, { ...params, projectRoot: join(base, "study-other") }, template), /일치/);
+  await assert.rejects(
+    write(base, { ...params, projectRoot: join(base, "study-other") }, template),
+    /일치/,
+  );
   await assert.rejects(access(join(base, "study-other")), { code: "ENOENT" });
 });
 

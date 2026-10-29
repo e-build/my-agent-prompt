@@ -13,7 +13,10 @@ async function fixture() {
   await mkdir(join(chapter, "review"), { recursive: true });
   await writeFile(join(chapter, "README.md"), "# Cache\n## 개념 학습 노트\n내용\n");
   await writeFile(join(chapter, "test.md"), "## Attempt 1\nPASSED\n");
-  await writeFile(join(chapter, "lab", "manifest.json"), JSON.stringify({ steps: [{ id: "s1", status: "completed" }] }));
+  await writeFile(
+    join(chapter, "lab", "manifest.json"),
+    JSON.stringify({ steps: [{ id: "s1", status: "completed" }] }),
+  );
   await writeFile(join(chapter, "lab", "results.md"), "- Step ID: `s1`\n");
   return { root, chapter };
 }
@@ -38,7 +41,10 @@ test("missing execution evidence remains a separate completion blocker", async (
   const result = await finish(root);
   assert.equal(result.status, "blocked");
   assert.match(result.evidenceError!, /결과 기록이 없는/);
-  assert.match((await loadStudyState(root)).chapters["ch-01-cache"].test.reason!, /학습 근거 검증 실패/);
+  assert.match(
+    (await loadStudyState(root)).chapters["ch-01-cache"].test.reason!,
+    /학습 근거 검증 실패/,
+  );
 });
 
 test("failed tests require relearning without generating review pages", async () => {

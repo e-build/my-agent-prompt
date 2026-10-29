@@ -32,10 +32,19 @@ test("schedule is canonical and neither exact intervals nor future mastery is in
 });
 
 test("active instructions no longer require a pack or a mandatory five-step pipeline", async () => {
-  const files = ["instructions/review.md", "instructions/test.md", "instructions/legacy-study-chapter.md", "prompts/study-init.md"];
+  const files = [
+    "instructions/review.md",
+    "instructions/test.md",
+    "instructions/legacy-study-chapter.md",
+    "prompts/study-init.md",
+  ];
   for (const name of files) {
     const text = await readFile(new URL(name, import.meta.url), "utf8");
-    assert.doesNotMatch(text, /study_pack_refresh|blank-recall → gap-fill → self-lecture → analogy-lock → schedule/, name);
+    assert.doesNotMatch(
+      text,
+      /study_pack_refresh|blank-recall → gap-fill → self-lecture → analogy-lock → schedule/,
+      name,
+    );
     assert.match(text, /review\/README\.md|고정 회차/, name);
   }
 });

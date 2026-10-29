@@ -21,9 +21,7 @@ test("findReusableTestSession reuses only an open session of the same chapter an
 });
 
 test("hasAssessmentSession detects any session of the chapter regardless of status", () => {
-  const pool: SessionLike[] = [
-    session({ chapterSlug: "ch-01", status: "acknowledged" }),
-  ];
+  const pool: SessionLike[] = [session({ chapterSlug: "ch-01", status: "acknowledged" })];
   assert.equal(hasAssessmentSession(pool, "ch-01"), true);
   assert.equal(hasAssessmentSession(pool, "ch-02"), false);
   assert.equal(hasAssessmentSession([], "ch-01"), false);
