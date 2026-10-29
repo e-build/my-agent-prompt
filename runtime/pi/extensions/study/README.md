@@ -19,33 +19,27 @@
 
 ```text
 study/
-├── index.ts                    # Pi lifecycle + 의존성 조립
-├── study-sessions.ts           # 진단·시험·커리큘럼 세션 타입과 저장소
-├── browser-server.ts           # lazy loopback HTTP 서버 수명·공통 응답
-├── study-routes.ts             # HTML·submit/result/ack HTTP 계약
-├── study-prompts.ts            # 채점·결과 확인·커리큘럼 메시지 생성
-├── agent-delivery.ts           # 즉시 전달 → follow-up fallback
-├── grade-handler.ts            # assistant grade → 검증·저장·상태 연결
-├── assessment-tools.ts         # 진단·시험 도구 등록과 세션 생성
-├── assessment-page.ts          # 공통 assessment HTML 렌더링
-├── curriculum-tool.ts          # 커리큘럼 도구 등록
-├── lab-tools.ts                # 실습 검증·상태 도구 등록
-├── review-tools.ts             # 복습 갱신·호환 alias 등록
-├── preflight-tool.ts           # 환경 검사 도구 등록
-├── command-runner.ts           # lab/preflight 공통 Pi exec adapter
-├── phase-state.ts              # phase 저장의 best-effort 경계
-├── open-browser.ts             # OS별 브라우저 실행
-├── study-command.ts            # 기존 /study-chapter를 실제 command로 실행
-├── checkpoint-command.ts       # /study-checkpoint와 승인된 저장 도구
-├── checkpoint-core.ts          # 근거별 진도 기록 + 해당 파일만 커밋·푸시
-├── study-state.ts              # .study/state.json + markdown migration
-├── project-root.ts             # slug·명시적 root·기존 프로젝트 공통 경로 결정
-├── curriculum-core.ts          # 같은 루트의 curriculum.html + manifest 저장
-├── project-manifest.ts         # .study/project.json (stack/workspace/lab mode)
-├── assessment-core.ts          # question schema/validation
-├── assessment-grade.ts         # grade 검증 + diagnosis/test 자동 기록
-├── preflight.ts                # Java/Gradle/Docker/전용 서비스 검사
-├── lab-core.ts                 # lab manifest + 완료 증거 검증
+├── index.ts                    # Pi 진입점: lifecycle + 의존성 조립
+├── src/                        # 프로덕션 구현
+│   ├── assessment/             # 문항·채점 검증, HTML 생성, 시험 완료, 도구 등록
+│   ├── bridge/                 # HTTP 서버·라우트, 브라우저 실행, agent 메시지
+│   ├── checkpoint/             # checkpoint 명령·승인·기록·Git publish
+│   ├── curriculum/             # 커리큘럼 산출물·미리보기 도구
+│   ├── lab/                    # 실습 검증·환경 검사·명령 실행 adapter
+│   ├── project/                # 프로젝트 경로·manifest
+│   ├── review/                 # 복습 시작 페이지·갱신 도구
+│   └── session/                # 상태·챕터 명령·학습 근거·지침 로더
+├── tests/                      # 프로덕션 코드와 같은 기능별 분류
+│   ├── assessment/
+│   ├── bridge/
+│   ├── checkpoint/
+│   ├── curriculum/
+│   ├── lab/
+│   ├── project/
+│   ├── review/
+│   ├── session/
+│   ├── integration/            # Pi entry point 등록·디렉터리 경계
+│   └── support/                # 테스트 전용 공통 fixture
 ├── instructions/               # phase별 짧은 agent 지시
 ├── prompts/                    # /study-init, /study-review
 └── assets/                     # curriculum/assessment browser UI
@@ -57,22 +51,25 @@ study/
 
 | 수정 대상 | 위치 | 주요 검증 |
 |---|---|---|
-| 도구 스키마·실행 순서 | `*-tool.ts`, `*-tools.ts` | `extension-registration.test.ts` |
-| 브라우저 요청·응답 | `study-routes.ts` | `study-routes.test.ts` — 실제 loopback HTTP |
-| 서버 시작·종료 | `browser-server.ts` | `browser-server.test.ts` |
-| agent 메시지 | `study-prompts.ts`, `diagnosis-review-prompt.ts` | 각 prompt 테스트 |
-| 전송 fallback | `agent-delivery.ts` | `agent-delivery.test.ts` |
-| 채점 검증·기록 | `assessment-grade.ts` | `assessment-grade.test.ts` |
-| grade와 세션 연결 | `grade-handler.ts` | `grade-handler.test.ts` |
-| HTML config·치환 | `assessment-page.ts` | `assessment-page.test.ts` |
-| 상태·실습·경로 정책 | 기존 core 모듈 | 같은 이름의 `*.test.ts` |
+| 도구 스키마·실행 순서 | `src/<기능>/*-tool.ts`, `*-tools.ts` | `tests/integration/extension-registration.test.ts` |
+| 브라우저 요청·응답 | `src/bridge/study-routes.ts` | `tests/bridge/study-routes.test.ts` — 실제 loopback HTTP |
+| 서버 시작·종료 | `src/bridge/browser-server.ts` | `tests/bridge/browser-server.test.ts` |
+| agent 메시지 | `src/bridge/study-prompts.ts`, `src/session/diagnosis-review-prompt.ts` | 같은 기능의 prompt 테스트 |
+| 전송 fallback | `src/bridge/agent-delivery.ts` | `tests/bridge/agent-delivery.test.ts` |
+| 채점 검증·기록 | `src/assessment/assessment-grade.ts` | `tests/assessment/assessment-grade.test.ts` |
+| grade와 세션 연결 | `src/assessment/grade-handler.ts` | `tests/assessment/grade-handler.test.ts` |
+| HTML config·치환 | `src/assessment/assessment-page.ts` | `tests/assessment/assessment-page.test.ts` |
+| 상태·실습·경로 정책 | `src/session/`, `src/lab/`, `src/project/` | 대응하는 `tests/<기능>/` |
 
 - 순수 변환/도메인 코드와 Pi 도구 등록을 분리. 테스트를 위해 HTTP 서버나 실제 브라우저 실행을 요구하지 않는 경계 유지.
 - 공통화는 실제 중복만 대상. diagnosis/test의 상태 전환·완료 조건은 명시적으로 유지.
 - 세션은 extension 인스턴스가 소유. 서버는 첫 도구 호출에서 시작하고 shutdown 시 종료·세션 정리.
 - phase 저장 실패 경고, 메시지 전달 fallback, review 페이지 실패 경고 등 기존 실패 정책 유지. 리팩터링과 정책 변경은 별도 작업.
 - 도구 이름·스키마, HTTP 경로, grade marker, 저장 형식, 안내 프롬프트는 호환 계약. 변경 시 관련 회귀 테스트 먼저 보강.
-- `test-support/fixtures.ts`는 신규 bridge 테스트의 최소 공통 fixture. 도메인별 기존 fixture는 각 테스트 옆에 유지.
+- 루트 TypeScript 파일은 Pi가 로드하는 `index.ts`만 유지. 구현은 `src/<기능>/`, 테스트는 `tests/<기능>/`에 배치. 기능 안에서 도구 등록과 core 파일을 함께 탐색.
+- `src/`와 `index.ts`에서 `tests/` import 금지. barrel export나 과거 경로의 호환 stub 없이 실제 파일을 직접 import.
+- `tests/support/fixtures.ts`는 bridge·assessment 테스트의 최소 공통 fixture. 도메인별 기존 fixture는 각 테스트 옆에 유지.
+- `instructions/`, `prompts/`, `assets/`는 extension 루트 기준 리소스. 구현·테스트 이동 시 `import.meta.url` 기반 상대 경로도 함께 확인.
 - TypeScript 포맷은 `.prettierrc.json` 기준: 공백 2칸, 폭 100. HTML assets와 학습 지침은 포맷 대상에서 제외.
 
 ## /study-chapter 동작
@@ -206,24 +203,26 @@ review/
 
 ```bash
 cd runtime/pi/extensions/study
-node --test *.test.ts
+node --test 'tests/**/*.test.ts'
 ```
 
-Node.js 22의 TypeScript 실행을 사용. 일반 실행은 Pi 의존성 없이 core·HTTP·prompt 테스트 수행. `extension-registration.test.ts`의 host 테스트는 Pi를 찾지 못하면 명시적으로 skip.
+Node.js 22의 TypeScript 실행을 사용. 일반 실행은 Pi 의존성 없이 core·HTTP·prompt 테스트 수행. `tests/integration/extension-registration.test.ts`의 host 테스트는 Pi를 찾지 못하면 명시적으로 skip.
 
 Pi가 전역 npm 경로에 설치된 개발 환경에서는 다음 명령으로 host 테스트까지 실행:
 
 ```bash
-NODE_PATH="$(npm root -g)" node --test *.test.ts
+NODE_PATH="$(npm root -g)" node --test 'tests/**/*.test.ts'
 ```
+
+`tests/**/*.test.ts`는 Node.js 22가 확장하도록 인용. 셸의 globstar 설정에 의존하지 않음. `tests/integration/directory-layout.test.ts`에서 루트 진입점·기능별 분류·프로덕션/테스트 경계 확인.
 
 host 테스트는 설치된 Pi의 `jiti`·`typebox`로 실제 entry point를 로드하고 명령·도구 등록, HTML 생성, 세션 재사용을 확인. 브라우저 실행은 대체 함수 사용, 실제 학습 프로젝트는 변경하지 않음.
 
 포맷 검사/정리(Prettier 3 사용 가능 환경):
 
 ```bash
-prettier --check '*.ts' 'test-support/*.ts'
-prettier --write '*.ts' 'test-support/*.ts'
+prettier --check 'index.ts' 'src/**/*.ts' 'tests/**/*.ts'
+prettier --write 'index.ts' 'src/**/*.ts' 'tests/**/*.ts'
 ```
 
 저장소 루트 검증:

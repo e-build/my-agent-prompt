@@ -3,20 +3,23 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { withFileMutationQueue, type ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
-import { registerStudyChapterCommand, type StudyChapterTarget } from "./study-command.ts";
-import { registerStudyCheckpoint } from "./checkpoint-command.ts";
-import { hasAssessmentSession } from "./session-core.ts";
-import { createStudySessions } from "./study-sessions.ts";
-import { updateProjectPhase } from "./phase-state.ts";
-import { createBrowserServer } from "./browser-server.ts";
-import { createStudyRoutes } from "./study-routes.ts";
-import { createGradeHandler } from "./grade-handler.ts";
-import { openBrowser } from "./open-browser.ts";
-import { registerAssessmentTools } from "./assessment-tools.ts";
-import { registerCurriculumTool } from "./curriculum-tool.ts";
-import { registerLabTools } from "./lab-tools.ts";
-import { registerReviewTools } from "./review-tools.ts";
-import { registerPreflightTool } from "./preflight-tool.ts";
+import {
+  registerStudyChapterCommand,
+  type StudyChapterTarget,
+} from "./src/session/study-command.ts";
+import { registerStudyCheckpoint } from "./src/checkpoint/checkpoint-command.ts";
+import { hasAssessmentSession } from "./src/session/session-core.ts";
+import { createStudySessions } from "./src/session/study-sessions.ts";
+import { updateProjectPhase } from "./src/session/phase-state.ts";
+import { createBrowserServer } from "./src/bridge/browser-server.ts";
+import { createStudyRoutes } from "./src/bridge/study-routes.ts";
+import { createGradeHandler } from "./src/assessment/grade-handler.ts";
+import { openBrowser } from "./src/bridge/open-browser.ts";
+import { registerAssessmentTools } from "./src/assessment/assessment-tools.ts";
+import { registerCurriculumTool } from "./src/curriculum/curriculum-tool.ts";
+import { registerLabTools } from "./src/lab/lab-tools.ts";
+import { registerReviewTools } from "./src/review/review-tools.ts";
+import { registerPreflightTool } from "./src/lab/preflight-tool.ts";
 
 export default function (pi: ExtensionAPI) {
   const sessionStore = createStudySessions();
