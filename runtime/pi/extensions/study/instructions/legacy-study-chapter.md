@@ -5,6 +5,8 @@ argument-hint: "[챕터명] [단계]"
 <!-- Args: $1 = [챕터명] (optional, e.g. "01-인덱스-기초" or "02"), $2 = [단계] (optional, "diagnosis"|"lab"|"test"|"review") -->
 # 챕터 학습 세션
 
+> **레거시 참고 문서.** 현재 단계 지침의 정본은 `instructions/{diagnosis,concept,lab,test,review}.md`이다. 새 사전진단은 Pi 대화형이며 아래의 HTML 사전진단(`study_diagnosis_open`, 최소 10문항)은 이미 열려 있거나 제출·채점 대기 중인 과거 진단을 마칠 때만 따른다. 복습은 등록된 study 루트면 통합 복습, 미등록이면 `review/README.md`와 고정 회차형 `schedule.md`를 따른다.
+
 현재 cwd에서 `study-{slug}` 프로젝트를 찾고, 챕터 상태를 확인한 뒤
 안 한 단계부터 이어서 진행한다.
 

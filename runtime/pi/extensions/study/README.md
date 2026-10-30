@@ -1,17 +1,19 @@
 # study extension
 
-브라우저 assessment와 구조화된 학습 상태를 연결하는 Pi extension.
+학습 흐름(대화형 진단 → 개념 학습 → 실습 → HTML 완료 시험 → 통합 복습)과 공통 지식·학습 근거를 연결하는 Pi extension.
 
 ## 목차
 
 - [구성](#구성)
 - [유지보수 기준](#유지보수-기준)
+- [study 루트와 공통 지식](#study-루트와-공통-지식)
 - [/study-chapter 동작](#study-chapter-동작)
 - [프로젝트 경로 정책](#프로젝트-경로-정책)
 - [/study-checkpoint — 현재 학습 갈무리](#study-checkpoint--현재-학습-갈무리)
 - [상태 파일](#상태-파일)
 - [Assessment](#assessment)
 - [챕터 노트와 Lab 기록](#챕터-노트와-lab-기록)
+- [통합 복습](#통합-복습)
 - [고정 회차형 복습](#고정-회차형-복습)
 - [테스트](#테스트)
 
@@ -25,19 +27,25 @@ study/
 │   ├── bridge/                 # HTTP 서버·라우트, 브라우저 실행, agent 메시지
 │   ├── checkpoint/             # checkpoint 명령·승인·기록·Git publish
 │   ├── curriculum/             # 커리큘럼 산출물·미리보기 도구
+│   ├── evidence/               # 출제 전 기준 저장·원 응답·지식별 판정·기존 기록 연결
+│   ├── knowledge/              # 명제·추론 사슬·버전·병합, 교재 관리 영역, 지도
 │   ├── lab/                    # 실습 검증·환경 검사·명령 실행 adapter
 │   ├── project/                # 프로젝트 경로·manifest
-│   ├── review/                 # 복습 시작 페이지·갱신 도구
-│   └── session/                # 상태·챕터 명령·학습 근거·지침 로더
+│   ├── review/                 # 통합 복습 일정·조회·시작 페이지, 기존 고정 회차형
+│   ├── session/                # 상태·챕터 명령·대화형 진단·개념 완료·위젯·지침 로더
+│   └── workspace/              # study 루트 탐색·등록, 쓰기 범위, 변경 계획·복구, 이전
 ├── tests/                      # 프로덕션 코드와 같은 기능별 분류
 │   ├── assessment/
 │   ├── bridge/
 │   ├── checkpoint/
 │   ├── curriculum/
+│   ├── evidence/
+│   ├── knowledge/
 │   ├── lab/
 │   ├── project/
 │   ├── review/
 │   ├── session/
+│   ├── workspace/
 │   ├── integration/            # Pi entry point 등록·디렉터리 경계
 │   └── support/                # 테스트 전용 공통 fixture
 ├── instructions/               # phase별 짧은 agent 지시
@@ -64,13 +72,48 @@ study/
 - 순수 변환/도메인 코드와 Pi 도구 등록을 분리. 테스트를 위해 HTTP 서버나 실제 브라우저 실행을 요구하지 않는 경계 유지.
 - 공통화는 실제 중복만 대상. diagnosis/test의 상태 전환·완료 조건은 명시적으로 유지.
 - 세션은 extension 인스턴스가 소유. 서버는 첫 도구 호출에서 시작하고 shutdown 시 종료·세션 정리.
-- phase 저장 실패 경고, 메시지 전달 fallback, review 페이지 실패 경고 등 기존 실패 정책 유지. 리팩터링과 정책 변경은 별도 작업.
+- phase 저장 실패는 `updateProjectPhase`가 결과로 반환하고 도구 출력에 경고로 표시(성공처럼 보고하지 않음). 메시지 전달 fallback, review 페이지 실패 경고 등 기존 실패 정책 유지. 리팩터링과 정책 변경은 별도 작업.
 - 도구 이름·스키마, HTTP 경로, grade marker, 저장 형식, 안내 프롬프트는 호환 계약. 변경 시 관련 회귀 테스트 먼저 보강.
 - 루트 TypeScript 파일은 Pi가 로드하는 `index.ts`만 유지. 구현은 `src/<기능>/`, 테스트는 `tests/<기능>/`에 배치. 기능 안에서 도구 등록과 core 파일을 함께 탐색.
 - `src/`와 `index.ts`에서 `tests/` import 금지. barrel export나 과거 경로의 호환 stub 없이 실제 파일을 직접 import.
 - `tests/support/fixtures.ts`는 bridge·assessment 테스트의 최소 공통 fixture. 도메인별 기존 fixture는 각 테스트 옆에 유지.
 - `instructions/`, `prompts/`, `assets/`는 extension 루트 기준 리소스. 구현·테스트 이동 시 `import.meta.url` 기반 상대 경로도 함께 확인.
 - TypeScript 포맷은 `.prettierrc.json` 기준: 공백 2칸, 폭 100. HTML assets와 학습 지침은 포맷 대상에서 제외.
+
+## study 루트와 공통 지식
+
+여러 학습 프로젝트가 공통 지식과 복습을 함께 쓰려면 study 루트를 **사용자가 직접** 등록한다. 등록 전에는 기존 기능(HTML 시험·lab·고정 회차형 복습)이 그대로 동작하고, 새 공통 기능은 등록을 안내한다.
+
+```text
+<study 루트>/
+├── .study/workspace.json      # 루트 표시: workspaceId, timezone(기본 Asia/Seoul), 복습 간격, 프로젝트(상대 경로)
+├── .study/local/              # PC 전용(.gitignore): pending 변경 계획, locks, applied 기록
+├── .study/migrations/         # 기존 기록 이전 기록(되돌리기용)
+├── knowledge/items/k-*.md     # 명제 하나당 파일: JSON 메타 + 설명 본문
+├── knowledge/history/k-*.jsonl# 버전별 전체 스냅숏·이유 (추가만)
+├── knowledge/changes/*.json   # 변경 기록 (멱등 재시도·undo)
+├── knowledge/chains.jsonl     # 공동 전제 묶음 → 결론
+├── review/items/k-*.json      # 지식별 복습 일정 하나
+├── review/questions/, sessions/ # 복습 질문(비공개 기준)·원 응답
+└── study-*/.study/            # project.json(projectId), bindings/, dialogue/, links/
+```
+
+- `/study-workspace inspect|init <루트>|check|recover [retry|rollback]|migrate preview|apply <digest>|undo <id>`: 쓰기 동작은 미리 보기 후 확인(UI 확인 또는 `--confirm <digest>`)이 있어야 실행.
+- 여러 파일을 바꾸는 작업은 모두 변경 계획(전·후 내용 저장) → 파일별 hash 비교·원자적 교체 → 완료 순서. 중단되면 `recover`로 마저 적용하거나 되돌리며, 그 사이 다른 곳에서 바뀐 파일은 건드리지 않는다.
+- 루트 공통 쓰기는 `.study/`, `knowledge/`, `review/`만. 프로젝트 쓰기는 등록된 프로젝트 안만. `..`·절대 경로·심볼릭 링크 경유 거부.
+- 손상된 `state.json`/`project.json`/`workspace.json`은 다시 만들지 않고 오류로 알린다. `state.json`의 알 수 없는 필드와 과거 절대 `projectRoot`는 그대로 보존한다.
+
+도구:
+
+- `study_workspace`: 등록 상태 확인(inspect)·검사(check), 읽기 전용
+- `study_knowledge`: 공통 지식 조회(query, 기본은 이름·상태만)·변경(apply: create/add_expression/revise/set_status/merge/unmerge/undo/add_chain/retire_chain). changeId·reason·기대 revision 필수
+- `study_textbook_refresh`: 챕터-지식 연결(bindingJson) 저장 후 README의 `<!-- study:knowledge ... -->` 관리 영역만 갱신. 직접 고친 영역은 보류·차이 보고
+- `study_question_prepare`: 비공개 채점 기준을 먼저 저장하고 공개 질문만 반환
+- `study_answer_record`: 원 응답·도움 정도·지식별 판정 추가 기록, kind=link로 기존 lab·시험 기록을 복사 없이 연결
+- `study_learning_route`: 대화형 진단 조회·종료(경로 기록)·새 시도, 개념 학습 완료
+- `study_review_next`: 오늘 할 통합 복습과 묶음 후보(정답 없음)
+- `/study-map [지식 ID]`: 읽기 전용 지식 지도(SVG+표)를 loopback 브라우저로 열기
+- 상태 위젯(`study-status`): 현재 프로젝트·챕터·단계, 지식 수, 오늘 복습 수. 표시 실패는 학습 진행에 영향 없음
 
 ## /study-chapter 동작
 
@@ -83,7 +126,7 @@ study/
 → 해당 phase instruction만 agent에 전달
 ```
 
-assessment phase에서 `study_diagnosis_open`/`study_test_open` 호출 없이 turn이 끝나면 extension이 1회 교정 follow-up을 전송한다.
+test phase에서 `study_test_open` 호출 없이 turn이 끝나면 extension이 1회 교정 follow-up을 전송한다. diagnosis는 대화형이며 HTML을 강제하지 않는다. 등록된 루트에서는 diagnosis 지침에 재개 상태(시도 ID, 준비한 질문 수/상한, 경로)가 붙는다. 이미 열려 있는 과거 HTML 진단(awaiting_*)은 그 상태 안내가 우선한다.
 
 명령으로 concept를 시작할 때와 진단 결과 확인 후 자동으로 concept로 전환할 때 모두 같은 phase 지침 로더를 사용한다. `instructions/concept.md`가 두 진입 경로의 정본이며, README 본문 작성·새 concept.md 생성 금지 규칙을 별도로 복사하지 않는다.
 
@@ -149,7 +192,7 @@ skipped_understood / blocked
 
 ## Assessment
 
-- diagnosis/test는 공통 `assessment-template.html` 사용
+- 완료 시험(test)은 `assessment-template.html` 사용. 같은 템플릿의 HTML 진단은 과거 진단 재개용으로만 유지
 - question에 `context`, `assumptions`, `learningObjective` 선택 가능
 - browser 결과에서 `ready_to_continue`, `explain_first`, `practice_more`, `feels_guessed` preference 전달
 - grade는 ID, attempt, 문항 ID, 배점, 점수 합계 검증 후 브라우저에 표시
@@ -172,12 +215,24 @@ skipped_understood / blocked
 - `study_preflight`: Java/Gradle/Docker/전용 서비스 검사
 - `study_lab_verify`: 파일·산출물·명령·실제 JUnit test count 검증 및 step 결과 기록
 - `study_lab_step_update`: `in_progress`, `blocked`, `skipped_understood` 기록
-- `study_review_refresh`: schedule.md 원본으로 정답 비노출 `review/README.md` 갱신. 통과+ack 시험의 별도 증거 검증 후 상태 복구 가능.
+- `study_review_refresh`: 등록된 프로젝트는 루트 통합 복습 페이지 갱신, 미등록 프로젝트는 schedule.md 원본으로 정답 비노출 `review/README.md` 갱신. 통과+ack 시험의 별도 증거 검증 후 상태 복구 가능.
 - `study_pack_refresh`: deprecated 호환 alias. 시작 페이지만 생성하며 새 pack 생성 없음.
 
 `skipped_understood`는 reason/evidence가 필수이며 README 내용은 삭제하지 않는다.
 
+## 통합 복습
+
+등록된 study 루트의 기본 복습. 지식(명제)마다 일정 하나.
+
+- 간격 +1 / +3 / +7 / +14일, 기준일은 챕터 완료일(시험 통과+확인일, 최초 1회만 기록). 다음 날짜는 실제 복습한 날부터 달력 날짜로 계산.
+- 독립 정답 → 다음 간격, 틀림·부분·힌트 후 정답 → 그 지식만 +1일부터 재시작, 미응답·도움 불명·설명 직후 확인 → 기록만 하고 날짜 유지. 마지막 회차 후 completed, 자동 연장 없음. 미래 회차 응답은 거부.
+- 시험 통과+확인 시 챕터에 연결된 지식이 자동 등록. 이미 일정이 있는 지식(다른 챕터에서 배움·완료됨)은 그대로 둠. 연결이 없으면 시험은 completed, 복습 연결만 대기.
+- 지식 병합 시 일정도 같은 변경에서 합침(진행 단계 승격 없음, 이른 예정일 유지, 흡수한 일정 스냅숏 보존). 병합 해제 시 원래 일정 복원.
+- 하루 양 제한 없음. 루트 `review/README.md`는 이름·예정일·회차만 표시하고 정답·명제는 넣지 않음.
+
 ## 고정 회차형 복습
+
+등록되지 않은 프로젝트의 기존 방식.
 
 - `/study-review`: 매 회차 STT/텍스트 선택 및 중간 전환. self-lecture는 실제 구두 설명 훈련, 텍스트 회상도 복습 회차 완료 가능.
 - 공통: 문서 없는 핵심 개념 회상 → 판정 → 필요한 보충. 회차별 강조점은 변경하되 같은 개념 반복 유지.
