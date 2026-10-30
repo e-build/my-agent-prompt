@@ -42,17 +42,17 @@ export function registerMapCommand(
   pi.on?.("session_start", (_event, ctx) => {
     if (ctx?.cwd) completionCwd = ctx.cwd;
   });
-  pi.registerCommand("study-map", {
-    description: "지식 지도를 브라우저로 열기 (지식 이름을 입력하면 그 주변만)",
+  pi.registerCommand("study-knowledge-graph", {
+    description: "공통 지식(명제) 그래프를 브라우저로 열기 — 지식 이름을 입력하면 그 주변만",
     getArgumentCompletions: (prefix: string) => mapCompletions(completionCwd, prefix),
     handler: async (args: string, ctx: ExtensionCommandContext) => {
       completionCwd = ctx.cwd;
       try {
         const url = await openKnowledgeMap(ctx.cwd, args, deps);
-        ctx.ui.notify(`지식 지도: ${url} (새로고침하려면 /study-map을 다시 실행)`, "info");
+        ctx.ui.notify(`지식 그래프: ${url} (새로고침하려면 /study-knowledge-graph를 다시 실행)`, "info");
       } catch (error) {
         // Map failures never affect stored learning progress.
-        ctx.ui.notify(`지식 지도를 열지 못했습니다: ${error instanceof Error ? error.message : String(error)}`, "warning");
+        ctx.ui.notify(`지식 그래프를 열지 못했습니다: ${error instanceof Error ? error.message : String(error)}`, "warning");
       }
     },
   });

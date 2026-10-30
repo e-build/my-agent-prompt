@@ -35,6 +35,7 @@ import { registerMapCommand } from "./src/knowledge/map-command.ts";
 import { createStudyWidget } from "./src/session/study-widget.ts";
 import { checkKnowledgeIntegrity } from "./src/knowledge/knowledge-integrity.ts";
 import { chapterReviewHooks } from "./src/review/chapter-review-start.ts";
+import { createRoadmapPanel } from "./src/session/roadmap-panel.ts";
 
 export default function (pi: ExtensionAPI) {
   const sessionStore = createStudySessions();
@@ -43,6 +44,7 @@ export default function (pi: ExtensionAPI) {
   const promptsDir = join(moduleDir, "prompts");
   const knowledgeMaps = createKnowledgeMapStore();
   const widget = createStudyWidget();
+  const roadmap = createRoadmapPanel();
 
   const routes = createStudyRoutes({
     pi,
@@ -101,6 +103,17 @@ export default function (pi: ExtensionAPI) {
   pi.on("turn_end", (_event, ctx) => {
     guard.onTurnEnd();
     if (ctx) void widget.refresh(ctx);
+    void roadmap.refresh();
+  });
+  pi.registerCommand("study-map", {
+    description: "현재 프로젝트 학습 로드맵을 오른쪽 패널로 켜기/끄기",
+    handler: async (_args, ctx) => {
+      try {
+        await roadmap.toggle(ctx);
+      } catch (error) {
+        ctx.ui.notify(`로드맵을 열지 못했습니다: ${error instanceof Error ? error.message : String(error)}`, "warning");
+      }
+    },
   });
 
   registerWorkspaceCommand(pi, [checkKnowledgeIntegrity]);

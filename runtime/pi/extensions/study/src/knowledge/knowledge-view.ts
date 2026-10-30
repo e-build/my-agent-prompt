@@ -189,7 +189,7 @@ export function renderKnowledgeMap(view: KnowledgeView): string {
     .join("");
   return `<!doctype html>
 <html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>지식 지도</title>
+<title>지식 그래프</title>
 <style>
 body{font-family:system-ui,-apple-system,sans-serif;margin:24px;color:#1d1d1f;background:#fafaf7}
 h1{font-size:20px} .legend span{margin-right:16px;font-size:13px}
@@ -200,10 +200,11 @@ rect{fill:#fff;stroke-width:2} rect.chapter{fill:#eef2f6}
 .junction{fill:#333} table{border-collapse:collapse;margin-top:16px;background:#fff;width:100%}
 td,th{border:1px solid #ddd;padding:6px 8px;font-size:13px;text-align:left}
 </style></head><body>
-<h1>지식 지도</h1>
+<h1>지식 그래프</h1>
+${knowledge.length ? "" : "<p><strong>아직 등록된 공통 지식이 없습니다.</strong> 개념 학습에서 교재 내용을 공통 지식으로 반영하면 여기에 명제와 추론 관계가 쌓입니다. 프로젝트의 챕터 흐름은 터미널에서 <code>/study-map</code>으로 보세요.</p>"}
 <p>읽기 전용. 기준일 ${escapeHtml(view.today)} · 지식 ${knowledge.length}개 · 추론 ${view.junctions.length}개. 내용·정답은 표시하지 않습니다. 수정은 Pi 대화로 요청하세요.</p>
 <p class="legend"><span>━ 추론(●=공동 전제)</span><span>┅ 선수 학습</span><span>─ 적용 챕터</span></p>
-<svg viewBox="0 0 ${width} ${height}" width="${width}" height="${height}" role="img" aria-label="지식 지도">
+<svg viewBox="0 0 ${width} ${height}" width="${width}" height="${height}" role="img" aria-label="지식 그래프">
 <defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#333"/></marker></defs>
 ${lines.join("\n")}
 ${boxes.join("\n")}

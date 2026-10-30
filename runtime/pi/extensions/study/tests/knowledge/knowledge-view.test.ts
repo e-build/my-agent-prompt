@@ -54,3 +54,10 @@ test("the rendered map escapes injected text and contains an SVG and a table", a
   assert.doesNotMatch(html, /https?:\/\/(?!127\.0\.0\.1)/);
   assert.doesNotMatch(html, /fetch\(|method:\s*"POST"/);
 });
+
+test("an empty knowledge base explains how knowledge is created and points to the roadmap", async (t) => {
+  const { workspaceFixture } = await import("../support/workspace-fixture.ts");
+  const html = renderKnowledgeMap(await buildKnowledgeView(await workspaceFixture(t), { today: "2026-10-05" }));
+  assert.match(html, /아직 등록된 공통 지식이 없습니다/);
+  assert.match(html, /\/study-map/);
+});

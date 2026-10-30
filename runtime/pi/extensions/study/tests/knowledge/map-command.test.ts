@@ -13,7 +13,7 @@ test("opens a read-only snapshot without writing study files", async (t) => {
   const url = await openKnowledgeMap(root, "", { store, startServer: async () => 4321, openBrowser: (u) => opened.push(u) });
   assert.match(url, /^http:\/\/127\.0\.0\.1:4321\/knowledge\/[a-f0-9]{16}$/);
   assert.deepEqual(opened, [url]);
-  assert.match(store.get(url.split("/").pop()!)!, /지식 지도/);
+  assert.match(store.get(url.split("/").pop()!)!, /지식 그래프/);
   assert.equal(await treeDigest(root), before);
 });
 
