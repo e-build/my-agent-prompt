@@ -88,6 +88,7 @@ export function buildTestGradingPrompt(session: TestSession, payload: unknown): 
 export function buildCurriculumReviewedPrompt(
   session: CurriculumSession,
   payload: unknown,
+  registration?: { status: string; root: string } | { error: string },
 ): string {
   const data = (payload && typeof payload === "object" ? payload : {}) as {
     nextChapter?: string;
@@ -103,10 +104,20 @@ export function buildCurriculumReviewedPrompt(
     `- nextChapter: ${data.nextChapter ?? "ch-01"}`,
   ];
   if (data.comment) lines.push(`- comment: ${data.comment}`);
+  if (registration && "error" in registration)
+    lines.push(`- studyRoot: 자동 등록 실패 — ${registration.error}`);
+  else if (registration)
+    lines.push(
+      `- studyRoot: ${registration.root} (${registration.status === "created" ? "새 study 루트로 등록" : registration.status === "joined" ? "기존 study 루트에 프로젝트 추가" : "이미 등록됨"})`,
+    );
   lines.push(
     "",
     "학습자가 브라우저에서 전체 학습 목차와 방향을 확인했습니다.",
-    "다음 단계로 ch-01 사전진단을 안내하세요.",
+    registration && !("error" in registration)
+      ? "프로젝트는 study 루트에 자동 등록됐습니다. 등록 명령을 따로 안내하지 마세요. 다음 단계로 ch-01 사전진단을 안내하세요."
+      : registration
+        ? "자동 등록에 실패했습니다. 실패 이유를 짧게 알리고, 공통 지식·통합 복습은 해결 후 사용할 수 있다고 안내하세요. 다음 단계로 ch-01 사전진단을 안내하세요."
+        : "다음 단계로 ch-01 사전진단을 안내하세요.",
     "종료 안내는 3줄 구조로 작성하세요: 완료 / 다음 / 실행.",
   );
   return lines.join("\n");

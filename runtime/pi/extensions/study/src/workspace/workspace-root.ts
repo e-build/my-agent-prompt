@@ -79,7 +79,7 @@ export async function requireWorkspace(cwd: string, explicitRoot?: string): Prom
   const workspace = await findWorkspaceRoot(cwd, explicitRoot);
   if (!workspace)
     throw new Error(
-      "등록된 study 루트를 찾지 못했습니다. `/study-workspace init <루트>`로 먼저 등록하세요.",
+      "등록된 study 루트를 찾지 못했습니다. /study-init으로 만든 프로젝트는 커리큘럼을 승인하면 자동 등록됩니다.",
     );
   return workspace;
 }

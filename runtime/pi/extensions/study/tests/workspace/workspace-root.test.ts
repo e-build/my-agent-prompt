@@ -34,7 +34,7 @@ test("discovery never creates or modifies files", async (t) => {
   const unregistered = await tempDir(t);
   const emptyBefore = await treeDigest(unregistered);
   assert.equal(await findWorkspaceRoot(unregistered), null);
-  await assert.rejects(requireWorkspace(unregistered), /study-workspace init/);
+  await assert.rejects(requireWorkspace(unregistered), /자동 등록/);
   assert.equal(await treeDigest(unregistered), emptyBefore);
 });
 

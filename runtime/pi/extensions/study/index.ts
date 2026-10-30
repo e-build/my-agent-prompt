@@ -23,7 +23,8 @@ import { registerCurriculumTool } from "./src/curriculum/curriculum-tool.ts";
 import { registerLabTools } from "./src/lab/lab-tools.ts";
 import { registerReviewTools } from "./src/review/review-tools.ts";
 import { registerPreflightTool } from "./src/lab/preflight-tool.ts";
-import { registerWorkspaceCommand } from "./src/workspace/workspace-command.ts";
+import { registerWorkspaceTools } from "./src/workspace/workspace-command.ts";
+import { registerApprovedProject } from "./src/workspace/auto-registration.ts";
 import { registerKnowledgeTools } from "./src/knowledge/knowledge-tools.ts";
 import { registerTextbookTools } from "./src/knowledge/textbook-tools.ts";
 import { registerQuestionTools } from "./src/evidence/question-tools.ts";
@@ -52,6 +53,7 @@ export default function (pi: ExtensionAPI) {
     updateProjectPhase,
     getPort: () => server.port,
     knowledgeMaps,
+    registerApprovedProject,
   });
   const server = createBrowserServer(routes, (port) =>
     pi.events.emit("study:server-started", { port }),
@@ -116,7 +118,7 @@ export default function (pi: ExtensionAPI) {
     },
   });
 
-  registerWorkspaceCommand(pi, [checkKnowledgeIntegrity]);
+  registerWorkspaceTools(pi, [checkKnowledgeIntegrity]);
   registerKnowledgeTools(pi, (root) => ({ extraChanges: (record) => reviewMergeChanges(root, record) }));
   registerTextbookTools(pi);
   registerQuestionTools(pi, { prepareOptions: diagnosisPrepareOptions, answerOptions: reviewAnswerOptions });

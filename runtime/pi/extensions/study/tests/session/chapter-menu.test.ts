@@ -106,3 +106,32 @@ test("a live HTML diagnosis is not offered for restart", async (t) => {
   await runStudyChapter({ sendUserMessage() {} } as any, "", ctx, { ...chapterReviewHooks(), hasLiveDiagnosis: () => true });
   assert.ok(!options.some((x) => x.includes("대화형 진단으로 다시")));
 });
+
+test("an interrupted save is offered first and finished from the menu", async (t) => {
+  const { root, projectRoot } = await setup(t);
+  const { preparePlan, executePlan, listPendingPlans } = await import("../../src/workspace/change-plan.ts");
+  const plan = await preparePlan(root, "r1", [{ path: "knowledge/x.md", after: "X" }]);
+  await assert.rejects(executePlan(root, plan, { failAfterWrites: 0 }), /failpoint/);
+  let first = "";
+  const { ctx, notices } = ui(projectRoot, [(o) => ((first = o[0]), o[0])]);
+  await runStudyChapter({ sendUserMessage() {} } as any, "", ctx, chapterReviewHooks());
+  assert.match(first, /중단된 저장 정리/);
+  assert.match(notices[0], /정리.*1/);
+  assert.deepEqual(await listPendingPlans(root), []);
+  const { readFile } = await import("node:fs/promises");
+  assert.equal(await readFile(join(root, "knowledge", "x.md"), "utf8"), "X");
+});
+
+test("an interrupted save touched by someone else is reported, not forced", async (t) => {
+  const { root, projectRoot } = await setup(t);
+  const { preparePlan, executePlan } = await import("../../src/workspace/change-plan.ts");
+  const { writeFile, mkdir } = await import("node:fs/promises");
+  const plan = await preparePlan(root, "r1", [{ path: "knowledge/x.md", after: "X" }]);
+  await assert.rejects(executePlan(root, plan, { failAfterWrites: 0 }), /failpoint/);
+  await mkdir(join(root, "knowledge"), { recursive: true });
+  await writeFile(join(root, "knowledge", "x.md"), "mine");
+  const { ctx, notices } = ui(projectRoot, [(o) => o[0]]);
+  await runStudyChapter({ sendUserMessage() {} } as any, "", ctx, chapterReviewHooks());
+  assert.match(notices[0], /외부 변경/);
+  assert.equal(await (await import("node:fs/promises")).readFile(join(root, "knowledge", "x.md"), "utf8"), "mine");
+});

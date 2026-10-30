@@ -66,7 +66,7 @@ for (const mode of ["passed", "failed", "missing-evidence", "navigation-warning"
   });
 }
 
-async function harness(t: TestContext) {
+async function harness(t: TestContext, extra: Record<string, unknown> = {}) {
   assert.equal(typeof api.createStudyRoutes, "function", "extract HTTP study routes");
   const { createBrowserServer } = await import("../../src/bridge/browser-server.ts");
   const root = await mkdtemp(join(tmpdir(), "study-routes-"));
@@ -99,6 +99,7 @@ async function harness(t: TestContext) {
       phases.push(args);
     },
     getPort: () => server.port,
+    ...extra,
   });
   const server = createBrowserServer(routes);
   const port = await server.start();
@@ -176,4 +177,22 @@ test("curriculum approval and revision retain their message contracts", async (t
   );
   assert.equal(h.curriculum.status, "revision_requested");
   assert.match(h.messages[1], /CURRICULUM_REVISION_REQUESTED/);
+});
+
+test("approving a curriculum registers the project and tells the agent", async (t) => {
+  const registered: string[] = [];
+  const h = await harness(t, {
+    registerApprovedProject: async (root: string) => (registered.push(root), { status: "joined", root: "/study", projectSlug: "study" }),
+  });
+  assert.equal((await h.request("/api/study-curriculum/c1/ack", "")).status, 200);
+  assert.deepEqual(registered, [h.curriculum.projectRoot]);
+  assert.match(h.messages.at(-1)!, /studyRoot: \/study \(기존 study 루트에 프로젝트 추가\)/);
+  assert.match(h.messages.at(-1)!, /등록 명령을 따로 안내하지/);
+});
+
+test("a registration failure still completes the approval", async (t) => {
+  const h = await harness(t, { registerApprovedProject: async () => { throw new Error("nested root"); } });
+  assert.equal((await h.request("/api/study-curriculum/c1/ack", "")).status, 200);
+  assert.equal(h.curriculum.status, "reviewed");
+  assert.match(h.messages.at(-1)!, /자동 등록 실패 — nested root/);
 });

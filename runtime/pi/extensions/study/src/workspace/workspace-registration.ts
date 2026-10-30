@@ -56,7 +56,10 @@ function parseProjectManifest(path: string, content: string): Record<string, unk
  * Read-only registration preview. Existing workspace/project IDs are reused;
  * only missing IDs, the root marker and the local gitignore entry are added.
  */
-export async function previewWorkspaceRegistration(rootInput: string): Promise<RegistrationPreview> {
+export async function previewWorkspaceRegistration(
+  rootInput: string,
+  options: { onlyProjects?: string[] } = {},
+): Promise<RegistrationPreview> {
   const root = resolve(rootInput);
   const existingWorkspace = await findWorkspaceRoot(root);
   if (existingWorkspace && existingWorkspace.root !== root)
@@ -65,7 +68,11 @@ export async function previewWorkspaceRegistration(rootInput: string): Promise<R
   const projects: WorkspaceProject[] = [...(existing?.projects ?? [])];
   const changes: PlannedChange[] = [];
 
-  for (const slug of await discoverProjects(root)) {
+  const discovered = await discoverProjects(root);
+  const targets = options.onlyProjects
+    ? [...new Set([...projects.map((p) => p.path), ...options.onlyProjects])].filter((slug) => discovered.includes(slug) || projects.some((p) => p.path === slug))
+    : discovered;
+  for (const slug of targets) {
     const path = join(root, slug, ".study", "project.json");
     const content = await readTextOptional(path);
     const current = content === null ? null : parseProjectManifest(path, content);

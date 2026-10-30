@@ -167,7 +167,7 @@ export async function executePlan(
     const pending = await listPendingPlans(root);
     if (pending.length)
       throw new Error(
-        `미완료 변경 계획이 있습니다. /study-workspace recover로 먼저 정리하세요: ${pending.map((p) => p.id).join(", ")}`,
+        `미완료 변경 계획이 있습니다. /study-chapter 메뉴의 “중단된 저장 정리”로 먼저 마무리하세요: ${pending.map((p) => p.id).join(", ")}`,
       );
     const targets: string[] = [];
     for (const change of plan.changes) {

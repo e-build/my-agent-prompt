@@ -1,31 +1,24 @@
-import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
-import { checkWorkspace, inspectWorkspace, type ExtraCheck } from "./workspace-actions.ts";
-import { runWorkspaceCommand, workspaceCompletions } from "./workspace-command-core.ts";
+import { checkWorkspace, inspectWorkspace, workspaceHealthNotice, type ExtraCheck } from "./workspace-actions.ts";
 import { requireWorkspace } from "./workspace-root.ts";
 
-export function registerWorkspaceCommand(pi: ExtensionAPI, extraChecks: ExtraCheck[] = []): void {
-  pi.registerCommand("study-workspace", {
-    description: "study 루트 관리 — 인자 없이 실행하면 메뉴 (등록·검사·복구·이전)",
-    getArgumentCompletions: (prefix: string) => workspaceCompletions(prefix),
-    handler: async (args: string, ctx: ExtensionCommandContext) => {
-      if (!ctx.isIdle()) {
-        ctx.ui.notify("현재 agent 응답이 끝난 뒤 다시 실행하세요.", "warning");
-        return;
-      }
-      try {
-        ctx.ui.notify(await runWorkspaceCommand(args, ctx, extraChecks), "info");
-      } catch (error) {
-        ctx.ui.notify(error instanceof Error ? error.message : String(error), "error");
-      }
-    },
+export function registerWorkspaceTools(pi: ExtensionAPI, extraChecks: ExtraCheck[] = []): void {
+  pi.on?.("session_start", async (_event, ctx) => {
+    if (!ctx?.hasUI) return;
+    try {
+      const notice = await workspaceHealthNotice(ctx.cwd, extraChecks);
+      if (notice) ctx.ui.notify(notice, "warning");
+    } catch (error) {
+      ctx.ui.notify(`study 루트를 읽지 못했습니다: ${error instanceof Error ? error.message : String(error)}`, "warning");
+    }
   });
 
   pi.registerTool({
     name: "study_workspace",
     label: "Study Workspace",
     description:
-      "study 루트 등록 상태(inspect)와 손상·미완료 변경(check)을 읽기 전용으로 확인합니다. 등록·복구는 사용자가 /study-workspace 명령으로만 수행합니다.",
+      "study 루트 등록 상태(inspect)와 손상·미완료 변경(check)을 읽기 전용으로 확인합니다. 등록은 커리큘럼 승인 시 자동으로, 중단된 저장 정리는 사용자가 /study-chapter 메뉴에서 합니다.",
     promptSnippet: "Inspect or check the registered study workspace without writing",
     parameters: Type.Object({
       action: Type.Union([Type.Literal("inspect"), Type.Literal("check")]),

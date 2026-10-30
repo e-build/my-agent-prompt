@@ -30,7 +30,7 @@ argument-hint: "<학습주제>"
 - 다른 프로젝트 신규 생성: 현재 프로젝트의 하위 폴더가 아니라 별도 루트를 명시적으로 확정한다.
 - 후보가 여러 개면 첫 프로젝트를 임의 선택하지 않는다. 대상을 확인한다.
 - 파일 생성 전 확정한 절대 `projectRoot`를 안내하고, 문서 생성과 `study_curriculum_open`에 같은 경로를 사용한다.
-- 공통 study 루트 확인: `study_workspace` action=inspect로 `projectRoot`의 상위에 등록된 study 루트(`.study/workspace.json`)가 있는지 읽기만 한다. 있으면 그 루트 바로 아래에 만들고, 생성 뒤 사용자에게 `/study-workspace init <루트>`로 새 프로젝트를 등록하도록 안내한다(등록은 사용자 명령으로만). 없으면 기존처럼 진행하되 공통 지식·통합 복습은 등록 후에 쓸 수 있다고 한 줄 안내한다. 루트를 임의로 만들거나 홈 전체를 탐색하지 않는다.
+- 공통 study 루트 확인: `study_workspace` action=inspect로 `projectRoot`의 상위에 등록된 study 루트(`.study/workspace.json`)가 있는지 읽기만 한다. 있으면 그 루트 바로 아래에 만든다. 학습자가 커리큘럼을 승인하면 extension이 프로젝트를 자동 등록한다(루트가 없으면 프로젝트의 상위 폴더가 루트가 됨). 등록 명령을 따로 안내하지 않는다. 홈 전체를 탐색하지 않는다.
 
 ## 2. 학습 설계 브리프 인터뷰
 
@@ -322,7 +322,7 @@ study-{slug}/
 4. 경로를 정할 수 있으면 바로 끝낸다. 최소 문항 수 없음, 기본 상한 8문항, 재개해도 상한은 그대로.
 5. `study_learning_route` finish_diagnosis로 종료 사유·학습 경로·미확인 범위를 저장한다.
 
-**전제 조건**: `study` extension 설치(`bash scripts/install-pi --restore` 후 `/reload`)와 등록된 study 루트. 루트가 없으면 `/study-workspace init <루트>` 등록을 먼저 안내한다. 기존 HTML 진단(`study_diagnosis_open`)은 이미 열린 과거 진단을 마칠 때만 쓴다.
+**전제 조건**: `study` extension 설치(`bash scripts/install-pi --restore` 후 `/reload`)와 등록된 study 루트. 루트 등록은 커리큘럼 승인 시 자동으로 된다. 기존 HTML 진단(`study_diagnosis_open`)은 이미 열린 과거 진단을 마칠 때만 쓴다.
 
 ## 9. 챕터 학습 플로우
 모든 챕터는 아래 순서로 진행한다:

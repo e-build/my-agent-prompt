@@ -17,12 +17,15 @@ import { corsHeaders, sendJson, readBody } from "./browser-server.ts";
 import type { StudySessions } from "../session/study-sessions.ts";
 import type { UpdateProjectPhase } from "../session/phase-state.ts";
 import { handleKnowledgeRoute, type KnowledgeMapStore } from "./knowledge-routes.ts";
+import type { AutoRegistration } from "../workspace/auto-registration.ts";
 
 type RouteDependencies = StudySessions & {
   pi: Pick<ExtensionAPI, "sendUserMessage">;
   updateProjectPhase: UpdateProjectPhase;
   getPort: () => number | null;
   knowledgeMaps?: KnowledgeMapStore;
+  /** Approving a curriculum registers the project in its study root. */
+  registerApprovedProject?: (projectRoot: string) => Promise<AutoRegistration>;
 };
 
 export function createStudyRoutes({
@@ -33,6 +36,7 @@ export function createStudyRoutes({
   updateProjectPhase,
   getPort,
   knowledgeMaps,
+  registerApprovedProject,
 }: RouteDependencies) {
   async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise<void> {
     // CORS preflight — same-origin normally, but allow fetch from file:// fallback.
@@ -94,9 +98,17 @@ export function createStudyRoutes({
         }
       }
       session.status = "reviewed";
+      let registration: AutoRegistration | { error: string } | undefined;
+      if (registerApprovedProject) {
+        try {
+          registration = await registerApprovedProject(session.projectRoot);
+        } catch (error) {
+          registration = { error: error instanceof Error ? error.message : String(error) };
+        }
+      }
       deliverToAgent(
         pi,
-        buildCurriculumReviewedPrompt(session, payload),
+        buildCurriculumReviewedPrompt(session, payload, registration),
         "curriculum reviewed signal",
       );
       return sendJson(res, 200, {

@@ -152,6 +152,9 @@ export type ChapterCommandHooks = {
   startReview?: (projectRoot: string, chapterSlug: string) => Promise<string>;
   restartDiagnosis?: (projectRoot: string, chapterSlug: string) => Promise<void>;
   isRegistered?: (projectRoot: string) => Promise<boolean>;
+  /** Interrupted multi-file saves waiting in the study root. */
+  pendingSaves?: (projectRoot: string) => Promise<number>;
+  recoverSaves?: (projectRoot: string) => Promise<string>;
 };
 
 /**
@@ -172,7 +175,9 @@ export async function runStudyChapter(
   const catalog = await readChapterCatalog(projectRoot);
   if (!catalog.chapters.length) throw new Error("학습 챕터가 없습니다.");
   const registered = (await hooks.isRegistered?.(projectRoot)) ?? false;
+  const pendingSaves = registered ? ((await hooks.pendingSaves?.(projectRoot)) ?? 0) : 0;
   const menu = buildChapterMenu(catalog, {
+    pendingSaves,
     registered: registered && !!hooks.startReview,
     staleDiagnosis: (slug) =>
       !!hooks.restartDiagnosis &&
@@ -213,6 +218,10 @@ async function runMenuAction(
     const phase = order[labels.indexOf(choice ?? "")];
     if (!phase) return;
     await openTarget(pi, await resolveStudyChapterTarget(projectRoot, `${chapter.slug} ${phase}`), hooks);
+    return;
+  }
+  if (action.type === "recover-saves") {
+    ctx.ui.notify(await hooks.recoverSaves!(projectRoot), "info");
     return;
   }
   if (action.type === "start-review") {

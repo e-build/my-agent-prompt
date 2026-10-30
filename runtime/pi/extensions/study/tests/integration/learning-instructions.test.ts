@@ -58,7 +58,8 @@ test("study-init no longer prescribes HTML diagnosis or the old review cadence",
   const text = await read("prompts/study-init.md");
   assert.match(text, /사전진단 — Pi 대화/);
   assert.match(text, /study_workspace/);
-  assert.match(text, /\/study-workspace init/);
+  assert.match(text, /자동 등록/);
+  assert.doesNotMatch(text, /\/study-workspace/);
   assert.doesNotMatch(text, /최소 10문항|3일\/1주\/2주|blank-recall\.md/);
   assert.doesNotMatch(text, /diagnosis\.html      # study_diagnosis_open/);
 });

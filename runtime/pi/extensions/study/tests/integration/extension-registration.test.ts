@@ -89,7 +89,6 @@ test(
       "study-checkpoint",
       "study-knowledge-graph",
       "study-map",
-      "study-workspace",
     ]);
     const resources = await h.events.get("resources_discover")![0]();
     assert.match(resources.promptPaths[0], /study\/prompts$/);
@@ -295,9 +294,6 @@ test(
     assert.match(ws.content[0].text, /검사 통과/);
     const next = await call("study_review_next", {});
     assert.match(next.content[0].text, /오늘 할 복습 없음/);
-    const notices: string[] = [];
-    await h.commands.get("study-workspace").handler("check", { cwd, hasUI: false, isIdle: () => true, ui: { notify: (m: string) => notices.push(m), confirm: async () => false } });
-    assert.match(notices[0], /검사 통과/);
     await h.emit("session_shutdown");
   },
 );

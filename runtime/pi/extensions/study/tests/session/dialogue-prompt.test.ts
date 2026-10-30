@@ -29,7 +29,8 @@ test("a finished diagnosis reports its route and unverified areas", () => {
 
 test("unregistered projects are told to register instead of silently falling back", () => {
   const text = buildDialogueStatus({ registered: false });
-  assert.match(text, /study-workspace init/);
+  assert.match(text, /자동 등록/);
+  assert.doesNotMatch(text, /study-workspace/);
   assert.doesNotMatch(text, /study_diagnosis_open/);
 });
 

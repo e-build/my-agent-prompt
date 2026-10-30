@@ -9,7 +9,7 @@ export function buildDialogueStatus(
       "## 대화형 진단 상태",
       "",
       "- 이 프로젝트는 등록된 study 루트에 속하지 않아 대화형 진단 기록(질문·응답·근거)을 저장할 수 없습니다.",
-      "- 사용자에게 `/study-workspace init <루트>`로 루트를 등록할지 묻고, 등록 전에는 진단 결과를 이해 완료로 기록하지 마세요.",
+      "- 이 프로젝트는 아직 등록되지 않았습니다(/study-init 커리큘럼 승인 시 자동 등록). 등록 전에는 진단 결과를 이해 완료로 기록하지 마세요.",
     ].join("\n");
   const { run, projectSlug } = args;
   if (!run)

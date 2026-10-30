@@ -43,7 +43,7 @@ async function bindings(root: string): Promise<Array<ChapterBinding & { projectS
       try {
         result.push({ ...JSON.parse(await readFile(join(dir, name), "utf8")), projectSlug: project.slug });
       } catch {
-        /* a corrupt binding is reported by /study-workspace check, not by the map */
+        /* a corrupt binding is reported by the session-start workspace check, not by the map */
       }
     }
   }

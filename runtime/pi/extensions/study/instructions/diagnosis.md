@@ -8,6 +8,6 @@
 - 설명 요청·중단·건너뛰기를 허용한다. 설명을 요청하면 설명하고, 미응답·건너뛴 부분은 미확인으로 남기며 이해 완료로 처리하지 않는다.
 - 종료는 `study_learning_route` action=finish_diagnosis. reason은 route_decided(경로 결정)·limit_reached(상한 도달)·user_request(사용자 요청) 중 실제 사유, route에 시작점·집중·생략, unverified에 미확인 범위를 넣는다.
 - 아직 확정되지 않은(uncertain) 지식은 채점 질문에 쓰지 않는다. 필요하면 비채점 질문(scored=false)으로 생각만 확인한다.
-- 등록된 study 루트가 없으면 사용자에게 `/study-workspace init <루트>` 등록 여부를 먼저 묻고, 진단 결과를 임의로 저장하거나 완료 처리하지 않는다.
+- 등록된 study 루트가 없으면(커리큘럼 승인 전에 만든 프로젝트) 진단 결과를 임의로 저장하거나 완료 처리하지 않는다. 등록은 /study-init 커리큘럼 승인 시 자동으로 된다.
 - 기존 HTML 진단(`study_diagnosis_open`)은 이미 열려 있거나 제출·채점 대기 중인 과거 진단을 마칠 때만 사용한다. 새 진단에는 쓰지 않는다.
 - 진단이 끝나면 경로를 짧게 요약하고 개념 학습으로 넘어간다.

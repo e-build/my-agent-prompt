@@ -2,11 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import {
-  checkWorkspace,
-  inspectWorkspace,
-  parseWorkspaceCommand,
-} from "../../src/workspace/workspace-actions.ts";
+import { checkWorkspace, inspectWorkspace } from "../../src/workspace/workspace-actions.ts";
 import { executePlan, preparePlan } from "../../src/workspace/change-plan.ts";
 import { tempDir, treeDigest, workspaceFixture } from "../support/workspace-fixture.ts";
 
@@ -22,7 +18,7 @@ test("inspect reports registration state without writing", async (t) => {
   const empty = await tempDir(t);
   const none = await inspectWorkspace(empty);
   assert.equal(none.registered, false);
-  assert.match(none.message, /study-workspace init/);
+  assert.match(none.message, /자동 등록/);
 });
 
 test("check reports missing projects and pending plans", async (t) => {
@@ -41,49 +37,6 @@ test("check reports missing projects and pending plans", async (t) => {
   assert.match(issues, /미완료 변경/);
 });
 
-test("parses command arguments", () => {
-  assert.deepEqual(parseWorkspaceCommand(""), { action: "inspect" });
-  assert.deepEqual(parseWorkspaceCommand("init ~/study"), { action: "init", root: "~/study" });
-  assert.deepEqual(parseWorkspaceCommand("recover rollback"), { action: "recover", mode: "rollback" });
-  assert.deepEqual(parseWorkspaceCommand("recover"), { action: "recover", mode: "retry" });
-  assert.deepEqual(parseWorkspaceCommand("check"), { action: "check" });
-  assert.throws(() => parseWorkspaceCommand("nuke"), /inspect\|init/);
-});
-
-test("init requires explicit confirmation and declining writes nothing", async (t) => {
-  const { runWorkspaceCommand } = await import("../../src/workspace/workspace-command-core.ts");
-  const root = await tempDir(t);
-  await mkdir(join(root, "study-alpha", "ch-01-a"), { recursive: true });
-  const before = await treeDigest(root);
-  const declined = await runWorkspaceCommand(`init ${root}`, {
-    cwd: root,
-    hasUI: true,
-    isIdle: () => true,
-    ui: { notify() {}, confirm: async () => false },
-  } as any);
-  assert.match(declined, /취소/);
-  assert.equal(await treeDigest(root), before);
-
-  const headless = await runWorkspaceCommand(`init ${root}`, {
-    cwd: root,
-    hasUI: false,
-    isIdle: () => true,
-    ui: { notify() {}, confirm: async () => true },
-  } as any);
-  const digest = headless.match(/--confirm (\w+)/)![1];
-  assert.equal(await treeDigest(root), before);
-  await runWorkspaceCommand(`init ${root} --confirm wrong`, { cwd: root, hasUI: false, isIdle: () => true, ui: { notify() {}, confirm: async () => true } } as any);
-  assert.equal(await treeDigest(root), before);
-  const applied = await runWorkspaceCommand(`init ${root} --confirm ${digest}`, {
-    cwd: root,
-    hasUI: false,
-    isIdle: () => true,
-    ui: { notify() {}, confirm: async () => true },
-  } as any);
-  assert.match(applied, /committed/);
-  assert.equal((await inspectWorkspace(root)).registered, true);
-});
-
 test("check flags project manifests whose slug or ID disagree with the registration", async (t) => {
   const root = await workspaceFixture(t);
   const path = join(root, "study-alpha", ".study", "project.json");
@@ -95,27 +48,13 @@ test("check flags project manifests whose slug or ID disagree with the registrat
   assert.match((await checkWorkspace(root)).issues.join("\n"), /손상/);
 });
 
-test("workspace subcommands complete with Korean descriptions", async () => {
-  const { workspaceCompletions } = await import("../../src/workspace/workspace-command-core.ts");
-  const all = workspaceCompletions("")!;
-  assert.deepEqual(all.map((c) => c.value), ["inspect", "check", "init", "recover", "migrate"]);
-  assert.ok(all.every((c) => c.description && /[가-힣]/.test(c.description)));
-  assert.deepEqual(workspaceCompletions("re")!.map((c) => c.value), ["recover"]);
-  assert.deepEqual(workspaceCompletions("recover ")!.map((c) => c.value), ["recover retry", "recover rollback"]);
-  assert.deepEqual(workspaceCompletions("migrate ")!.map((c) => c.value), ["migrate preview", "migrate apply", "migrate undo"]);
-  assert.equal(workspaceCompletions("zzz"), null);
-});
 
-test("no arguments with UI shows a short menu instead of requiring a subcommand", async (t) => {
-  const { runWorkspaceCommand } = await import("../../src/workspace/workspace-command-core.ts");
+test("the session-start notice is silent when healthy and lists problems otherwise", async (t) => {
+  const { workspaceHealthNotice } = await import("../../src/workspace/workspace-actions.ts");
   const root = await workspaceFixture(t);
-  let shown: string[] = [];
-  const result = await runWorkspaceCommand("", {
-    cwd: root,
-    hasUI: true,
-    isIdle: () => true,
-    ui: { notify() {}, confirm: async () => false, select: async (_t: string, o: string[]) => ((shown = o), o.find((x) => x.startsWith("검사"))) },
-  } as any);
-  assert.ok(shown.length >= 3 && shown.length <= 5);
-  assert.match(result, /검사 통과/);
+  assert.equal(await workspaceHealthNotice(root), null);
+  assert.equal(await workspaceHealthNotice(await tempDir(t)), null);
+  const plan = await preparePlan(root, "r1", [{ path: "knowledge/a.md", after: "A" }]);
+  await assert.rejects(executePlan(root, plan, { failAfterWrites: 0 }), /failpoint/);
+  assert.match((await workspaceHealthNotice(root))!, /중단된 저장 정리/);
 });

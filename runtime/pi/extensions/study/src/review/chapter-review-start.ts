@@ -4,6 +4,8 @@ import { loadStudyState, updatePhaseState } from "../session/study-state.ts";
 import type { ChapterCommandHooks } from "../session/study-command.ts";
 import { registerChapterReviews } from "./chapter-review-registration.ts";
 import { addCalendarDays, localDate } from "./review-date.ts";
+import { listPendingPlans } from "../workspace/change-plan.ts";
+import { recoverAll } from "../workspace/recovery.ts";
 
 async function workspaceProject(projectRoot: string) {
   const workspace = await findWorkspaceRoot(projectRoot).catch(() => null);
@@ -18,7 +20,7 @@ async function workspaceProject(projectRoot: string) {
  */
 export async function startChapterReview(projectRoot: string, chapterSlug: string, now = () => new Date()): Promise<string> {
   const found = await workspaceProject(projectRoot);
-  if (!found) return "등록된 study 루트가 아니어서 통합 복습을 시작할 수 없습니다. /study-workspace init 후 다시 시도하세요.";
+  if (!found) return "등록된 study 루트가 아니어서 통합 복습을 시작할 수 없습니다. /study-init으로 프로젝트를 만들고 커리큘럼을 승인하면 자동 등록됩니다.";
   const { workspace, project } = found;
   const today = localDate(now(), workspace.manifest.timezone);
   let created: string[];
@@ -59,5 +61,20 @@ export function chapterReviewHooks(now?: () => Date): Omit<ChapterCommandHooks, 
     isRegistered: async (projectRoot) => !!(await workspaceProject(projectRoot)),
     startReview: (projectRoot, chapterSlug) => startChapterReview(projectRoot, chapterSlug, now),
     restartDiagnosis: restartStaleDiagnosis,
+    pendingSaves: async (projectRoot) => {
+      const found = await workspaceProject(projectRoot);
+      return found ? (await listPendingPlans(found.workspace.root)).length : 0;
+    },
+    recoverSaves: async (projectRoot) => {
+      const found = await workspaceProject(projectRoot);
+      if (!found) return "등록된 study 루트가 아닙니다.";
+      const results = await recoverAll(found.workspace.root, "retry");
+      const done = results.filter((r) => r.status === "committed").length;
+      const conflicts = results.filter((r) => r.status === "conflict");
+      return [
+        `중단된 저장 정리: ${done}건 마저 저장`,
+        ...conflicts.map((c) => `- 보류: ${"message" in c ? c.message : c.planId}`),
+      ].join("\n");
+    },
   };
 }

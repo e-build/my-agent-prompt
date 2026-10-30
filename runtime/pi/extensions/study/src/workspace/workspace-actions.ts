@@ -1,5 +1,4 @@
 import { stat } from "node:fs/promises";
-import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import { listPendingPlans } from "./change-plan.ts";
 import { inspectRecovery } from "./recovery.ts";
@@ -49,7 +48,7 @@ export async function inspectWorkspace(
     return {
       registered: false,
       message:
-        "등록된 study 루트가 없습니다. 기존 기능은 그대로 쓸 수 있고, 공통 지식·통합 복습을 쓰려면 사용자가 `/study-workspace init <루트>`로 등록해야 합니다.",
+        "등록된 study 루트가 없습니다. 기존 기능은 그대로 쓸 수 있고, 공통 지식·통합 복습은 /study-init의 커리큘럼 승인 시 자동 등록된 뒤 사용할 수 있습니다.",
     };
   const pending = await listPendingPlans(workspace.root);
   return {
@@ -93,37 +92,23 @@ export async function checkWorkspace(
   return { root: workspace.root, issues };
 }
 
-export type WorkspaceCommand =
-  | { action: "inspect" }
-  | { action: "check" }
-  | { action: "init"; root: string }
-  | { action: "recover"; mode: "retry" | "rollback" }
-  | { action: "migrate"; step: "preview"; root: string }
-  | { action: "migrate"; step: "apply"; root: string; digest: string }
-  | { action: "migrate"; step: "undo"; root: string; migrationId: string };
-
-export function parseWorkspaceCommand(args: string): WorkspaceCommand {
-  const [action = "inspect", value, third, fourth] = args.trim().split(/\s+/).filter(Boolean);
-  if (action === "inspect") return { action };
-  if (action === "check") return { action };
-  if (action === "init") return { action, root: value ?? "." };
-  if (action === "recover") {
-    if (value && value !== "retry" && value !== "rollback")
-      throw new Error("recover 방식은 retry 또는 rollback입니다.");
-    return { action, mode: (value as "retry" | "rollback") ?? "retry" };
-  }
-  if (action === "migrate") {
-    const step = value ?? "preview";
-    if (step === "preview") return { action, step, root: third ?? "." };
-    if (step === "apply" && third) return { action, step, digest: third, root: fourth ?? "." };
-    if (step === "undo" && third) return { action, step, migrationId: third, root: fourth ?? "." };
-    throw new Error("사용법: /study-workspace migrate preview [루트] | apply <digest> [루트] | undo <migrationId> [루트]");
-  }
-  throw new Error("사용법: /study-workspace inspect|init <루트>|check|recover [retry|rollback]|migrate preview|apply|undo");
-}
-
-export function expandRoot(cwd: string, value: string): string {
-  if (value === "~") return homedir();
-  if (value.startsWith("~/")) return join(homedir(), value.slice(2));
-  return resolve(cwd, value);
+/**
+ * Background health check at session start. Registration happens on
+ * curriculum approval and recovery is offered in the /study-chapter menu, so
+ * there is no user-facing workspace command; problems surface here instead.
+ */
+export async function workspaceHealthNotice(cwd: string, extraChecks: ExtraCheck[] = []): Promise<string | null> {
+  const workspace = await findWorkspaceRoot(cwd);
+  if (!workspace) return null;
+  const { issues } = await checkWorkspace(workspace.root, extraChecks);
+  if (!issues.length) return null;
+  const pending = issues.filter((i) => i.startsWith("미완료 변경 계획")).length;
+  return [
+    `study 루트 점검: 문제 ${issues.length}건`,
+    ...issues.slice(0, 3).map((i) => `- ${i}`),
+    ...(issues.length > 3 ? [`- … 외 ${issues.length - 3}건`] : []),
+    pending ? "중단된 저장은 /study-chapter 메뉴의 “중단된 저장 정리”로 마무리할 수 있습니다." : "",
+  ]
+    .filter(Boolean)
+    .join("\n");
 }

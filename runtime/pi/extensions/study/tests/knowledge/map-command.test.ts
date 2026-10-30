@@ -21,7 +21,7 @@ test("an unregistered directory reports registration instead of opening", async 
   const dir = await tempDir(t);
   await assert.rejects(
     openKnowledgeMap(dir, "", { store: createKnowledgeMapStore(), startServer: async () => 1, openBrowser: () => assert.fail() }),
-    /study-workspace init/,
+    /자동 등록/,
   );
 });
 

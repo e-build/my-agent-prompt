@@ -20,7 +20,7 @@
 
 ## 명령 한눈에
 
-명령은 7개. 인자를 외울 필요 없이 **인자 없이 실행하면 메뉴**, 스페이스를 치면 **자동완성 목록**이 뜬다.
+명령은 6개. 인자를 외울 필요 없이 **인자 없이 실행하면 메뉴**, 스페이스를 치면 **자동완성 목록**이 뜬다.
 
 | 명령 | 언제 | 인자 없이 | 자동완성 |
 |---|---|---|---|
@@ -30,7 +30,6 @@
 | `/study-map` | 현재 프로젝트 학습 로드맵 | 터미널 오른쪽 패널 켜기/끄기 | — |
 | `/study-knowledge-graph` | 여러 프로젝트의 공통 지식(명제) 그래프 | 브라우저로 전체 그래프 | 지식 이름 → 그 주변만 |
 | `/study-init` | 새 학습 프로젝트 | — | — |
-| `/study-workspace` | 루트 등록·검사·복구 (가끔) | 메뉴: 상태·검사·복구·이전 미리 보기 | 하위 명령과 설명 |
 
 화면 위젯 마지막 줄에 `메뉴: /study-chapter`가 항상 보인다.
 
@@ -107,13 +106,12 @@ study/
 
 ## study 루트와 공통 지식
 
-여러 학습 프로젝트가 공통 지식과 복습을 함께 쓰려면 study 루트를 **사용자가 직접** 등록한다. 등록 전에는 기존 기능(HTML 시험·lab·고정 회차형 복습)이 그대로 동작하고, 새 공통 기능은 등록을 안내한다.
+여러 학습 프로젝트가 공통 지식과 복습을 함께 쓰도록 study 루트에 등록한다. **등록은 자동:** `/study-init`의 커리큘럼 미리보기에서 “이 방향으로 시작”을 누르는 것이 동의다. 상위에 등록된 루트가 있으면 그 루트에 프로젝트를 추가하고, 없으면 프로젝트의 상위 폴더를 루트로 등록한다. 승인한 그 프로젝트만 추가하며 다른 미등록 폴더는 건드리지 않는다. 등록 전 프로젝트는 기존 기능(HTML 시험·lab·고정 회차형 복습)이 그대로 동작한다.
 
 ```text
 <study 루트>/
 ├── .study/workspace.json      # 루트 표시: workspaceId, timezone(기본 Asia/Seoul), 복습 간격, 프로젝트(상대 경로)
 ├── .study/local/              # PC 전용(.gitignore): pending 변경 계획, locks, applied 기록
-├── .study/migrations/         # 기존 기록 이전 기록(되돌리기용)
 ├── knowledge/items/k-*.md     # 명제 하나당 파일: JSON 메타 + 설명 본문
 ├── knowledge/history/k-*.jsonl# 버전별 전체 스냅숏·이유 (추가만)
 ├── knowledge/changes/*.json   # 변경 기록 (멱등 재시도·undo)
@@ -123,14 +121,14 @@ study/
 └── study-*/.study/            # project.json(projectId), bindings/, dialogue/, links/
 ```
 
-- `/study-workspace inspect|init <루트>|check|recover [retry|rollback]|migrate preview|apply <digest>|undo <id>`: 쓰기 동작은 미리 보기 후 확인(UI 확인 또는 `--confirm <digest>`)이 있어야 실행.
-- 여러 파일을 바꾸는 작업은 모두 변경 계획(전·후 내용 저장) → 파일별 hash 비교·원자적 교체 → 완료 순서. 중단되면 `recover`로 마저 적용하거나 되돌리며, 그 사이 다른 곳에서 바뀐 파일은 건드리지 않는다.
+- 점검은 세션 시작 때 자동. 문제(깨진 연결·Git 충돌 표시·중단된 저장)가 있을 때만 알림. 중단된 저장은 `/study-chapter` 메뉴 맨 위 “중단된 저장 정리”로 마무리(다른 곳에서 바뀐 파일은 건드리지 않고 보류 보고)
+- 여러 파일을 바꾸는 작업은 모두 변경 계획(전·후 내용 저장) → 파일별 hash 비교·원자적 교체 → 완료 순서. 중단되면 “중단된 저장 정리”로 마저 적용하며, 그 사이 다른 곳에서 바뀐 파일은 건드리지 않는다.
 - 루트 공통 쓰기는 `.study/`, `knowledge/`, `review/`만. 프로젝트 쓰기는 등록된 프로젝트 안만. `..`·절대 경로·심볼릭 링크 경유 거부.
 - 손상된 `state.json`/`project.json`/`workspace.json`은 다시 만들지 않고 오류로 알린다. `state.json`의 알 수 없는 필드와 과거 절대 `projectRoot`는 그대로 보존한다.
 
 도구:
 
-- `study_workspace`: 등록 상태 확인(inspect)·검사(check), 읽기 전용
+- `study_workspace`: (agent용) 등록 상태 확인(inspect)·검사(check), 읽기 전용
 - `study_knowledge`: 공통 지식 조회(query, 기본은 이름·상태만)·변경(apply: create/add_expression/revise/set_status/merge/unmerge/undo/add_chain/retire_chain). changeId·reason·기대 revision 필수
 - `study_textbook_refresh`: 챕터-지식 연결(bindingJson) 저장 후 README의 `<!-- study:knowledge ... -->` 관리 영역만 갱신. 직접 고친 영역은 보류·차이 보고
 - `study_question_prepare`: 비공개 채점 기준을 먼저 저장하고 공개 질문만 반환
@@ -145,7 +143,7 @@ study/
 기존 이름은 유지하되 prompt가 아니라 `registerCommand("study-chapter")`로 실행한다.
 
 ```text
-/study-chapter                  → 메뉴: 이어서 / 다른 단계 / 챕터 고르기 / 복습 시작 / 멈춘 진단 다시
+/study-chapter                  → 메뉴: (중단된 저장 정리) / 이어서 / 다른 단계 / 챕터 고르기 / 복습 시작 / 멈춘 진단 다시
 /study-chapter 01 개념          → 바로 이동 (단계: 진단·개념·실습·시험·복습, 영문도 가능)
 /study-chapter ␣                → 자동완성: 챕터 제목·현재 상태, 다음 단계 표시
 → .study/state.json 로드 또는 기존 markdown migration
