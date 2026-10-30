@@ -32,7 +32,7 @@ bash scripts/install-skills
 python3 scripts/sync-external-skills
 
 # 특정 외부 저장소만 명시적으로 최신화
-python3 scripts/sync-external-skills --update im-not-ai
+python3 scripts/sync-external-skills --update diagram-design
 
 # 도구별 자원 설치 (외부 스킬 설치·갱신은 수행하지 않음)
 bash scripts/install-pi --restore --copy-config
@@ -52,9 +52,9 @@ bash scripts/install-opencode
 ```text
 이 GitHub 스킬을 외부 사용 목록에 등록만 해줘: <URL>. 원본 복사 없이 참조로 관리해줘.
 
-등록된 im-not-ai 외부 스킬을 설치해줘. 기존 원본 업데이트는 하지 마.
+등록된 diagram-design 외부 스킬을 설치해줘. 기존 원본 업데이트는 하지 마.
 
-im-not-ai 외부 스킬을 최신 main으로 업데이트하고 전후 커밋과 링크 상태를 알려줘.
+diagram-design 외부 스킬을 최신 main으로 업데이트하고 전후 커밋과 링크 상태를 알려줘.
 
 외부 스킬 사용 목록과 설치 상태만 확인해줘. 설치나 업데이트는 하지 마.
 ```

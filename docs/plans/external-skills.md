@@ -25,9 +25,8 @@
    - Git clone 및 fast-forward-only update.
    - 원격 URL·브랜치 확인, 로컬 변경 거부, 안전한 링크 생성.
    - upstream 설치 스크립트 실행·원본 수정·자동 업데이트 없음.
-3. `resources/external-skills.json`에 `epoko77-ai/im-not-ai`의 `main` 등록.
-   - 분류: `writing`.
-   - 선택: `humanize`, `humanize-korean`, `humanize-redo`, `humanize-scan`.
+3. `resources/external-skills.json`에 외부 저장소 URL·추적 브랜치·분류·선택 스킬 경로 등록.
+   - 구체적인 설치 대상은 과거 계획이 아닌 현재 사용 목록 기준.
 4. `resources/external-skills.md`에 관리 계약·사용법·런타임 호환성 주의사항 기록.
    - `AGENTS.md`에는 관리 경계와 설치 명령만 추가.
 
@@ -46,7 +45,7 @@
 - `scripts/sync-external-skills`: 최초 클론·선택 링크·명시적 업데이트 및 보호 규칙 구현 완료.
 - `scripts/tests/test-sync-external-skills.py`: 로컬 Git fixture 테스트 12개 통과.
 - `bash scripts/check-resources --quiet`: 기존 자원 구조 검사 통과.
-- 사용자 전역 경로 설치 및 `im-not-ai`의 실제 윤문 실행: 이 구현 작업에서는 수행하지 않음. 이후 요청 시 로컬 상태를 재확인하고 별도 검증 필요.
+- 사용자 전역 경로 설치 및 외부 스킬의 실제 실행: 이 구현 작업에서는 수행하지 않음. 이후 요청 시 로컬 상태를 재확인하고 별도 검증 필요.
 
 새 세션의 운영 기준은 이 계획이 아니라 [외부 스킬 관리](../../resources/external-skills.md)와 [사용 목록](../../resources/external-skills.json). 빠른 시작은 [루트 README](../../README.md), 에이전트 요청 처리 기준은 [AGENTS.md](../../AGENTS.md#외부-스킬-요청-처리) 참고.
 

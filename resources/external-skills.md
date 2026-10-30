@@ -41,13 +41,13 @@
 |------|-----------|-----------|
 | 새 외부 스킬 등록 | `이 GitHub 스킬을 외부 사용 목록에 추가해줘: <URL>. 원본 복사 없이 참조 방식으로 관리하고, 등록만 해줘.` | upstream 구조 확인 후 JSON 수정. 전역 설치 없음 |
 | 등록과 최초 설치 | `<URL>의 <스킬 이름>을 writing 분류로 외부 사용 목록에 추가하고 설치해줘.` | 목록 등록 후 해당 source 동기화. 기존 클론 갱신 없음 |
-| 기존 목록 설치 | `등록된 im-not-ai 외부 스킬을 설치해줘. 기존 원본은 업데이트하지 마.` | `python3 scripts/sync-external-skills im-not-ai` |
-| 특정 upstream 갱신 | `im-not-ai 외부 스킬을 최신 main으로 업데이트하고 전후 커밋과 링크 상태를 알려줘.` | `python3 scripts/sync-external-skills --update im-not-ai` |
+| 기존 목록 설치 | `등록된 diagram-design 외부 스킬을 설치해줘. 기존 원본은 업데이트하지 마.` | `python3 scripts/sync-external-skills diagram-design` |
+| 특정 upstream 갱신 | `diagram-design 외부 스킬을 최신 main으로 업데이트하고 전후 커밋과 링크 상태를 알려줘.` | `python3 scripts/sync-external-skills --update diagram-design` |
 | 전체 갱신 | `사용 목록에 등록된 외부 스킬을 모두 업데이트해줘.` | `python3 scripts/sync-external-skills --update` |
 | 상태 확인만 | `외부 스킬 사용 목록과 로컬 설치 상태를 확인해줘. 설치나 업데이트는 하지 마.` | JSON·클론·링크 읽기만 수행 |
-| 실행 확인 | `설치된 humanize-korean을 이 에이전트에서 실제로 실행 가능한지 확인해줘.` | 원본 지침·런타임 의존성 확인 및 실행 검증. 설치 성공과 구분 |
+| 실행 확인 | `설치된 diagram-design을 이 에이전트에서 실제로 실행 가능한지 확인해줘.` | 원본 지침·런타임 의존성 확인 및 실행 검증. 설치 성공과 구분 |
 
-외부 스킬을 **관리**하는 요청과 해당 스킬을 **사용**하는 요청은 별개. 설치·발견 상태 확인 후 `humanize-scan으로 이 글을 점검해줘`처럼 원본 스킬 이름으로 사용 요청 가능. 관리용 slash command는 만들지 않았으며, 위 문장은 에이전트에게 보내는 자연어 요청 예시.
+외부 스킬을 **관리**하는 요청과 해당 스킬을 **사용**하는 요청은 별개. 설치·발견 상태 확인 후 `diagram-design으로 아키텍처 다이어그램을 만들어줘`처럼 원본 스킬 이름으로 사용 요청 가능. 관리용 slash command는 만들지 않았으며, 위 문장은 에이전트에게 보내는 자연어 요청 예시.
 
 ## 에이전트 처리 절차
 
@@ -74,10 +74,10 @@ Git과 Python 3 필요. 저장소 루트에서 실행. 명령의 정본은 [sync
 python3 scripts/sync-external-skills
 
 # 특정 저장소만 설치
-python3 scripts/sync-external-skills im-not-ai
+python3 scripts/sync-external-skills diagram-design
 
 # 명시적 업데이트: 등록된 브랜치로 fetch + fast-forward
-python3 scripts/sync-external-skills --update im-not-ai
+python3 scripts/sync-external-skills --update diagram-design
 
 # 전체 upstream 업데이트
 python3 scripts/sync-external-skills --update
@@ -86,7 +86,7 @@ python3 scripts/sync-external-skills --update
 python3 scripts/sync-external-skills --no-bridge
 ```
 
-현재 목록은 `im-not-ai`의 `main`을 추적하며, `writing` 분류의 `humanize`, `humanize-korean`, `humanize-redo`, `humanize-scan` 선택(`commit-ko` 제외). `diagram-design`의 `main`을 추적하며, `design` 분류의 `diagram-design` 선택.
+현재 목록은 `diagram-design`의 `main`을 추적하며, `design` 분류의 `diagram-design` 선택.
 
 업데이트는 새 upstream 지침을 받아들이는 작업이므로 변경 내용 검토 권장. 출력의 커밋 해시와 클론의 Git 이력으로 수신 버전 확인 가능. upstream 설치 스크립트는 실행하지 않음.
 
@@ -145,4 +145,4 @@ bash scripts/check-resources --quiet
 - Pi·OpenCode: `~/.agents/skills/`에서 발견 가능. 원본의 Claude 전용 도구·환경변수·에이전트 호출은 별도 실행 검증 필요.
 - Claude Code: 스킬 브릿지만 제공. upstream 플러그인 등록이나 루트 `agents/`의 에이전트 등록까지 수행하지 않음.
 - Codex: 이번 명령은 `~/.codex/skills/`를 변경하지 않음. upstream의 Codex 전용 패키지 설치 안내 참고.
-- `im-not-ai` 원본의 `${CLAUDE_SKILL_DIR}`, 플러그인 루트 경로 추론, 다중 에이전트 호출은 심링크 환경에서 추가 검증 필요. 설치 완료를 윤문 파이프라인 동작 검증으로 보고하지 않음.
+- 원본이 `${CLAUDE_SKILL_DIR}`, 플러그인 루트 경로 추론, 다중 에이전트 호출에 의존하면 심링크 환경에서 추가 검증 필요. 설치 완료를 실제 기능 동작 검증으로 보고하지 않음.
