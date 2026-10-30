@@ -87,6 +87,7 @@ test(
     assert.deepEqual([...h.commands.keys()].sort(), [
       "study-chapter",
       "study-checkpoint",
+      "study-map",
       "study-workspace",
     ]);
     const resources = await h.events.get("resources_discover")![0]();

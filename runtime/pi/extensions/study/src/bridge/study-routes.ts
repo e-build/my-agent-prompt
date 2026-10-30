@@ -16,11 +16,13 @@ import { deliverToAgent } from "./agent-delivery.ts";
 import { corsHeaders, sendJson, readBody } from "./browser-server.ts";
 import type { StudySessions } from "../session/study-sessions.ts";
 import type { UpdateProjectPhase } from "../session/phase-state.ts";
+import { handleKnowledgeRoute, type KnowledgeMapStore } from "./knowledge-routes.ts";
 
 type RouteDependencies = StudySessions & {
   pi: Pick<ExtensionAPI, "sendUserMessage">;
   updateProjectPhase: UpdateProjectPhase;
   getPort: () => number | null;
+  knowledgeMaps?: KnowledgeMapStore;
 };
 
 export function createStudyRoutes({
@@ -30,6 +32,7 @@ export function createStudyRoutes({
   curriculumSessions,
   updateProjectPhase,
   getPort,
+  knowledgeMaps,
 }: RouteDependencies) {
   async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise<void> {
     // CORS preflight — same-origin normally, but allow fetch from file:// fallback.
@@ -41,6 +44,7 @@ export function createStudyRoutes({
 
     const url = new URL(req.url ?? "/", "http://127.0.0.1");
     const method = (req.method ?? "GET").toUpperCase();
+    if (knowledgeMaps && handleKnowledgeRoute(knowledgeMaps, req, res)) return;
 
     // GET /diagnosis/:id → serve HTML with injected bridge endpoints
     const diagnosisMatch = url.pathname.match(/^\/diagnosis\/([^/]+)$/);

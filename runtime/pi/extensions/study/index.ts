@@ -30,18 +30,22 @@ import { registerQuestionTools } from "./src/evidence/question-tools.ts";
 import { reviewMergeChanges } from "./src/review/review-merge.ts";
 import { reviewAnswerOptions } from "./src/review/review-store.ts";
 import { registerReviewNextTool } from "./src/review/review-next-tool.ts";
+import { createKnowledgeMapStore } from "./src/bridge/knowledge-routes.ts";
+import { registerMapCommand } from "./src/knowledge/map-command.ts";
 
 export default function (pi: ExtensionAPI) {
   const sessionStore = createStudySessions();
   const { sessions, testSessions, curriculumSessions } = sessionStore;
   const moduleDir = dirname(fileURLToPath(import.meta.url));
   const promptsDir = join(moduleDir, "prompts");
+  const knowledgeMaps = createKnowledgeMapStore();
 
   const routes = createStudyRoutes({
     pi,
     ...sessionStore,
     updateProjectPhase,
     getPort: () => server.port,
+    knowledgeMaps,
   });
   const server = createBrowserServer(routes, (port) =>
     pi.events.emit("study:server-started", { port }),
@@ -88,6 +92,7 @@ export default function (pi: ExtensionAPI) {
   registerLabTools(pi, updateProjectPhase);
   registerReviewTools(pi);
   registerReviewNextTool(pi);
+  registerMapCommand(pi, { store: knowledgeMaps, startServer: server.start, openBrowser });
   registerPreflightTool(pi);
   registerCurriculumTool(pi, {
     curriculumSessions,
@@ -108,6 +113,7 @@ export default function (pi: ExtensionAPI) {
   pi.on("message_end", (event) => handleGrade(event.message));
   pi.on("session_shutdown", async () => {
     guard.clear();
+    knowledgeMaps.clear();
     await server.close();
     sessions.clear();
     testSessions.clear();
