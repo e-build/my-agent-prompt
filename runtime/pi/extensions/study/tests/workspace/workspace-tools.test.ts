@@ -94,3 +94,28 @@ test("check flags project manifests whose slug or ID disagree with the registrat
   await writeFile(path, "{broken");
   assert.match((await checkWorkspace(root)).issues.join("\n"), /손상/);
 });
+
+test("workspace subcommands complete with Korean descriptions", async () => {
+  const { workspaceCompletions } = await import("../../src/workspace/workspace-command-core.ts");
+  const all = workspaceCompletions("")!;
+  assert.deepEqual(all.map((c) => c.value), ["inspect", "check", "init", "recover", "migrate"]);
+  assert.ok(all.every((c) => c.description && /[가-힣]/.test(c.description)));
+  assert.deepEqual(workspaceCompletions("re")!.map((c) => c.value), ["recover"]);
+  assert.deepEqual(workspaceCompletions("recover ")!.map((c) => c.value), ["recover retry", "recover rollback"]);
+  assert.deepEqual(workspaceCompletions("migrate ")!.map((c) => c.value), ["migrate preview", "migrate apply", "migrate undo"]);
+  assert.equal(workspaceCompletions("zzz"), null);
+});
+
+test("no arguments with UI shows a short menu instead of requiring a subcommand", async (t) => {
+  const { runWorkspaceCommand } = await import("../../src/workspace/workspace-command-core.ts");
+  const root = await workspaceFixture(t);
+  let shown: string[] = [];
+  const result = await runWorkspaceCommand("", {
+    cwd: root,
+    hasUI: true,
+    isIdle: () => true,
+    ui: { notify() {}, confirm: async () => false, select: async (_t: string, o: string[]) => ((shown = o), o.find((x) => x.startsWith("검사"))) },
+  } as any);
+  assert.ok(shown.length >= 3 && shown.length <= 5);
+  assert.match(result, /검사 통과/);
+});

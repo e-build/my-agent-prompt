@@ -1,5 +1,7 @@
 import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import { prepareCheckpoint, publishCheckpoint, type CheckpointRequest } from "./checkpoint-core.ts";
+import { chapterArgumentCompletions, readChapterCatalog } from "../session/chapter-catalog.ts";
+import { findStudyProjectRoot } from "../project/project-root.ts";
 
 type Dependencies = { prepare: typeof prepareCheckpoint; publish: typeof publishCheckpoint };
 type MutationQueue = <T>(filePath: string, operation: () => Promise<T>) => Promise<T>;
@@ -42,12 +44,23 @@ export function registerStudyCheckpoint(
   dependencies: Dependencies = { prepare: prepareCheckpoint, publish: publishCheckpoint },
 ): void {
   let pending: { request: CheckpointRequest; sessionId: string } | undefined;
-  pi.on("session_start", () => {
+  let completionCwd = process.cwd();
+  pi.on("session_start", (_event, ctx) => {
     pending = undefined;
+    if (ctx?.cwd) completionCwd = ctx.cwd;
   });
   pi.registerCommand("study-checkpoint", {
-    description: "현재 학습 진도를 갈무리하고 checkpoint만 커밋·푸시",
+    description: "현재 학습 진도를 갈무리하고 checkpoint만 커밋·푸시 (챕터 생략 시 현재 챕터)",
+    getArgumentCompletions: async (prefix: string) => {
+      if (/\s/.test(prefix)) return null;
+      try {
+        return chapterArgumentCompletions(await readChapterCatalog(await findStudyProjectRoot(completionCwd)), prefix)?.filter((item) => /^\d/.test(item.value)) ?? null;
+      } catch {
+        return null;
+      }
+    },
     handler: async (args: string, ctx: ExtensionCommandContext) => {
+      completionCwd = ctx.cwd;
       if (!ctx.isIdle()) {
         ctx.ui.notify("현재 agent 응답이 끝난 뒤 다시 실행하세요.", "warning");
         return;

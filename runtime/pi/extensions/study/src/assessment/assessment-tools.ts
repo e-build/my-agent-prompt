@@ -40,11 +40,11 @@ export function registerAssessmentTools(
     name: "study_diagnosis_open",
     label: "Study Diagnosis Open",
     description:
-      "인터랙티브 사전진단 HTML을 생성하고 로컬 서버를 띄운 뒤 브라우저로 자동 엽니다. 학습자가 브라우저에서 제출하면 현재 Pi 세션으로 답안이 전송되어 자동 채점되고, 채점 결과(정답/해설)가 같은 브라우저에 표시됩니다. /study-chapter diagnosis 단계에서 HTML을 만든 뒤 반드시 이 도구를 호출하세요. 사용자가 직접 파일을 열게 두지 마세요.",
+      "인터랙티브 사전진단 HTML을 생성하고 로컬 서버를 띄운 뒤 브라우저로 자동 엽니다. 학습자가 브라우저에서 제출하면 현재 Pi 세션으로 답안이 전송되어 자동 채점되고, 채점 결과(정답/해설)가 같은 브라우저에 표시됩니다. 이미 열려 있던 과거 HTML 진단을 다시 열 때만 사용합니다. 새 진단은 대화형(study_question_prepare)입니다. 사용자가 직접 파일을 열게 두지 마세요.",
     promptSnippet:
       "Open interactive diagnosis HTML in browser; bridge submissions and grading to the Pi session",
     promptGuidelines: [
-      "study_diagnosis_open을 /study-chapter diagnosis 단계에서 questionsJson을 만든 직후 호출하세요. 사용자에게 '브라우저로 직접 여세요'라고 안내하지 말고 이 도구로 자동으로 여세요.",
+      "study_diagnosis_open은 과거 HTML 진단 재개에만 쓰세요. 새 진단은 대화형입니다. 사용자에게 '브라우저로 직접 여세요'라고 안내하지 말고 이 도구로 자동으로 여세요.",
     ],
     parameters: Type.Object({
       chapterSlug: Type.String({
@@ -163,7 +163,7 @@ export function registerAssessmentTools(
     promptSnippet:
       "Open interactive chapter test in browser; bridge submission, grading, and score-based handoff",
     promptGuidelines: [
-      "/study-chapter test 단계에서 TestQuestionSet JSON을 만든 직후 호출하세요. test.md 직접 편집을 학습자에게 요구하지 마세요.",
+      "시험(test) 단계에서 TestQuestionSet JSON을 만든 직후 호출하세요. test.md 직접 편집을 학습자에게 요구하지 마세요.",
     ],
     parameters: Type.Object({
       chapterSlug: Type.String({

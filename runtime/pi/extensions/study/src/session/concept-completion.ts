@@ -43,7 +43,7 @@ export async function finishConcept(
   ], { projectPaths: [project.path] });
   await executePlan(root, plan);
   return {
-    message: `개념 학습 완료 저장. 다음: 프로젝트 실습(/study-chapter ${chapterSlug} lab).${uncertain.length ? ` 미확인 ${uncertain.length}건은 이해 완료로 처리하지 않았습니다.` : ""}`,
+    message: `개념 학습 완료 저장. 다음: 프로젝트 실습(/study-chapter → 이어서).${uncertain.length ? ` 미확인 ${uncertain.length}건은 이해 완료로 처리하지 않았습니다.` : ""}`,
     uncertain,
   };
 }

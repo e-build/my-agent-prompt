@@ -64,7 +64,7 @@ argument-hint: "<학습주제>"
 ```
 
 묻지 않는 것:
-- 헷갈리는 개념: `/study-chapter diagnosis`가 확인한다.
+- 헷갈리는 개념: 챕터의 사전 진단(`/study-chapter` 메뉴)이 확인한다.
 - 정확한 챕터 수 확정: 사용자의 선호 규모는 받되, 최종 챕터 수와 순서는 대표 자료의 학습 순서와 개념 의존성을 조사한 뒤 조정한다.
 - 복습 주기: 등록된 study 루트는 통합 복습 기본 간격(+1/+3/+7/+14일)을 사용한다. 미등록 프로젝트는 `/study-review`에서 학습자와 합의한다.
 - 실습 산출물 전체 목록: 도메인에 맞춰 `lab/README.md`에서 구체화한다.
@@ -257,7 +257,7 @@ type CurriculumPreview = {
 ```text
 완료: 전체 학습 목차와 방향을 확인했습니다.
 다음: ch-01 사전진단으로 현재 이해 수준을 확인합니다.
-실행: /study-chapter 01 diagnosis
+실행: /study-chapter   (메뉴에서 “이어서” 선택, 또는 /study-chapter 01 진단)
 ```
 
 ## 6. SETUP.md
@@ -314,7 +314,7 @@ study-{slug}/
 
 ## 8. 사전진단 — Pi 대화 (study extension)
 
-사전진단은 점수가 아니라 **학습 경로를 정하는** 대화다. `/study-chapter {챕터} diagnosis`가 단계 지침과 재개 상태를 보낸다.
+사전진단은 점수가 아니라 **학습 경로를 정하는** 대화다. `/study-chapter`(메뉴) 또는 `/study-chapter {번호} 진단`이 단계 지침과 재개 상태를 보낸다.
 
 1. 한 번에 하나씩 질문한다. 객관식 또는 자유 응답을 고른다.
 2. 질문을 보여 주기 전에 `study_question_prepare`(purpose=diagnosis)로 비공개 채점 기준을 먼저 저장하고 공개 질문만 보여 준다.
@@ -327,7 +327,7 @@ study-{slug}/
 ## 9. 챕터 학습 플로우
 모든 챕터는 아래 순서로 진행한다:
 
-1. **사전 진단** — `/study-chapter {챕터} diagnosis`로 Pi 대화형 진단. 경로를 정할 수 있으면 종료(최대 8문항).
+1. **사전 진단** — `/study-chapter` 메뉴 또는 `/study-chapter {번호} 진단`으로 Pi 대화형 진단. 경로를 정할 수 있으면 종료(최대 8문항).
 2. **경로 기록** — 종료 사유·학습 경로·미확인 범위가 `.study/dialogue/`에 저장된다. 이후 단계에서 참조한다.
 3. **개념 학습** — 사전평가 결과에 맞춰 깊이와 난이도를 조정한다. 이미 아는 것은 가볍게, 약점은 깊이. lab/test로 넘어가기 전 챕터 `README.md`의 `개념 학습 노트`를 생성/최신화한다.
 4. **실습 수행** — `lab/README.md` 체크리스트를 만들고 `lab/`에서 직접 수행한다. 각 step 검증 뒤 관찰과 배운 점을 `lab/results.md`에 기록한다. 개발/DB면 실행결과·쿼리결과·로그, 언어면 녹음/대본, 글쓰기면 초안/수정본, 운동·음악이면 기록/영상처럼 도메인 증거를 남긴다.
@@ -387,9 +387,9 @@ study-{slug}/
 - 새 프로젝트 생성 직후에는 각 챕터의 `test.html`을 미리 만들 필요가 없다. 시험 단계 진입 시 `/study-chapter`가 `study_test_open` tool으로 생성한다.
 - 새 챕터에는 `diagnosis.md`를 만들지 않는다. 대화형 진단 기록은 extension이 `.study/dialogue/`에 저장한다.
 
-- `README.md`에는 프로젝트 생성 시 학습 목표/개념 지도/학습 흐름을 둔다. 빈 `개념 학습 노트` 헤더는 미리 만들지 않는다. `/study-chapter concept`는 실제 설명을 마친 뒤 이 섹션을 추가하고, lab/test로 넘어가기 전에 같은 README에 통합한다.
+- `README.md`에는 프로젝트 생성 시 학습 목표/개념 지도/학습 흐름을 둔다. 빈 `개념 학습 노트` 헤더는 미리 만들지 않는다. 개념 단계는 실제 설명을 마친 뒤 이 섹션을 추가하고, lab/test로 넘어가기 전에 같은 README에 통합한다.
 - chapter test 통과+확인 뒤 학습 근거 검증. 시작 페이지 생성 성공 여부와 시험 completed 분리. 등록된 루트는 통합 복습 일정이 자동 등록되고, 미등록 프로젝트의 `/study-review`는 schedule.md 원본과 sessions/ 회차 기록을 사용.
-- `lab/results.md`는 빈 템플릿으로만 생성하거나 첫 완료 step 때 extension이 만든다. `/study-chapter lab`은 검증 성공 뒤 매 step의 관찰/배운 점을 누적한다.
+- `lab/results.md`는 빈 템플릿으로만 생성하거나 첫 완료 step 때 extension이 만든다. 실습 단계는 검증 성공 뒤 매 step의 관찰/배운 점을 누적한다.
 - `study_review_refresh`로 `review/README.md` 갱신. 기존 고유 회상은 legacy-recall.md에 보존. 일정 등록이나 안내판 존재만으로 복습 완료 처리 금지.
 
 - 챕터 `README.md`는 개념 학습 전에는 학습 지도만 포함하고, concept phase에서 실제 설명을 마친 뒤 `## 개념 학습 노트`를 채운다.
@@ -410,7 +410,7 @@ study-{slug}/
 ## 산출물
 ```
 
-- README에 사전진단 안내를 한 줄 추가한다: "각 챕터는 `/study-chapter {챕터} diagnosis` 로 시작한다. Pi와 대화하며 학습 경로를 정한다."
+- README에 사전진단 안내를 한 줄 추가한다: "`/study-chapter`를 실행하면 다음에 할 일을 메뉴로 고를 수 있다. 바로 가려면 `/study-chapter 01 진단`처럼 번호와 단계(진단·개념·실습·시험·복습)를 쓴다."
 
 ## 완료 후
 - 생성한 디렉토리 트리 출력

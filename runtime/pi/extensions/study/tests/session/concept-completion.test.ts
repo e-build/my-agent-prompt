@@ -28,7 +28,7 @@ test("finishing concept saves state, records uncertainty and suggests the lab", 
   await updateBinding(root, "study-alpha", "ch-01-intro", { expectedRevision: null, regions: [{ regionId: "r-ttl", refs: [refA] }] });
   await refreshTextbook(root, "study-alpha", "ch-01-intro", { apply: true, insertMissingAfterHeading: "## 개념 학습 노트" });
   const result = await finishConcept(root, "study-alpha", "ch-01-intro", { summary: "TTL 설명 완료", uncertain: ["이벤트 지연"] });
-  assert.match(result.message, /lab/);
+  assert.match(result.message, /실습/);
   const state = await loadStudyState(join(root, "study-alpha"));
   assert.equal(state.chapters["ch-01-intro"].concept.status, "completed");
   assert.match(state.chapters["ch-01-intro"].concept.reason!, /이벤트 지연/);

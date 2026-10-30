@@ -37,7 +37,7 @@ export async function widgetLines(cwd: string, target: Target, today?: string): 
     ]);
     lines.push(`지식 ${ids.length} · 오늘 복습 ${due.items.length}${due.items.length ? " (/study-review)" : ""}`);
   }
-  if (target) lines.push(NEXT[target.phase]);
+  lines.push(target ? `${NEXT[target.phase]} · 메뉴: /study-chapter` : "메뉴: /study-chapter");
   return lines;
 }
 

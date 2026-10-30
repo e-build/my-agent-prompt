@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createKnowledgeMapStore } from "../../src/bridge/knowledge-routes.ts";
-import { openKnowledgeMap } from "../../src/knowledge/map-command.ts";
+import { mapCompletions, openKnowledgeMap } from "../../src/knowledge/map-command.ts";
 import { knowledgeWorkspace } from "../support/evidence-fixture.ts";
 import { tempDir, treeDigest } from "../support/workspace-fixture.ts";
 
@@ -23,4 +23,12 @@ test("an unregistered directory reports registration instead of opening", async 
     openKnowledgeMap(dir, "", { store: createKnowledgeMapStore(), startServer: async () => 1, openBrowser: () => assert.fail() }),
     /study-workspace init/,
   );
+});
+
+test("completes knowledge by name and returns its ID as the value", async (t) => {
+  const { root, a } = await knowledgeWorkspace(t);
+  const items = (await mapCompletions(root, "TT"))!;
+  assert.deepEqual(items.map((i) => [i.value, i.label]), [[a.id, "TTL"]]);
+  assert.equal(await mapCompletions(root, "TTL extra"), null);
+  assert.equal(await mapCompletions(await tempDir(t), ""), null);
 });

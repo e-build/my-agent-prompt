@@ -1,12 +1,13 @@
 import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 import { checkWorkspace, inspectWorkspace, type ExtraCheck } from "./workspace-actions.ts";
-import { runWorkspaceCommand } from "./workspace-command-core.ts";
+import { runWorkspaceCommand, workspaceCompletions } from "./workspace-command-core.ts";
 import { requireWorkspace } from "./workspace-root.ts";
 
 export function registerWorkspaceCommand(pi: ExtensionAPI, extraChecks: ExtraCheck[] = []): void {
   pi.registerCommand("study-workspace", {
-    description: "study 루트 확인·등록·검사·중단 복구 (inspect|init <루트>|check|recover)",
+    description: "study 루트 관리 — 인자 없이 실행하면 메뉴 (등록·검사·복구·이전)",
+    getArgumentCompletions: (prefix: string) => workspaceCompletions(prefix),
     handler: async (args: string, ctx: ExtensionCommandContext) => {
       if (!ctx.isIdle()) {
         ctx.ui.notify("현재 agent 응답이 끝난 뒤 다시 실행하세요.", "warning");

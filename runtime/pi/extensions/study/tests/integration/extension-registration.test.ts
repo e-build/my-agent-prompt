@@ -289,7 +289,7 @@ test(
     });
     assert.deepEqual(textbook.details.inserted, ["r-ttl"]);
     const concept = await call("study_learning_route", { action: "finish_concept", chapterSlug: "ch-01-intro", payloadJson: JSON.stringify({ summary: "TTL" }) });
-    assert.match(concept.content[0].text, /lab/);
+    assert.match(concept.content[0].text, /실습/);
     const ws = await call("study_workspace", { action: "check" });
     assert.match(ws.content[0].text, /검사 통과/);
     const next = await call("study_review_next", {});

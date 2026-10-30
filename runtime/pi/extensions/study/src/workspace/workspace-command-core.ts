@@ -16,8 +16,42 @@ import { requireWorkspace } from "./workspace-root.ts";
 import { applyMigration, previewMigration, undoMigration } from "./migration-plan.ts";
 
 export type CommandUi = Pick<ExtensionCommandContext, "cwd" | "hasUI" | "isIdle"> & {
-  ui: Pick<ExtensionCommandContext["ui"], "notify" | "confirm">;
+  ui: Pick<ExtensionCommandContext["ui"], "notify" | "confirm"> & Partial<Pick<ExtensionCommandContext["ui"], "select">>;
 };
+
+const SUBCOMMANDS: Array<{ value: string; description: string; children?: Array<[string, string]> }> = [
+  { value: "inspect", description: "등록 상태 보기" },
+  { value: "check", description: "깨진 연결·충돌·중단된 변경 검사" },
+  { value: "init", description: "study 루트 등록 (미리 보기 후 확인)" },
+  { value: "recover", description: "중단된 변경 정리", children: [["retry", "남은 변경 마저 적용"], ["rollback", "변경 전으로 되돌리기"]] },
+  {
+    value: "migrate",
+    description: "기존 기록 이전",
+    children: [["preview", "미리 보기 (파일 안 바뀜)"], ["apply", "미리 보기 digest로 적용"], ["undo", "이전 되돌리기"]],
+  },
+];
+
+/** Argument completion: subcommand, then its option, each with a Korean description. */
+export function workspaceCompletions(prefix: string) {
+  const [first, second, ...rest] = prefix.split(/\s+/);
+  if (rest.length) return null;
+  if (second === undefined) {
+    const items = SUBCOMMANDS.filter((c) => c.value.startsWith(first)).map((c) => ({ value: c.value, label: c.value, description: c.description }));
+    return items.length ? items : null;
+  }
+  const children = SUBCOMMANDS.find((c) => c.value === first)?.children ?? [];
+  const items = children
+    .filter(([value]) => value.startsWith(second))
+    .map(([value, description]) => ({ value: `${first} ${value}`, label: value, description }));
+  return items.length ? items : null;
+}
+
+const MENU: Array<[string, string]> = [
+  ["상태 보기", "inspect"],
+  ["검사 — 깨진 연결·충돌·중단된 변경", "check"],
+  ["중단된 변경 마저 적용", "recover retry"],
+  ["기존 기록 이전 미리 보기", "migrate preview"],
+];
 
 /** Approval digest over the target root, files and their current content (IDs are random per preview). */
 export function previewDigest(
@@ -36,6 +70,12 @@ export async function runWorkspaceCommand(
   ctx: CommandUi,
   extraChecks: ExtraCheck[] = [],
 ): Promise<string> {
+  if (!args.trim() && ctx.hasUI && ctx.ui.select) {
+    const choice = await ctx.ui.select("study 루트 관리", MENU.map(([label]) => label));
+    const picked = MENU.find(([label]) => label === choice);
+    if (!picked) return "취소했습니다.";
+    args = picked[1];
+  }
   const tokens = args.trim().split(/\s+/).filter(Boolean);
   const confirmIndex = tokens.indexOf("--confirm");
   const confirmDigest = confirmIndex >= 0 ? tokens[confirmIndex + 1] : undefined;
