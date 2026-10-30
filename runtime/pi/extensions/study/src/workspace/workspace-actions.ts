@@ -5,6 +5,26 @@ import { listPendingPlans } from "./change-plan.ts";
 import { inspectRecovery } from "./recovery.ts";
 import { findWorkspaceRoot, projectRootOf, readWorkspace } from "./workspace-root.ts";
 import type { WorkspaceProject } from "./workspace-types.ts";
+import { readTextOptional } from "./atomic-file.ts";
+
+/** A project.json must name its own directory and (once registered) carry the registered ID. */
+export async function projectManifestIssues(root: string, project: Pick<WorkspaceProject, "path" | "slug"> & { id?: string }): Promise<string[]> {
+  const relative = `${project.path}/.study/project.json`;
+  const content = await readTextOptional(join(root, ...relative.split("/")));
+  if (content === null) return [];
+  let manifest: Record<string, unknown>;
+  try {
+    manifest = JSON.parse(content);
+  } catch {
+    return [`project.json이 손상됐습니다: ${relative}`];
+  }
+  const issues: string[] = [];
+  if (manifest.projectSlug !== project.slug)
+    issues.push(`${relative}의 projectSlug(${JSON.stringify(manifest.projectSlug)})가 디렉터리 이름(${project.slug})과 다릅니다. 이 프로젝트의 명령이 실패합니다.`);
+  if (project.id && manifest.projectId !== undefined && manifest.projectId !== project.id)
+    issues.push(`${relative}의 projectId(${manifest.projectId})가 workspace 등록(${project.id})과 다릅니다.`);
+  return issues;
+}
 
 export type WorkspaceInspection =
   | {
@@ -60,7 +80,9 @@ export async function checkWorkspace(
         issues.push(`프로젝트 경로가 디렉터리가 아닙니다: ${project.path}`);
     } catch {
       issues.push(`프로젝트 경로를 찾지 못했습니다: ${project.slug} (${project.path})`);
+      continue;
     }
+    issues.push(...(await projectManifestIssues(workspace.root, project)));
   }
   for (const report of await inspectRecovery(workspace.root)) {
     issues.push(

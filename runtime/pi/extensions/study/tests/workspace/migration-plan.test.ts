@@ -123,3 +123,14 @@ test("undo refuses when files were changed after the migration", async (t) => {
   await writeFile(join(root, ".gitignore"), "edited\n");
   await assert.rejects(undoMigration(root, applied.migrationId), /이후 변경/);
 });
+
+test("preview blocks a project whose manifest slug is invalid", async (t) => {
+  const { root, redis } = await legacyRepo(t);
+  await mkdir(join(redis, ".study"), { recursive: true });
+  await writeFile(join(redis, ".study", "project.json"), JSON.stringify({ version: 1, projectSlug: ".", topic: "x", chapters: {} }));
+  git(root, "add", ".");
+  git(root, "commit", "-qm", "bad slug");
+  const preview = await previewMigration(root);
+  assert.match(preview.blockers.join("\n"), /projectSlug/);
+  await assert.rejects(applyMigration(root, { digest: preview.digest, approved: true }), /projectSlug/);
+});

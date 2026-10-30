@@ -8,6 +8,7 @@ import { currentSha256, readTextOptional, sha256 } from "./atomic-file.ts";
 import { executePlan, preparePlan, type PlannedChange } from "./change-plan.ts";
 import { previewWorkspaceRegistration } from "./workspace-registration.ts";
 import { WORKSPACE_MARKER } from "./workspace-types.ts";
+import { projectManifestIssues } from "./workspace-actions.ts";
 
 const run = promisify(execFile);
 
@@ -125,6 +126,7 @@ export async function previewMigration(rootInput: string): Promise<MigrationPrev
     }),
   ).slice(0, 16);
   const blockers = git.blocker ? [git.blocker] : [];
+  for (const project of registration.projects) blockers.push(...(await projectManifestIssues(root, project)));
   const summary = [
     `기존 기록 이전 미리 보기: ${root}`,
     `- Git: ${git.clean ? "깨끗함" : "정리 필요"}`,

@@ -83,3 +83,14 @@ test("init requires explicit confirmation and declining writes nothing", async (
   assert.match(applied, /committed/);
   assert.equal((await inspectWorkspace(root)).registered, true);
 });
+
+test("check flags project manifests whose slug or ID disagree with the registration", async (t) => {
+  const root = await workspaceFixture(t);
+  const path = join(root, "study-alpha", ".study", "project.json");
+  await writeFile(path, JSON.stringify({ version: 1, projectSlug: ".", topic: "x", chapters: {} }));
+  assert.match((await checkWorkspace(root)).issues.join("\n"), /projectSlug/);
+  await writeFile(path, JSON.stringify({ version: 1, projectId: "p-other", projectSlug: "study-alpha", topic: "x", chapters: {} }));
+  assert.match((await checkWorkspace(root)).issues.join("\n"), /projectId/);
+  await writeFile(path, "{broken");
+  assert.match((await checkWorkspace(root)).issues.join("\n"), /손상/);
+});
