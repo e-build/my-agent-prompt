@@ -229,3 +229,21 @@ test(
     assert.equal(existsSync(join(root, "study-alpha", "ch-01-intro", "review", "schedule.md")), false);
   },
 );
+
+test(
+  "the status widget updates on session lifecycle events and is cleared on shutdown",
+  options,
+  async (t) => {
+    const h = await harness();
+    const { workspaceFixture } = await import("../support/workspace-fixture.ts");
+    const root = await workspaceFixture(t);
+    const widgets: Array<[string, string[] | undefined]> = [];
+    const ctx = { cwd: join(root, "study-alpha"), hasUI: true, ui: { setWidget: (k: string, l: string[] | undefined) => widgets.push([k, l]) } };
+    for (const handler of h.events.get("session_start") ?? []) await handler({}, ctx);
+    await new Promise((r) => setTimeout(r, 50));
+    assert.match(widgets.at(-1)![1]!.join("\n"), /study-alpha/);
+    for (const handler of h.events.get("session_shutdown") ?? []) await handler({}, ctx);
+    assert.deepEqual(widgets.at(-1), ["study-status", undefined]);
+    for (const handler of h.events.get("turn_end") ?? []) await handler({}, { ...ctx, hasUI: false });
+  },
+);

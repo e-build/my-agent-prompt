@@ -32,6 +32,7 @@ import { reviewAnswerOptions } from "./src/review/review-store.ts";
 import { registerReviewNextTool } from "./src/review/review-next-tool.ts";
 import { createKnowledgeMapStore } from "./src/bridge/knowledge-routes.ts";
 import { registerMapCommand } from "./src/knowledge/map-command.ts";
+import { createStudyWidget } from "./src/session/study-widget.ts";
 
 export default function (pi: ExtensionAPI) {
   const sessionStore = createStudySessions();
@@ -39,6 +40,7 @@ export default function (pi: ExtensionAPI) {
   const moduleDir = dirname(fileURLToPath(import.meta.url));
   const promptsDir = join(moduleDir, "prompts");
   const knowledgeMaps = createKnowledgeMapStore();
+  const widget = createStudyWidget();
 
   const routes = createStudyRoutes({
     pi,
@@ -80,9 +82,19 @@ export default function (pi: ExtensionAPI) {
     withFileMutationQueue,
   );
 
-  registerStudyChapterCommand(pi, (target: StudyChapterTarget) => guard.setTarget(target));
+  registerStudyChapterCommand(pi, (target: StudyChapterTarget) => {
+    guard.setTarget(target);
+    widget.setTarget(target);
+  });
   pi.on("tool_execution_end", (event) => guard.onToolEnd(event.toolName));
-  pi.on("turn_end", () => guard.onTurnEnd());
+  pi.on("session_start", (_event, ctx) => {
+    widget.setTarget(null);
+    if (ctx) void widget.refresh(ctx);
+  });
+  pi.on("turn_end", (_event, ctx) => {
+    guard.onTurnEnd();
+    if (ctx) void widget.refresh(ctx);
+  });
 
   registerWorkspaceCommand(pi);
   registerKnowledgeTools(pi, (root) => ({ extraChanges: (record) => reviewMergeChanges(root, record) }));
@@ -111,8 +123,9 @@ export default function (pi: ExtensionAPI) {
   });
 
   pi.on("message_end", (event) => handleGrade(event.message));
-  pi.on("session_shutdown", async () => {
+  pi.on("session_shutdown", async (_event, ctx) => {
     guard.clear();
+    if (ctx) widget.dispose(ctx);
     knowledgeMaps.clear();
     await server.close();
     sessions.clear();
