@@ -10,6 +10,7 @@ const features = [
   "bridge",
   "checkpoint",
   "curriculum",
+  "evidence",
   "knowledge",
   "lab",
   "project",
