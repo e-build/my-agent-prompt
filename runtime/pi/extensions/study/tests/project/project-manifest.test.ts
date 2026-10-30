@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtemp } from "node:fs/promises";
+import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -39,4 +39,12 @@ test("extracts environment and chapter lab modes from curriculum", async () => {
   const root = await mkdtemp(join(tmpdir(), "study-manifest-"));
   await saveProjectManifest(root, manifest);
   assert.deepEqual(await loadProjectManifest(root), manifest);
+});
+
+test("missing manifests are null but corrupt manifests are errors", async () => {
+  const root = await mkdtemp(join(tmpdir(), "study-manifest-"));
+  assert.equal(await loadProjectManifest(root), null);
+  await mkdir(join(root, ".study"), { recursive: true });
+  await writeFile(join(root, ".study", "project.json"), "{broken");
+  await assert.rejects(loadProjectManifest(root), /project.json/);
 });

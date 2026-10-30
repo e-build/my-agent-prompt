@@ -173,3 +173,31 @@ test("review synchronization uses schedule progress without changing the active 
   assert.equal(loaded.activePhase, "lab");
   assert.equal(loaded.chapters["ch-02-next"].lab.status, "in_progress");
 });
+
+test("corrupt state is reported instead of being regenerated", async (t) => {
+  const root = await project();
+  await chapter(root, "ch-01-cache");
+  await mkdir(join(root, ".study"), { recursive: true });
+  await writeFile(join(root, ".study", "state.json"), "{broken");
+  await assert.rejects(loadStudyState(root), /state.json/);
+  assert.equal(await readFile(join(root, ".study", "state.json"), "utf8"), "{broken");
+  await writeFile(join(root, ".study", "state.json"), JSON.stringify({ version: 9, chapters: {} }));
+  await assert.rejects(loadStudyState(root), /지원하지 않는/);
+});
+
+test("unknown state fields and legacy absolute roots survive a load and save", async () => {
+  const root = await project();
+  await chapter(root, "ch-01-cache");
+  const state = await loadStudyState(root);
+  const legacy = { ...state, projectRoot: "/old/pc/study-x", closedAt: "2026-10-06", status: "closed" };
+  await writeFile(join(root, ".study", "state.json"), JSON.stringify(legacy));
+  const raw = await readFile(join(root, ".study", "state.json"), "utf8");
+  const loaded = await loadStudyState(root);
+  assert.equal(await readFile(join(root, ".study", "state.json"), "utf8"), raw);
+  updatePhaseState(loaded, "ch-01-cache", "diagnosis", { status: "in_progress" });
+  await saveStudyState(root, loaded);
+  const saved = JSON.parse(await readFile(join(root, ".study", "state.json"), "utf8"));
+  assert.equal(saved.status, "closed");
+  assert.equal(saved.closedAt, "2026-10-06");
+  assert.equal(saved.projectRoot, "/old/pc/study-x");
+});

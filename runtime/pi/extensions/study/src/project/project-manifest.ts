@@ -5,6 +5,8 @@ export type LabMode = "cli" | "application" | "document" | "mixed";
 
 export type StudyProjectManifest = {
   version: 1;
+  /** Stable workspace project ID, added when a workspace is registered. */
+  projectId?: string;
   projectSlug: string;
   topic: string;
   environment?: {
@@ -79,9 +81,17 @@ export async function saveProjectManifest(
 export async function loadProjectManifest(
   projectRoot: string,
 ): Promise<StudyProjectManifest | null> {
+  const path = join(projectRoot, ".study", "project.json");
+  let content: string;
   try {
-    return JSON.parse(await readFile(join(projectRoot, ".study", "project.json"), "utf8"));
+    content = await readFile(path, "utf8");
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
+    throw error;
+  }
+  try {
+    return JSON.parse(content);
   } catch {
-    return null;
+    throw new Error(`project.json이 손상됐습니다: ${path}`);
   }
 }

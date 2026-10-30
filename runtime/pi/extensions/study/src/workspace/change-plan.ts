@@ -29,6 +29,8 @@ export type ChangePlan = {
   createdAt: string;
   state: "prepared" | "applying" | "conflict";
   projectPaths: string[];
+  /** Explicitly allowed single root files, e.g. `.gitignore` during registration. */
+  rootFiles?: string[];
   changes: FileChange[];
 };
 
@@ -48,8 +50,10 @@ export async function resolveChangePath(
   root: string,
   path: string,
   projectPaths: string[],
+  rootFiles: string[] = [],
 ): Promise<string> {
   if (!isRelativeSafePath(path)) throw new Error(`허용되지 않는 경로입니다: ${path}`);
+  if (rootFiles.includes(path) && !path.includes("/")) return safeProjectWritePath(root, path);
   if (COMMON_WRITE_ROOTS.includes(path.split("/")[0] as any)) return safeWorkspacePath(root, path);
   const project = projectPaths.find((p) => path.startsWith(`${p}/`));
   if (!project) throw new Error(`쓰기 허용 경로가 아닙니다: ${path}`);
@@ -65,16 +69,17 @@ export async function preparePlan(
   root: string,
   requestId: string,
   changes: PlannedChange[],
-  options: { projectPaths?: string[] } = {},
+  options: { projectPaths?: string[]; rootFiles?: string[] } = {},
 ): Promise<ChangePlan> {
   if (!changes.length) throw new Error("변경할 파일이 없습니다.");
   const seen = new Set<string>();
   const projectPaths = [...(options.projectPaths ?? [])];
+  const rootFiles = [...(options.rootFiles ?? [])];
   const planned: FileChange[] = [];
   for (const change of changes) {
     if (seen.has(change.path)) throw new Error(`같은 파일을 두 번 변경할 수 없습니다: ${change.path}`);
     seen.add(change.path);
-    const absolute = await resolveChangePath(root, change.path, projectPaths);
+    const absolute = await resolveChangePath(root, change.path, projectPaths, rootFiles);
     const before = await readTextOptional(absolute);
     planned.push({
       path: change.path,
@@ -96,6 +101,7 @@ export async function preparePlan(
     createdAt: new Date().toISOString(),
     state: "prepared",
     projectPaths,
+    rootFiles,
     changes: planned,
   };
 }
@@ -165,7 +171,7 @@ export async function executePlan(
       );
     const targets: string[] = [];
     for (const change of plan.changes) {
-      const absolute = await resolveChangePath(root, change.path, plan.projectPaths);
+      const absolute = await resolveChangePath(root, change.path, plan.projectPaths, plan.rootFiles);
       if ((await currentSha256(absolute)) !== change.beforeSha256)
         throw new Error(`다른 변경이 먼저 저장됐습니다. 다시 비교하세요: ${change.path}`);
       targets.push(absolute);
@@ -192,7 +198,7 @@ export async function classifyPlanFiles(
 ): Promise<Array<{ path: string; state: FileRecoveryState }>> {
   const result: Array<{ path: string; state: FileRecoveryState }> = [];
   for (const change of plan.changes) {
-    const absolute = await resolveChangePath(root, change.path, plan.projectPaths);
+    const absolute = await resolveChangePath(root, change.path, plan.projectPaths, plan.rootFiles);
     const actual = await currentSha256(absolute);
     result.push({
       path: change.path,
@@ -226,7 +232,7 @@ export async function recoverPlan(
     }
     for (let i = 0; i < plan.changes.length; i++) {
       const change = plan.changes[i];
-      const absolute = await resolveChangePath(root, change.path, plan.projectPaths);
+      const absolute = await resolveChangePath(root, change.path, plan.projectPaths, plan.rootFiles);
       if (mode === "retry" && states[i].state === "before")
         await writeTarget(absolute, change.after, change.beforeSha256);
       if (mode === "rollback" && states[i].state === "after" && change.afterSha256 !== change.beforeSha256)

@@ -200,17 +200,31 @@ export async function saveStudyState(projectRoot: string, state: StudyState): Pr
   await rename(temp, target);
 }
 
+/**
+ * Only a missing state file is migrated from Markdown records. A corrupt or
+ * unsupported file is reported as-is so learning progress is never reset.
+ * Unknown fields (e.g. legacy absolute projectRoot, closed status) round-trip.
+ */
 export async function loadStudyState(projectRoot: string): Promise<StudyState> {
+  const path = studyStatePath(projectRoot);
+  let content: string;
   try {
-    const parsed = JSON.parse(await readFile(studyStatePath(projectRoot), "utf8")) as StudyState;
-    if (parsed.version !== STUDY_STATE_VERSION || !parsed.chapters)
-      throw new Error("unsupported study state");
-    return parsed;
-  } catch {
+    content = await readFile(path, "utf8");
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
     const migrated = await migrateStudyState(projectRoot);
     await saveStudyState(projectRoot, migrated);
     return migrated;
   }
+  let parsed: StudyState;
+  try {
+    parsed = JSON.parse(content) as StudyState;
+  } catch {
+    throw new Error(`state.json이 손상됐습니다. 자동으로 다시 만들지 않습니다: ${path}`);
+  }
+  if (parsed?.version !== STUDY_STATE_VERSION || !parsed.chapters)
+    throw new Error(`지원하지 않는 state.json 형식입니다: ${path}`);
+  return parsed;
 }
 
 function isDone(status: StudyPhaseStatus): boolean {

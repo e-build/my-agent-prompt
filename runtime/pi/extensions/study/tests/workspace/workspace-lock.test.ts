@@ -8,16 +8,19 @@ import { workspaceFixture } from "../support/workspace-fixture.ts";
 test("serializes concurrent operations and releases after errors", async (t) => {
   const root = await workspaceFixture(t);
   const order: string[] = [];
-  const slow = withWorkspaceLock(root, async () => {
-    order.push("a:start");
-    await new Promise((r) => setTimeout(r, 30));
-    order.push("a:end");
-  });
-  const fast = withWorkspaceLock(root, async () => {
-    order.push("b");
-  });
-  await Promise.all([slow, fast]);
-  assert.deepEqual(order, ["a:start", "a:end", "b"]);
+  const job = (name: string) =>
+    withWorkspaceLock(root, async () => {
+      order.push(`${name}:start`);
+      await new Promise((r) => setTimeout(r, 20));
+      order.push(`${name}:end`);
+    });
+  await Promise.all([job("a"), job("b"), job("c")]);
+  // Acquisition order is not guaranteed; critical sections must never interleave.
+  for (let i = 0; i < order.length; i += 2) {
+    assert.match(order[i], /:start$/);
+    assert.equal(order[i + 1], order[i].replace(":start", ":end"));
+  }
+  assert.equal(order.length, 6);
   await assert.rejects(
     withWorkspaceLock(root, async () => {
       throw new Error("boom");
