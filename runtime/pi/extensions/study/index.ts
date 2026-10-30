@@ -33,6 +33,7 @@ import { registerReviewNextTool } from "./src/review/review-next-tool.ts";
 import { createKnowledgeMapStore } from "./src/bridge/knowledge-routes.ts";
 import { registerMapCommand } from "./src/knowledge/map-command.ts";
 import { createStudyWidget } from "./src/session/study-widget.ts";
+import { checkKnowledgeIntegrity } from "./src/knowledge/knowledge-integrity.ts";
 
 export default function (pi: ExtensionAPI) {
   const sessionStore = createStudySessions();
@@ -96,7 +97,7 @@ export default function (pi: ExtensionAPI) {
     if (ctx) void widget.refresh(ctx);
   });
 
-  registerWorkspaceCommand(pi);
+  registerWorkspaceCommand(pi, [checkKnowledgeIntegrity]);
   registerKnowledgeTools(pi, (root) => ({ extraChanges: (record) => reviewMergeChanges(root, record) }));
   registerTextbookTools(pi);
   registerQuestionTools(pi, { prepareOptions: diagnosisPrepareOptions, answerOptions: reviewAnswerOptions });
