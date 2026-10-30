@@ -5,6 +5,20 @@ import { requireWorkspace } from "../workspace/workspace-root.ts";
 import { buildKnowledgeView, renderKnowledgeMap } from "./knowledge-view.ts";
 import { findWorkspaceRoot } from "../workspace/workspace-root.ts";
 import { loadAllItems } from "./knowledge-store.ts";
+import { join } from "node:path";
+import { readTextOptional, writeFileAtomic } from "../workspace/atomic-file.ts";
+import { safeWorkspacePath } from "../workspace/safe-path.ts";
+
+/** PC-local, regenerable layout cache so the graph grows instead of reshuffling. */
+const POSITIONS = ".study/local/cache/knowledge-positions.json";
+
+async function readPositions(root: string) {
+  try {
+    return JSON.parse((await readTextOptional(join(root, ...POSITIONS.split("/")))) ?? "{}");
+  } catch {
+    return {};
+  }
+}
 
 /** Complete knowledge names; the value is the ID used to focus the map. */
 export async function mapCompletions(cwd: string, prefix: string) {
@@ -26,7 +40,15 @@ export async function openKnowledgeMap(
 ): Promise<string> {
   const workspace = await requireWorkspace(cwd);
   const focus = args.trim().split(/\s+/).filter(Boolean)[0];
-  const view = await buildKnowledgeView(workspace.root, focus ? { focus } : {});
+  const view = await buildKnowledgeView(workspace.root, {
+    ...(focus ? { focus } : {}),
+    previousPositions: await readPositions(workspace.root),
+  });
+  try {
+    await writeFileAtomic(await safeWorkspacePath(workspace.root, POSITIONS), `${JSON.stringify(view.positions)}\n`);
+  } catch {
+    /* cache only */
+  }
   const id = randomUUID().replace(/-/g, "").slice(0, 16);
   deps.store.put(id, renderKnowledgeMap(view));
   const url = `http://127.0.0.1:${await deps.startServer()}/knowledge/${id}`;

@@ -21,7 +21,10 @@ test("serves stored snapshots with a strict content security policy", async (t) 
   store.put("abcdef123456", "<html>map</html>");
   const res = await fetch(`${base}/knowledge/abcdef123456`);
   assert.equal(res.status, 200);
-  assert.match(res.headers.get("content-security-policy")!, /default-src 'none'/);
+  const csp = res.headers.get("content-security-policy")!;
+  assert.match(csp, /default-src 'none'/);
+  assert.match(csp, /script-src 'sha256-[A-Za-z0-9+/=]+'/);
+  assert.doesNotMatch(csp, /unsafe-inline'[^;]*script|script-src[^;]*unsafe/);
   assert.equal(await res.text(), "<html>map</html>");
 });
 

@@ -5,15 +5,21 @@ import { mapCompletions, openKnowledgeMap } from "../../src/knowledge/map-comman
 import { knowledgeWorkspace } from "../support/evidence-fixture.ts";
 import { tempDir, treeDigest } from "../support/workspace-fixture.ts";
 
-test("opens a read-only snapshot without writing study files", async (t) => {
+test("opens a snapshot and only writes the PC-local layout cache", async (t) => {
   const { root } = await knowledgeWorkspace(t);
   const store = createKnowledgeMapStore();
   const opened: string[] = [];
+  const { rm } = await import("node:fs/promises");
+  const { join } = await import("node:path");
+  await rm(join(root, ".study", "local"), { recursive: true, force: true });
   const before = await treeDigest(root);
   const url = await openKnowledgeMap(root, "", { store, startServer: async () => 4321, openBrowser: (u) => opened.push(u) });
   assert.match(url, /^http:\/\/127\.0\.0\.1:4321\/knowledge\/[a-f0-9]{16}$/);
   assert.deepEqual(opened, [url]);
   assert.match(store.get(url.split("/").pop()!)!, /지식 그래프/);
+  const cache = JSON.parse(await (await import("node:fs/promises")).readFile(join(root, ".study", "local", "cache", "knowledge-positions.json"), "utf8"));
+  assert.ok(Object.keys(cache).length >= 3);
+  await rm(join(root, ".study", "local"), { recursive: true, force: true });
   assert.equal(await treeDigest(root), before);
 });
 

@@ -1,5 +1,6 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { sendJson } from "./browser-server.ts";
+import { graphScriptHash } from "../knowledge/knowledge-view.ts";
 
 /** In-memory map snapshots keyed by an opaque ID. No file paths are accepted. */
 export function createKnowledgeMapStore(limit = 20) {
@@ -41,7 +42,7 @@ export function handleKnowledgeRoute(
   res.writeHead(200, {
     "Content-Type": "text/html; charset=utf-8",
     "Cache-Control": "no-store",
-    "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'; img-src data:",
+    "Content-Security-Policy": `default-src 'none'; style-src 'unsafe-inline'; img-src data:; script-src '${graphScriptHash()}'`,
   });
   res.end(html);
   return true;
