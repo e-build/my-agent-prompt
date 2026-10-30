@@ -247,3 +247,56 @@ test(
     for (const handler of h.events.get("turn_end") ?? []) await handler({}, { ...ctx, hasUI: false });
   },
 );
+
+test(
+  "registered tools run the integrated flow through the real entry point on a temporary root",
+  options,
+  async (t) => {
+    const h = await harness();
+    const { workspaceFixture } = await import("../support/workspace-fixture.ts");
+    const root = await workspaceFixture(t);
+    const cwd = join(root, "study-alpha");
+    const call = async (name: string, params: any) =>
+      h.tools.get(name).execute("call", params, undefined, undefined, { cwd });
+    const created = await call("study_knowledge", {
+      action: "apply",
+      payloadJson: JSON.stringify({ changeId: "c1", operation: "create", reason: "자료", item: { name: "TTL", statement: "SECRET", conditions: [], scope: "", status: "confirmed", explanation: "설명", aliases: [], sources: [{ materialId: "m", kind: "teacher", locator: "대화", observedAt: "2026-10-30", basis: "explicit" }] } }),
+    });
+    const item = created.details.items[0];
+    const ref = { id: item.id, version: item.version, revisionId: item.revisionId };
+    const query = await call("study_knowledge", { action: "query", payloadJson: "{}" });
+    assert.equal(JSON.stringify(query.details).includes("SECRET"), false);
+    const q = await call("study_question_prepare", {
+      payloadJson: JSON.stringify({ requestId: "r1", purpose: "diagnosis", scored: true, prompt: "TTL?", refs: [ref], criteria: { answer: "ANSWER-KEY", acceptable: [], rubric: "r", conditions: [] }, context: { projectSlug: "study-alpha", chapterSlug: "ch-01-intro" } }),
+    });
+    assert.equal(JSON.stringify(q).includes("ANSWER-KEY"), false);
+    const recorded = await call("study_answer_record", {
+      payloadJson: JSON.stringify({ submissionId: "s1", questionId: q.details.id, response: "모름", responseAnchor: "session#1", assistance: "independent", submittedAt: "2026-10-30T00:00:00Z", findings: [{ ref, result: "incorrect", reason: "" }] }),
+    });
+    assert.match(recorded.content[0].text, /incorrect/);
+    const route = await call("study_learning_route", { action: "get", chapterSlug: "ch-01-intro" });
+    assert.equal(route.details.questionIds.length, 1);
+    await call("study_learning_route", {
+      action: "finish_diagnosis",
+      chapterSlug: "ch-01-intro",
+      payloadJson: JSON.stringify({ reason: "route_decided", route: { summary: "TTL부터", startAt: "TTL", focus: [], skip: [] }, unverified: [] }),
+    });
+    await writeFile(join(cwd, "ch-01-intro", "README.md"), "# Ch\n\n## 개념 학습 노트\n");
+    const textbook = await call("study_textbook_refresh", {
+      chapterSlug: "ch-01-intro",
+      insertMissingAfterHeading: "## 개념 학습 노트",
+      bindingJson: JSON.stringify({ expectedRevision: null, regions: [{ regionId: "r-ttl", refs: [ref] }] }),
+    });
+    assert.deepEqual(textbook.details.inserted, ["r-ttl"]);
+    const concept = await call("study_learning_route", { action: "finish_concept", chapterSlug: "ch-01-intro", payloadJson: JSON.stringify({ summary: "TTL" }) });
+    assert.match(concept.content[0].text, /lab/);
+    const ws = await call("study_workspace", { action: "check" });
+    assert.match(ws.content[0].text, /검사 통과/);
+    const next = await call("study_review_next", {});
+    assert.match(next.content[0].text, /오늘 할 복습 없음/);
+    const notices: string[] = [];
+    await h.commands.get("study-workspace").handler("check", { cwd, hasUI: false, isIdle: () => true, ui: { notify: (m: string) => notices.push(m), confirm: async () => false } });
+    assert.match(notices[0], /검사 통과/);
+    await h.emit("session_shutdown");
+  },
+);
