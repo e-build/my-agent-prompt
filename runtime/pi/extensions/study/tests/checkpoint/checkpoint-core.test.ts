@@ -174,3 +174,17 @@ test("push failure preserves saved record and commit and supports push-only retr
   assert.equal(retried.pushed, true);
   assert.equal(retried.commit, failed.commit);
 });
+
+test("checkpoint never stages shared knowledge or review files changed in the same repository", async (t) => {
+  const { root } = await fixture(t);
+  await mkdir(join(root, "knowledge", "items"), { recursive: true });
+  await writeFile(join(root, "knowledge", "items", "k-test.md"), "new knowledge\n");
+  await mkdir(join(root, "review", "items"), { recursive: true });
+  await writeFile(join(root, "review", "items", "k-test.json"), "{}\n");
+  const request = await core.prepareCheckpoint(root, "");
+  const result = await core.publishCheckpoint(request, record);
+  assert.equal(result.pushed, true);
+  assert.equal(git(root, "show", "--format=", "--name-only", "HEAD"), "ch-02-pattern/checkpoint.md");
+  assert.match(git(root, "status", "--porcelain"), /knowledge\//);
+  assert.match(git(root, "status", "--porcelain"), /review\//);
+});

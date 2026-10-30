@@ -3,6 +3,7 @@ import { Type } from "typebox";
 import { requireWorkspace } from "../workspace/workspace-root.ts";
 import { recordAnswer, type AnswerInput } from "./evidence-store.ts";
 import { prepareQuestion, type PrepareOptions, type QuestionInput } from "./question-store.ts";
+import { linkExistingRecord, type RecordLinkInput } from "./existing-record-links.ts";
 
 function parse<T>(payloadJson: string): T {
   try {
@@ -57,12 +58,17 @@ export function registerQuestionTools(pi: ExtensionAPI, hooks: QuestionToolHooks
     parameters: Type.Object({
       payloadJson: Type.String({
         description:
-          "{submissionId,questionId,response,responseAnchor,assistance,submittedAt,confidence?,findings:[{ref,result,reason}],chainFindings?,correctionOf?,note?}",
+          "answer: {submissionId,questionId,response,responseAnchor,assistance,submittedAt,confidence?,findings:[{ref,result,reason}],chainFindings?,correctionOf?,note?}. link: {linkId,projectSlug,chapterSlug,kind:'lab'|'test'|'legacy-diagnosis',recordPath,anchor,assistance,refs,agentAuthored?}",
       }),
+      kind: Type.Optional(Type.Union([Type.Literal("answer"), Type.Literal("link")], { description: "link: 기존 lab·시험 기록을 복사하지 않고 지식에 연결" })),
       workspaceRoot: Type.Optional(Type.String()),
     }),
     async execute(_id, params, _signal, _onUpdate, ctx) {
       const workspace = await requireWorkspace(ctx?.cwd ?? process.cwd(), params.workspaceRoot);
+      if (params.kind === "link") {
+        const link = await linkExistingRecord(workspace.root, parse<RecordLinkInput>(params.payloadJson));
+        return { content: [{ type: "text", text: `연결함 ${link.kind} ${link.recordPath}#${link.anchor} (${link.assistance})` }], details: link };
+      }
       const evidence = await recordAnswer(
         workspace.root,
         parse<AnswerInput>(params.payloadJson),
