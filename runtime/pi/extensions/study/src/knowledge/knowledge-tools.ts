@@ -3,6 +3,8 @@ import { Type } from "typebox";
 import { requireWorkspace } from "../workspace/workspace-root.ts";
 import { applyKnowledgeChange, type ApplyOptions, type KnowledgeChangeRequest } from "./knowledge-changes.ts";
 import { queryKnowledge, type KnowledgeQuery } from "./knowledge-query.ts";
+import { requireItem } from "./knowledge-store.ts";
+import { locateSources } from "./source-locator.ts";
 
 function parsePayload<T>(payloadJson: string | undefined, fallback: T): T {
   if (!payloadJson) return fallback;
@@ -25,17 +27,26 @@ export function registerKnowledgeTools(pi: ExtensionAPI, applyOptions: (root: st
       "이름이 비슷하다는 이유만으로 merge하지 마세요. 주장·조건·범위가 같을 때만 merge하고, 모호하면 별도 항목으로 두세요.",
     ],
     parameters: Type.Object({
-      action: Type.Union([Type.Literal("query"), Type.Literal("apply")]),
+      action: Type.Union([Type.Literal("query"), Type.Literal("apply"), Type.Literal("sources")]),
       payloadJson: Type.Optional(
         Type.String({
           description:
-            "query: {ids?,text?,status?,includeMerged?,detail?:'summary'|'full',limit?}. apply: {changeId,operation,reason,...} (create|add_expression|revise|set_status|merge|unmerge|undo|add_chain|retire_chain)",
+            "sources: {id} — 이 PC에서 출처 자료를 찾을 수 있는지 확인. query: {ids?,text?,status?,includeMerged?,detail?:'summary'|'full',limit?}. apply: {changeId,operation,reason,...} (create|add_expression|revise|set_status|merge|unmerge|undo|add_chain|retire_chain)",
         }),
       ),
       workspaceRoot: Type.Optional(Type.String()),
     }),
     async execute(_id, params, _signal, _onUpdate, ctx) {
       const workspace = await requireWorkspace(ctx?.cwd ?? process.cwd(), params.workspaceRoot);
+      if (params.action === "sources") {
+        const { id } = parsePayload<{ id?: string }>(params.payloadJson, {});
+        if (!id) throw new Error("sources에는 payloadJson {id}가 필요합니다.");
+        const located = await locateSources(workspace.root, (await requireItem(workspace.root, id)).sources);
+        return {
+          content: [{ type: "text", text: located.map((l) => `- ${l.materialId}: ${l.status} — ${l.message}`).join("\n") || "출처 없음" }],
+          details: located,
+        };
+      }
       if (params.action === "query") {
         const result = await queryKnowledge(workspace.root, parsePayload<KnowledgeQuery>(params.payloadJson, {}));
         return {
