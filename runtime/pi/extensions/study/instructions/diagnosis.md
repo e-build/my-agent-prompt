@@ -1,8 +1,13 @@
-# Diagnosis phase
+# Diagnosis phase — Pi 대화
 
-- 챕터 README의 학습 목표와 개념 범위로 최소 10문항을 구성한다.
-- 객관식 70%, 짧은 정답형 20%, essay 10% 비율을 지킨다.
-- 질문이 정책이나 상황 전제에 의존하면 context와 assumptions를 넣는다.
-- 문항 JSON을 만든 직후 study_diagnosis_open을 호출한다.
-- markdown에 문제를 나열하거나 사용자가 파일을 직접 열게 하지 않는다.
-- grade 후 browser review ack 전에는 concept로 넘어가지 않는다.
+- 목적은 점수가 아니라 **학습 경로 결정**. 챕터 README의 학습 목표 범위에서 이미 아는 것·모르는 것·출발점을 찾는다.
+- 질문은 한 번에 하나. 객관식 또는 자유 응답 중 상황에 맞게 고른다.
+- 질문을 보여 주기 전에 `study_question_prepare`(purpose=diagnosis, context.projectSlug·chapterSlug)로 비공개 채점 기준과 확인할 지식 버전을 먼저 저장하고, 반환된 공개 질문만 보여 준다. 답변 전 정답·기준을 말하지 않는다.
+- 학습자가 답하면 `study_answer_record`로 원 응답·응답 위치·도움 정도·지식별 판정을 기록한다. 교사 설명을 학습자 응답으로 기록하지 않는다.
+- **경로를 정할 수 있으면 바로 종료.** 최소 문항 수 없음, 기본 상한 8문항. 상한은 진단 시도 단위로 재개해도 초기화되지 않는다.
+- 설명 요청·중단·건너뛰기를 허용한다. 설명을 요청하면 설명하고, 미응답·건너뛴 부분은 미확인으로 남기며 이해 완료로 처리하지 않는다.
+- 종료는 `study_learning_route` action=finish_diagnosis. reason은 route_decided(경로 결정)·limit_reached(상한 도달)·user_request(사용자 요청) 중 실제 사유, route에 시작점·집중·생략, unverified에 미확인 범위를 넣는다.
+- 아직 확정되지 않은(uncertain) 지식은 채점 질문에 쓰지 않는다. 필요하면 비채점 질문(scored=false)으로 생각만 확인한다.
+- 등록된 study 루트가 없으면 사용자에게 `/study-workspace init <루트>` 등록 여부를 먼저 묻고, 진단 결과를 임의로 저장하거나 완료 처리하지 않는다.
+- 기존 HTML 진단(`study_diagnosis_open`)은 이미 열려 있거나 제출·채점 대기 중인 과거 진단을 마칠 때만 사용한다. 새 진단에는 쓰지 않는다.
+- 진단이 끝나면 경로를 짧게 요약하고 개념 학습으로 넘어간다.

@@ -11,6 +11,9 @@ import { registerStudyCheckpoint } from "./src/checkpoint/checkpoint-command.ts"
 import { hasAssessmentSession } from "./src/session/session-core.ts";
 import { createStudySessions } from "./src/session/study-sessions.ts";
 import { updateProjectPhase } from "./src/session/phase-state.ts";
+import { createAssessmentOpenGuard } from "./src/session/assessment-open-guard.ts";
+import { registerLearningRouteTools } from "./src/session/learning-route-tools.ts";
+import { diagnosisPrepareOptions } from "./src/session/dialogue-store.ts";
 import { createBrowserServer } from "./src/bridge/browser-server.ts";
 import { createStudyRoutes } from "./src/bridge/study-routes.ts";
 import { createGradeHandler } from "./src/assessment/grade-handler.ts";
@@ -20,13 +23,14 @@ import { registerCurriculumTool } from "./src/curriculum/curriculum-tool.ts";
 import { registerLabTools } from "./src/lab/lab-tools.ts";
 import { registerReviewTools } from "./src/review/review-tools.ts";
 import { registerPreflightTool } from "./src/lab/preflight-tool.ts";
+import { registerWorkspaceCommand } from "./src/workspace/workspace-command.ts";
+import { registerKnowledgeTools } from "./src/knowledge/knowledge-tools.ts";
+import { registerTextbookTools } from "./src/knowledge/textbook-tools.ts";
+import { registerQuestionTools } from "./src/evidence/question-tools.ts";
 
 export default function (pi: ExtensionAPI) {
   const sessionStore = createStudySessions();
   const { sessions, testSessions, curriculumSessions } = sessionStore;
-  let activeChapterTarget: StudyChapterTarget | null = null;
-  let assessmentOpenObserved = false;
-  let correctiveFollowUpSent = false;
   const moduleDir = dirname(fileURLToPath(import.meta.url));
   const promptsDir = join(moduleDir, "prompts");
 
@@ -40,6 +44,16 @@ export default function (pi: ExtensionAPI) {
     pi.events.emit("study:server-started", { port }),
   );
   const handleGrade = createGradeHandler({ pi, sessions, testSessions, updateProjectPhase });
+
+  // Completion exams stay in the browser; diagnosis is conversational.
+  const guard = createAssessmentOpenGuard({
+    send: (message) => pi.sendUserMessage(message, { deliverAs: "followUp" }),
+    hasOpenSession: (target) =>
+      hasAssessmentSession<{ chapterSlug: string; status: string }>(
+        [...testSessions.values()],
+        target.chapterSlug,
+      ),
+  });
 
   // /study-init and /study-review remain prompt resources. /study-chapter is promoted
   // from the old prompt to a registered command with structured state resolution.
@@ -59,42 +73,15 @@ export default function (pi: ExtensionAPI) {
     withFileMutationQueue,
   );
 
-  registerStudyChapterCommand(pi, (target) => {
-    activeChapterTarget = target;
-    assessmentOpenObserved = false;
-    correctiveFollowUpSent = false;
-  });
+  registerStudyChapterCommand(pi, (target: StudyChapterTarget) => guard.setTarget(target));
+  pi.on("tool_execution_end", (event) => guard.onToolEnd(event.toolName));
+  pi.on("turn_end", () => guard.onTurnEnd());
 
-  pi.on("tool_execution_end", (event) => {
-    const toolName = event.toolName;
-    if (toolName === "study_diagnosis_open" || toolName === "study_test_open")
-      assessmentOpenObserved = true;
-  });
-
-  pi.on("turn_end", () => {
-    if (!activeChapterTarget || correctiveFollowUpSent) return;
-    if (activeChapterTarget.phase !== "diagnosis" && activeChapterTarget.phase !== "test") return;
-    const chapterSessions =
-      activeChapterTarget.phase === "test" ? [...testSessions.values()] : [...sessions.values()];
-    if (
-      hasAssessmentSession<{ chapterSlug: string; status: string }>(
-        chapterSessions,
-        activeChapterTarget.chapterSlug,
-      )
-    ) {
-      assessmentOpenObserved = true;
-      return;
-    }
-    if (assessmentOpenObserved) return;
-    correctiveFollowUpSent = true;
-    const tool =
-      activeChapterTarget.phase === "diagnosis" ? "study_diagnosis_open" : "study_test_open";
-    pi.sendUserMessage(
-      `# STUDY_ASSESSMENT_OPEN_REQUIRED\n\n- chapterSlug: ${activeChapterTarget.chapterSlug}\n- phase: ${activeChapterTarget.phase}\n\n이 단계는 브라우저 assessment가 필수입니다. 문항 JSON을 구성한 뒤 반드시 ${tool}을 호출하세요. markdown 직접 답안 방식으로 진행하지 마세요.`,
-      { deliverAs: "followUp" },
-    );
-  });
-
+  registerWorkspaceCommand(pi);
+  registerKnowledgeTools(pi);
+  registerTextbookTools(pi);
+  registerQuestionTools(pi, { prepareOptions: diagnosisPrepareOptions });
+  registerLearningRouteTools(pi);
   registerLabTools(pi, updateProjectPhase);
   registerReviewTools(pi);
   registerPreflightTool(pi);
@@ -110,14 +97,13 @@ export default function (pi: ExtensionAPI) {
     templatePath: join(moduleDir, "assets", "assessment-template.html"),
     startServer: server.start,
     openBrowser,
-    onAssessmentOpened: () => {
-      assessmentOpenObserved = true;
-    },
+    onAssessmentOpened: () => guard.markOpened(),
     updateProjectPhase,
   });
 
   pi.on("message_end", (event) => handleGrade(event.message));
   pi.on("session_shutdown", async () => {
+    guard.clear();
     await server.close();
     sessions.clear();
     testSessions.clear();

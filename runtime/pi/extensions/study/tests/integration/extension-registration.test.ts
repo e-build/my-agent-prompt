@@ -75,9 +75,19 @@ test(
         "study_curriculum_open",
         "study_diagnosis_open",
         "study_test_open",
+        "study_workspace",
+        "study_knowledge",
+        "study_textbook_refresh",
+        "study_question_prepare",
+        "study_answer_record",
+        "study_learning_route",
       ].sort(),
     );
-    assert.deepEqual([...h.commands.keys()].sort(), ["study-chapter", "study-checkpoint"]);
+    assert.deepEqual([...h.commands.keys()].sort(), [
+      "study-chapter",
+      "study-checkpoint",
+      "study-workspace",
+    ]);
     const resources = await h.events.get("resources_discover")![0]();
     assert.match(resources.promptPaths[0], /study\/prompts$/);
     await h.emit("message_end", { message: { role: "user", content: "ignored" } });
@@ -175,5 +185,29 @@ test(
       /올바른 JSON/,
     );
     assert.equal(sessions.size, 1);
+  },
+);
+
+test(
+  "test phase nudges once for the browser exam while diagnosis is conversational",
+  options,
+  async (t) => {
+    const h = await harness();
+    const temp = await mkdtemp(join(tmpdir(), "study-guard-"));
+    t.after(() => rm(temp, { recursive: true, force: true }));
+    const root = join(temp, "study-example");
+    await mkdir(join(root, "ch-01-intro"), { recursive: true });
+    await writeFile(join(root, "ch-01-intro", "README.md"), "# Intro\n");
+    const run = async (args: string) =>
+      h.commands.get("study-chapter").handler(args, { cwd: root, isIdle: () => true, ui: { notify() {} } });
+    await run("01 diagnosis");
+    await h.emit("turn_end");
+    assert.equal(h.messages.filter((m) => m.includes("STUDY_ASSESSMENT_OPEN_REQUIRED")).length, 0);
+    await run("01 test");
+    await h.emit("turn_end");
+    await h.emit("turn_end");
+    const nudges = h.messages.filter((m) => m.includes("STUDY_ASSESSMENT_OPEN_REQUIRED"));
+    assert.equal(nudges.length, 1);
+    assert.match(nudges[0], /study_test_open/);
   },
 );

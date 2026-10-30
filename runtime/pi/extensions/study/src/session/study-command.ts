@@ -3,6 +3,9 @@ import { join } from "node:path";
 import { findStudyProjectRoot } from "../project/project-root.ts";
 export { findStudyProjectRoot } from "../project/project-root.ts";
 import { loadPhaseInstructions } from "./phase-instructions.ts";
+import { buildDialogueStatus } from "./dialogue-prompt.ts";
+import { currentRun, loadDialogue } from "./dialogue-store.ts";
+import { findWorkspaceRoot, projectForPath } from "../workspace/workspace-root.ts";
 import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import {
   loadStudyState,
@@ -106,7 +109,18 @@ async function phasePrompt(target: StudyChapterTarget, title: string): Promise<s
       "채점 결과가 브라우저에 표시됐습니다. 학습자가 결과 확인 버튼을 누를 때까지 다음 phase로 넘어가지 마세요.",
     ].join("\n");
   }
-  return [...common, await loadPhaseInstructions(target.phase)].join("\n");
+  const sections = [...common, await loadPhaseInstructions(target.phase)];
+  if (target.phase === "diagnosis") sections.push("", await diagnosisStatus(target));
+  return sections.join("\n");
+}
+
+/** Read-only resume context for conversational diagnosis. */
+export async function diagnosisStatus(target: Pick<StudyChapterTarget, "projectRoot" | "chapterSlug">): Promise<string> {
+  const workspace = await findWorkspaceRoot(target.projectRoot);
+  const project = workspace ? projectForPath(workspace, target.projectRoot) : null;
+  if (!workspace || !project) return buildDialogueStatus({ registered: false });
+  const dialogue = await loadDialogue(workspace.root, project.slug, target.chapterSlug);
+  return buildDialogueStatus({ registered: true, projectSlug: project.slug, run: currentRun(dialogue) });
 }
 
 export function registerStudyChapterCommand(

@@ -9,7 +9,7 @@ import {
   updateLabStep,
   verifyLabStep,
 } from "./lab-core.ts";
-import type { UpdateProjectPhase } from "../session/phase-state.ts";
+import { phaseSaveWarning, type UpdateProjectPhase } from "../session/phase-state.ts";
 import { createCommandRunner } from "./command-runner.ts";
 
 export function registerLabTools(pi: ExtensionAPI, updateProjectPhase: UpdateProjectPhase) {
@@ -40,6 +40,7 @@ export function registerLabTools(pi: ExtensionAPI, updateProjectPhase: UpdatePro
         params.stepId,
         runCommand,
       );
+      let warning = "";
       if (result.passed) {
         const manifest = await loadLabManifest(projectRoot, params.chapterSlug);
         await recordLabResult(projectRoot, manifest, params.stepId, {
@@ -58,12 +59,14 @@ export function registerLabTools(pi: ExtensionAPI, updateProjectPhase: UpdatePro
         const finished = manifest.steps.every(
           (step) => step.status === "completed" || step.status === "skipped_understood",
         );
-        await updateProjectPhase(
-          projectRoot,
-          params.chapterSlug,
-          "lab",
-          finished ? "completed" : "in_progress",
-          { evidence: [join(params.chapterSlug, "lab", "manifest.json")] },
+        warning = phaseSaveWarning(
+          await updateProjectPhase(
+            projectRoot,
+            params.chapterSlug,
+            "lab",
+            finished ? "completed" : "in_progress",
+            { evidence: [join(params.chapterSlug, "lab", "manifest.json")] },
+          ),
         );
       }
       return {
@@ -71,7 +74,7 @@ export function registerLabTools(pi: ExtensionAPI, updateProjectPhase: UpdatePro
           {
             type: "text",
             text: result.passed
-              ? `✅ lab step 검증 및 결과 기록 통과: ${params.stepId} → ${params.chapterSlug}/lab/results.md`
+              ? `✅ lab step 검증 및 결과 기록 통과: ${params.stepId} → ${params.chapterSlug}/lab/results.md${warning}`
               : `❌ lab step 검증 실패: ${result.messages.join("; ")}`,
           },
         ],
@@ -101,15 +104,17 @@ export function registerLabTools(pi: ExtensionAPI, updateProjectPhase: UpdatePro
       const manifest = await loadLabManifest(projectRoot, params.chapterSlug);
       updateLabStep(manifest, params.stepId, params.status, params.reason);
       await saveLabManifest(projectRoot, manifest);
-      await updateProjectPhase(
-        projectRoot,
-        params.chapterSlug,
-        "lab",
-        params.status === "blocked" ? "blocked" : "in_progress",
-        { reason: params.reason },
+      const warning = phaseSaveWarning(
+        await updateProjectPhase(
+          projectRoot,
+          params.chapterSlug,
+          "lab",
+          params.status === "blocked" ? "blocked" : "in_progress",
+          { reason: params.reason },
+        ),
       );
       return {
-        content: [{ type: "text", text: `lab step ${params.stepId} → ${params.status}` }],
+        content: [{ type: "text", text: `lab step ${params.stepId} → ${params.status}${warning}` }],
         details: { chapterSlug: params.chapterSlug, stepId: params.stepId, status: params.status },
       };
     },

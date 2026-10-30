@@ -91,3 +91,36 @@ test("concept command sends the current canonical phase instructions", async () 
   ).trim();
   assert.ok(messages[0].includes(instructions));
 });
+
+test("diagnosis prompt includes resumable dialogue status for registered workspaces", async (t) => {
+  const { workspaceFixture } = await import("../support/workspace-fixture.ts");
+  const root = await workspaceFixture(t);
+  const projectRoot = join(root, "study-alpha");
+  let command: any;
+  const messages: string[] = [];
+  registerStudyChapterCommand({
+    registerCommand: (_name: string, definition: any) => {
+      command = definition;
+    },
+    sendUserMessage: (prompt: string) => messages.push(prompt),
+  } as any);
+  await command.handler("01 diagnosis", { cwd: projectRoot, isIdle: () => true, ui: { notify() {} } });
+  assert.match(messages[0], /대화형 진단 상태/);
+  assert.match(messages[0], /projectSlug: study-alpha/);
+  assert.doesNotMatch(messages[0], /study_diagnosis_open을 호출/);
+});
+
+test("pending legacy HTML diagnosis is resumed instead of starting a dialogue", async () => {
+  const base = await mkdtemp(join(tmpdir(), "study-command-legacy-"));
+  const root = join(base, "study-cache");
+  await mkdir(join(root, "ch-01-cache"), { recursive: true });
+  const chapter = createEmptyChapterState();
+  chapter.diagnosis.status = "awaiting_submission";
+  await saveStudyState(root, { version: 1, projectRoot: root, createdAt: "x", updatedAt: "x", chapters: { "ch-01-cache": chapter } });
+  let command: any;
+  const messages: string[] = [];
+  registerStudyChapterCommand({ registerCommand: (_n: string, d: any) => (command = d), sendUserMessage: (m: string) => messages.push(m) } as any);
+  await command.handler("01 diagnosis", { cwd: root, isIdle: () => true, ui: { notify() {} } });
+  assert.match(messages[0], /제출을 기다리는 중/);
+  assert.doesNotMatch(messages[0], /대화형 진단 상태/);
+});
