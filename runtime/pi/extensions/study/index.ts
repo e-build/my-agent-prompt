@@ -34,6 +34,7 @@ import { createKnowledgeMapStore } from "./src/bridge/knowledge-routes.ts";
 import { registerMapCommand } from "./src/knowledge/map-command.ts";
 import { createStudyWidget } from "./src/session/study-widget.ts";
 import { checkKnowledgeIntegrity } from "./src/knowledge/knowledge-integrity.ts";
+import { chapterReviewHooks } from "./src/review/chapter-review-start.ts";
 
 export default function (pi: ExtensionAPI) {
   const sessionStore = createStudySessions();
@@ -83,9 +84,14 @@ export default function (pi: ExtensionAPI) {
     withFileMutationQueue,
   );
 
-  registerStudyChapterCommand(pi, (target: StudyChapterTarget) => {
-    guard.setTarget(target);
-    widget.setTarget(target);
+  registerStudyChapterCommand(pi, {
+    ...chapterReviewHooks(),
+    onTarget: (target: StudyChapterTarget) => {
+      guard.setTarget(target);
+      widget.setTarget(target);
+    },
+    hasLiveDiagnosis: (chapterSlug) =>
+      hasAssessmentSession<{ chapterSlug: string; status: string }>([...sessions.values()], chapterSlug),
   });
   pi.on("tool_execution_end", (event) => guard.onToolEnd(event.toolName));
   pi.on("session_start", (_event, ctx) => {
