@@ -6,6 +6,7 @@
 - [실행한 검증 명령과 결과](#실행한-검증-명령과-결과)
 - [테스트 수 변화](#테스트-수-변화)
 - [설계 요구 추적](#설계-요구-추적)
+- [계획 대비 파일 구성 차이](#계획-대비-파일-구성-차이)
 - [기존 동작에서 바뀐 점](#기존-동작에서-바뀐-점)
 - [하지 않은 것과 한계](#하지-않은-것과-한계)
 - [다음 단계 — 별도 승인 필요](#다음-단계--별도-승인-필요)
@@ -13,7 +14,7 @@
 ## 요약
 
 - 범위: [구현 계획](2026-10-30-study-learnharness-implementation.md) Phase A–G, Task 1–22
-- 브랜치: `main`, 사용자 지시대로 별도 브랜치 없음. 계획 커밋 `6711a0e` 이후 작업별 커밋 24개, 모두 **푸시 안 함**
+- 브랜치: `main`, 사용자 지시대로 별도 브랜치 없음. 계획 커밋 `6711a0e` 이후 작업별 커밋(검증 기록 포함), 모두 **푸시 안 함**
 - 결과: 자동 테스트 **306개 모두 통과**, 기준선 137개 포함
 - 실제 학습 저장소 `/Users/jimmylee/IdeaProjects/study`: **변경 없음**. 등록·이전·일정 생성 모두 미실행
 
@@ -69,6 +70,21 @@
 | 11 실패 처리·보안 경계 | 저장 실패 반환, CSP, HTML escape, 경로 검사 | `phase-state.test.ts`, `knowledge-routes.test.ts` |
 | 12 기존 기록 이전 — 미리 보기·승인·원본 불변·되돌리기 | `workspace/migration-plan.ts` | `migration-plan.test.ts`, `migration-tools.test.ts` |
 | 14-7 지침 정리 | `instructions/*`, `prompts/*`, study-dialogue 스킬 | `learning-instructions.test.ts` |
+
+## 계획 대비 파일 구성 차이
+
+계획에 적은 파일 이름과 다르게 묶은 경우. 동작은 오른쪽 파일에 구현·검증됐고, 빈 파일은 만들지 않았다.
+
+| 계획의 파일 | 실제 위치 | 이유 |
+|---|---|---|
+| `src/workspace/workspace-tools.ts` | `workspace-command.ts`(Pi 등록), `workspace-command-core.ts`·`workspace-actions.ts`(순수 로직) | typebox 없이 테스트하려고 등록과 로직 분리 |
+| `src/workspace/migration-tools.ts` | `migration-plan.ts` + `/study-workspace migrate` (`workspace-command-core.ts`) | 쓰기 동작을 사용자 명령으로만 노출. 별도 agent 도구 없음 |
+| `src/evidence/evidence-validation.ts`, `answer-tools.ts` | `evidence-store.ts`(검증 포함), `question-tools.ts`(`study_answer_record` 등록) | 검증이 저장과 한 곳에서만 쓰여 분리 이득 없음 |
+| `tests/evidence/evidence-validation.test.ts` | `tests/evidence/evidence-store.test.ts` | 위와 같음 |
+| `tests/knowledge/knowledge-tools.test.ts`, `tests/evidence/question-tools.test.ts` | `tests/integration/extension-registration.test.ts`의 entry point 흐름 테스트 | 도구는 실제 Pi host 로드로 검증 |
+| `tests/review/review-date.test.ts` | `tests/review/review-schedule.test.ts` | 날짜 계산과 일정 계산을 함께 검증 |
+| `tests/review/integrated-review-page.test.ts` | `tests/review/review-query.test.ts` | 조회와 페이지를 함께 검증 |
+| `assets/knowledge-template.html` | `src/knowledge/knowledge-view.ts`의 `renderKnowledgeMap` | 스크립트 없는 정적 HTML을 코드에서 만들고 escape·CSP를 테스트로 확인 |
 
 ## 기존 동작에서 바뀐 점
 
