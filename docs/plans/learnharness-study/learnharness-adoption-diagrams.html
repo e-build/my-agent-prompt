@@ -1,0 +1,500 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>우리 공부 노트는 어떻게 달라질까? — 쉬운 설명</title>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&amp;family=Geist:wght@400;500;600&amp;family=Noto+Serif:ital@0;1&amp;family=Noto+Sans+KR:wght@400;500;600&amp;family=Noto+Serif+KR:wght@400&amp;display=swap" rel="stylesheet">
+  <style>
+    /* User-selected light style. Fit canvases and larger labels. No profile changes. */
+    :root {
+      --paper:#f5f5f5; --ink:#2d3142; --muted:#4f5d75;
+      --rule:rgba(45,49,66,.16); --accent:#bf4520; --link:#2e5aa8;
+      --sans:'Geist','Noto Sans KR','Apple SD Gothic Neo','Malgun Gothic',system-ui,sans-serif;
+      --serif:'Instrument Serif','Noto Serif','Noto Serif KR',serif;
+    }
+    * { box-sizing:border-box; }
+    body { margin:0; background:var(--paper); color:var(--ink); font:17px/1.85 var(--sans); }
+    main { max-width:1088px; padding:48px 32px 64px; margin:auto; min-width:0; }
+    h1 { font:400 clamp(30px,4vw,44px)/1.4 var(--serif); letter-spacing:-.03em; margin:12px 0 24px; }
+    h2 { font-size:26px; line-height:1.5; margin:6px 0 14px; letter-spacing:-.03em; }
+    h3 { font-size:20px; line-height:1.6; margin:32px 0 12px; }
+    p { margin:0 0 16px; max-width:86ch; }
+    a { color:var(--link); text-underline-offset:4px; }
+    a:focus-visible, summary:focus-visible, .diagram-container:focus-visible, .table-scroll:focus-visible { outline:2px solid var(--link); outline-offset:4px; }
+    .intro { font-size:21px; line-height:1.8; max-width:65ch; }
+    .status { border-left:3px solid var(--accent); padding:10px 20px; margin:24px 0; font-size:15px; }
+    .status p { margin:0 0 4px; }
+    nav { display:flex; flex-wrap:wrap; gap:10px 24px; padding:20px 0; border-top:1px solid var(--rule); border-bottom:1px solid var(--rule); font-size:15px; }
+    .section-number { font-size:15px; font-weight:600; color:var(--muted); margin-bottom:6px; }
+    section { border-bottom:1px solid var(--rule); padding:44px 0; scroll-margin-top:24px; }
+    .one-thing { font-size:19px; color:var(--muted); margin-bottom:24px; }
+    .steps { margin:16px 0 24px; padding-left:32px; max-width:92ch; }
+    .steps li { padding-left:8px; margin:12px 0; }
+    .steps li::marker { font-weight:600; color:var(--muted); }
+    .formula { border-left:3px solid var(--muted); padding:10px 20px; font-weight:600; font-size:18px; margin:20px 0; }
+    .answer,.result { border-left:3px solid var(--accent); padding:12px 20px; margin:24px 0 8px; background:rgba(191,69,32,.04); }
+    .note,figcaption { color:var(--muted); font-size:15px; line-height:1.8; margin:16px 0 0; }
+    figure { margin:20px 0 24px; max-width:100%; min-width:0; }
+    .diagram-container { width:100%; max-width:100%; min-width:0; overflow-x:auto; }
+    svg { display:block; width:100%; min-width:960px; }
+    svg text { font-family:var(--sans); font-size:16px; fill:var(--ink); }
+    svg .name { font-weight:600; }
+    svg .body,svg .legend { fill:var(--muted); }
+    svg .connector { fill:none; stroke:var(--muted); stroke-width:1.5; }
+    svg .label-mask { fill:var(--paper); }
+    figcaption { padding-left:16px; border-left:2px solid var(--rule); }
+    .table-scroll { width:100%; overflow-x:auto; margin:20px 0; }
+    table { border-collapse:collapse; width:100%; min-width:600px; text-align:left; font-size:16px; }
+    th,td { border-bottom:1px solid var(--rule); padding:16px; vertical-align:top; }
+    th { background:#ececec; font-weight:600; }
+    td:first-child { min-width:90px; }
+    th:last-child,td:last-child { min-width:150px; }
+    small { font-size:14px; color:var(--muted); }
+    .question-example { border:1px solid var(--rule); background:#fff; border-radius:6px; padding:20px; }
+    details { border-top:1px solid var(--rule); padding:20px 0; margin-top:24px; }
+    summary { cursor:pointer; font-weight:600; font-size:17px; }
+    .details-body { margin-top:20px; font-size:15px; }
+    .details-body li { margin:8px 0; }
+    code { font-size:.92em; overflow-wrap:anywhere; }
+    footer { padding-top:28px; font-size:14px; color:var(--muted); }
+    @media(max-width:680px) {
+      main { padding:28px 16px 40px; }
+      h2 { font-size:23px; }
+      .intro { font-size:19px; }
+      .one-thing { font-size:18px; }
+      .steps { padding-left:24px; }
+      section { padding:32px 0; }
+      th,td { padding:12px; }
+      nav { gap:10px 18px; }
+    }
+    @media print {
+      main { padding:0; max-width:none; }
+      nav { display:none; }
+      .diagram-container,.table-scroll { overflow-x:visible; }
+      svg,table { min-width:0; }
+      figure { break-inside:avoid; }
+      body { font-size:12px; }
+      section { padding:24px 0; }
+    }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <p class="section-number">우리 공부 도구, 쉬운 말로 다시 설명</p>
+    <h1>배운 내용은 한곳에 모으고,<br>내가 한 답은 따로 남깁니다.</h1>
+    <p class="intro">프로젝트마다 같은 설명을 새로 만들지 않습니다.<br>함께 쓰는 노트를 만들고, 각 프로젝트에 맞는 예시를 붙입니다.</p>
+    <div class="status">
+      <p><strong>앞서 정한 여섯 방향은 그대로입니다. 설명만 쉽게 바꿨습니다.</strong></p>
+      <p>아래는 앞으로 만들 도구의 설명입니다. 아직 구현하거나 실제 공부 자료를 바꾼 것은 아닙니다.</p>
+    </div>
+    <nav aria-label="읽는 순서">
+      <a href="#story">먼저 숫자 예시</a>
+      <a href="#unit">1 무엇을 남길까</a>
+      <a href="#granularity">2 얼마나 나눌까</a>
+      <a href="#relations">3 어떻게 연결할까</a>
+      <a href="#intake">4 맞는지 확인</a>
+      <a href="#revision">5 고치는 방법</a>
+      <a href="#learning">6 교재와 복습</a>
+    </nav>
+  </header>
+
+  <section id="story" aria-labelledby="story-heading">
+    <p class="section-number">먼저, 예시 하나</p>
+    <h2 id="story-heading">1씩 두 번 늘렸는데, 왜 12가 아니라 11일까?</h2>
+    <p class="one-thing">민수와 지우가 같은 칠판의 숫자를 바꾼다고 생각해 봅시다.</p>
+    <p>칠판에는 <strong>10</strong>이 적혀 있습니다. 두 사람은 각각 아래 일을 한 번씩 합니다.</p>
+    <p class="formula">숫자 읽기 → 읽은 수에 1 더하기 → 계산한 수를 칠판에 적기</p>
+    <p>중요한 약속이 있습니다. <strong>적을 때 숫자를 다시 읽지는 않습니다.</strong> 자기가 처음 읽은 수로 계산한 값을 적습니다. 두 사람 말고 숫자를 바꾸는 사람은 없고, 읽기와 쓰기는 모두 성공합니다.</p>
+    <div class="table-scroll" role="region" tabindex="0" aria-label="숫자가 바뀌는 순서">
+      <table>
+        <thead><tr><th scope="col">순서</th><th scope="col">실제로 한 일</th><th scope="col">칠판의 숫자</th></tr></thead>
+        <tbody>
+          <tr><td>시작</td><td>칠판에 10이 적혀 있음</td><td><strong>10</strong></td></tr>
+          <tr><td>1</td><td>민수가 <strong>10을 읽고</strong> 기억함</td><td>10</td></tr>
+          <tr><td>2</td><td>지우도 <strong>10을 읽고</strong> 기억함. 아직 아무도 새 수를 적지 않음</td><td>10</td></tr>
+          <tr><td>3</td><td>민수가 자기가 읽은 수로 계산함: <strong>10 + 1 = 11</strong></td><td>10</td></tr>
+          <tr><td>4</td><td>지우도 자기가 읽은 수로 계산함: <strong>10 + 1 = 11</strong></td><td>10</td></tr>
+          <tr><td>5</td><td>민수가 계산한 <strong>11을 적음</strong></td><td><strong>11</strong></td></tr>
+          <tr><td>6</td><td>지우도 계산한 <strong>11을 적음</strong>. 11 위에 다시 11을 적은 셈</td><td><strong>11</strong></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="answer"><strong>마지막 숫자는 11입니다.</strong> 둘 다 1을 더했지만, 둘 다 같은 10에서 출발했기 때문입니다.</p>
+    <h3>차례대로 했다면?</h3>
+    <ol class="steps">
+      <li>민수가 10을 읽고, 11을 계산해서 적습니다.</li>
+      <li>그다음 지우가 <strong>바뀐 11</strong>을 읽습니다.</li>
+      <li>지우가 11 + 1 = 12를 계산해서 적습니다. 마지막 숫자는 <strong>12</strong>입니다.</li>
+    </ol>
+    <p><strong>차이는 계산 실력이 아니라, 읽고 적은 순서입니다.</strong> 컴퓨터의 두 작업도 이처럼 섞일 수 있습니다.</p>
+    <p class="note">칠판은 여러 작업이 함께 쓰는 저장 공간의 비유입니다. 읽기 한 번과 쓰기 한 번은 중간에 반쯤 처리된 값을 보여주지 않는다고 가정합니다. 그래도 ‘읽기부터 쓰기까지’ 전체가 한 묶음으로 보호되는 것은 아닙니다.</p>
+  </section>
+
+  <section id="unit" aria-labelledby="unit-heading" data-decision="confirmed">
+    <p class="section-number">1 / 무엇을 기억할까?</p>
+    <h2 id="unit-heading">큰 제목 대신, 설명할 수 있는 내용을 남기기</h2>
+    <p class="one-thing">‘동시성’이라는 제목만 저장하지 않고, 무엇을 배웠는지 적습니다.</p>
+    <ol class="steps">
+      <li>큰 제목은 <strong>‘여러 작업이 동시에 일하기’</strong>라고 붙일 수 있습니다. 하지만 제목만으로는 무엇을 배웠는지 알 수 없습니다.</li>
+      <li>따라서 기억할 내용을 적습니다. <strong>“읽기와 쓰기가 각각 잘 끝나도, 두 작업의 읽기·계산·쓰기가 섞이면 증가 하나가 빠질 수 있다.”</strong></li>
+      <li>이 내용을 <strong>함께 쓰는 노트</strong>에 한 번 남깁니다. 두 프로젝트가 같은 내용을 배웠다고 원본을 두 개 만들지 않습니다.</li>
+      <li>각 프로젝트 교재에는 이 설명을 넣되, 그 프로젝트의 포인트나 방문 수 예시를 붙입니다.</li>
+    </ol>
+    <figure>
+      <div class="diagram-container" role="region" tabindex="0" aria-label="같은 내용을 두 프로젝트에서 사용하기. 좁은 화면에서는 옆으로 넘겨 볼 수 있습니다.">
+        <svg id="adoption-unit" viewBox="0 0 960 408" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="adoption-unit-title adoption-unit-desc">
+          <title id="adoption-unit-title">같은 내용을 두 프로젝트에서 사용하기</title>
+          <desc id="adoption-unit-desc">함께 쓰는 노트의 내용을 포인트와 방문 수 프로젝트가 각각 자기 예시와 함께 사용합니다.</desc>
+          <defs>
+            <marker id="unit-arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0,8 3,0 6" fill="#4f5d75"/></marker>
+            <marker id="unit-arrow-accent" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0,8 3,0 6" fill="#bf4520"/></marker>
+            <marker id="unit-arrow-link" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0,8 3,0 6" fill="#2e5aa8"/></marker>
+          </defs>
+          <rect width="960" height="408" fill="#f5f5f5"/>
+          <path class="connector" d="M 400 152 V 192 Q 400 200 392 200 H 232 Q 224 200 224 208 V 248" marker-end="url(#unit-arrow)"/>
+          <path class="connector" d="M 560 152 V 192 Q 560 200 568 200 H 728 Q 736 200 736 208 V 248" marker-end="url(#unit-arrow)"/>
+          <g class="node" data-node-id="unit-common" data-box="280,40,400,112">
+            <rect x="280" y="40" width="400" height="112" rx="6" fill="#f5f5f5"/>
+            <rect x="280" y="40" width="400" height="112" rx="6" fill="rgba(191,69,32,.08)" stroke="#bf4520" stroke-width="1.2"/>
+            <text x="300" y="70" class="name">함께 쓰는 노트</text>
+            <text x="300" y="98" class="body">작은 단계가 잘 끝나도,</text>
+            <text x="300" y="122" class="body">전체 작업은 서로 섞일 수 있다.</text>
+          </g>
+          <g class="node" data-node-id="unit-points" data-box="56,248,336,80">
+            <rect x="56" y="248" width="336" height="80" rx="6" fill="#fff" stroke="#4f5d75" stroke-width="1.2"/>
+            <text x="76" y="278" class="name">포인트를 올리는 프로젝트</text>
+            <text x="76" y="306" class="body">왜 포인트가 덜 늘었는지 설명</text>
+          </g>
+          <g class="node" data-node-id="unit-visits" data-box="568,248,336,80">
+            <rect x="568" y="248" width="336" height="80" rx="6" fill="#fff" stroke="#4f5d75" stroke-width="1.2"/>
+            <text x="588" y="278" class="name">방문 수를 세는 프로젝트</text>
+            <text x="588" y="306" class="body">왜 방문 수가 덜 늘었는지 설명</text>
+          </g>
+          <line x1="40" y1="352" x2="920" y2="352" stroke="rgba(45,49,66,.16)"/>
+          <text x="40" y="380" class="legend">화살표: 같은 내용을 이 프로젝트에서도 사용합니다.</text>
+        </svg>
+      </div>
+      <figcaption>노트는 설명을 위한 비유입니다. 반드시 문장마다 파일 하나를 만든다는 뜻은 아닙니다.</figcaption>
+    </figure>
+    <p class="result"><strong>우리가 정한 방식:</strong> 제목은 찾기 쉽게 붙이고, 저장할 때는 구체적으로 설명할 수 있는 내용을 기준으로 삼습니다.</p>
+    <p class="note">이런 구체적인 주장을 설계 문서에서는 <strong>‘명제’</strong>라고 부릅니다. 한 줄이어야 한다는 뜻은 아닙니다. 필요한 조건과 설명은 여러 문장으로 적어도 됩니다.</p>
+  </section>
+
+  <section id="granularity" aria-labelledby="granularity-heading" data-decision="confirmed">
+    <p class="section-number">2 / 어디까지 나눌까?</p>
+    <h2 id="granularity-heading">따로 물어보거나 고칠 내용만 나누기</h2>
+    <p class="one-thing">모든 문장을 작은 조각으로 쪼개지는 않습니다.</p>
+    <ol class="steps">
+      <li>방금 설명에서 <strong>다른 공부에도 쓸 수 있는 내용</strong>을 찾습니다.</li>
+      <li>그 내용들을 따로 물어보거나, 하나만 고칠 일이 있는지 살펴봅니다.</li>
+      <li>그렇다면 따로 남깁니다. 이해를 돕는 숫자 예시와 실행 결과는 관련 설명 옆에 둡니다.</li>
+    </ol>
+    <div class="table-scroll" role="region" tabindex="0" aria-label="배운 내용을 나누는 예시">
+      <table>
+        <thead><tr><th scope="col">설명에서 찾은 것</th><th scope="col">어디에 남길까?</th><th scope="col">왜?</th></tr></thead>
+        <tbody>
+          <tr><td><strong>넓게 쓰는 원리</strong><br>읽기 한 번과 쓰기 한 번이 각각 한 번에 끝나도, 여러 단계로 된 작업 전체는 다른 작업과 섞일 수 있다.</td><td>기억할 내용 하나</td><td>포인트·방문 수처럼 서로 다른 문제에도 쓸 수 있음</td></tr>
+          <tr><td><strong>조건이 붙은 규칙</strong><br>두 작업이 같은 수를 읽고, 각각 1을 더한 값으로 덮어쓰면 증가 하나가 빠진다.</td><td>별도의 기억할 내용</td><td>‘같은 수를 읽었는가?’를 따로 확인하거나 물어볼 수 있음</td></tr>
+          <tr><td><strong>이번 숫자 예시</strong><br>10을 읽은 민수와 지우가 각각 11을 적었다.</td><td>위 규칙의 설명</td><td>이미 적은 규칙을 이해시키는 예시이기 때문</td></tr>
+          <tr><td><strong>실제 실행 결과</strong><br>오늘 돌린 코드에서 마지막 숫자가 11이었다.</td><td>그 프로젝트의 실행 기록</td><td>그날 실제로 무엇이 일어났는지 보여주는 기록이기 때문</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="note">두 번째 규칙은 두 작업이 모두 끝나고, 다른 쓰기가 없으며, 계산과 읽기·쓰기가 성공하는 경우입니다. 한 번 실행한 결과만 보고 “언제나 그렇다”고 만들지는 않습니다.</p>
+    <p class="result"><strong>우리가 정한 방식:</strong> 혼자서도 쓸모 있는 뜻풀이·규칙·판단 방법은 남깁니다. 비유·풀이·예시는 그 내용을 설명하는 자리에 둡니다.</p>
+  </section>
+
+  <section id="relations" aria-labelledby="relations-heading" data-decision="confirmed">
+    <p class="section-number">3 / 화살표는 무슨 뜻일까?</p>
+    <h2 id="relations-heading">이유, 배우는 순서, 쓰는 곳을 구별하기</h2>
+    <p class="one-thing">선을 그었다고 모두 같은 뜻은 아닙니다.</p>
+    <h3>가. 결과가 왜 나왔는지 설명하는 선</h3>
+    <ol class="steps">
+      <li>민수와 지우가 <strong>둘 다 10을 읽었다</strong>는 사실을 확인합니다.</li>
+      <li>각자 읽은 수에 1을 더해 적었고, <strong>다른 쓰기가 없었다</strong>는 사실도 확인합니다.</li>
+      <li>두 사실을 <strong>함께</strong> 사용합니다. 둘 다 11을 적으므로 마지막 숫자는 11입니다.</li>
+    </ol>
+    <figure>
+      <div class="diagram-container" role="region" tabindex="0" aria-label="두 조건을 함께 써서 결과를 설명하기. 좁은 화면에서는 옆으로 넘겨 볼 수 있습니다.">
+        <svg id="adoption-relations" viewBox="0 0 960 392" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="adoption-relations-title adoption-relations-desc">
+          <title id="adoption-relations-title">두 조건을 함께 써서 결과를 설명하기</title>
+          <desc id="adoption-relations-desc">둘 다 10을 읽었다는 사실과 각자 1을 더해 적었다는 사실을 함께 써야 마지막 숫자 11을 설명할 수 있습니다.</desc>
+          <defs>
+            <marker id="relations-arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0,8 3,0 6" fill="#4f5d75"/></marker>
+            <marker id="relations-arrow-accent" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0,8 3,0 6" fill="#bf4520"/></marker>
+            <marker id="relations-arrow-link" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0,8 3,0 6" fill="#2e5aa8"/></marker>
+          </defs>
+          <rect width="960" height="392" fill="#f5f5f5"/>
+          <path class="connector" d="M 360 92 H 384 Q 392 92 392 100 V 140 Q 392 148 400 148 H 432" marker-end="url(#relations-arrow)"/>
+          <path class="connector" d="M 360 240 H 384 Q 392 240 392 232 V 204 Q 392 196 400 196 H 432" marker-end="url(#relations-arrow)"/>
+          <path class="connector" d="M 576 172 H 664" marker-end="url(#relations-arrow)"/>
+          <g class="node" data-node-id="relations-read" data-box="40,40,320,104">
+            <rect x="40" y="40" width="320" height="104" rx="6" fill="#fff" stroke="#4f5d75" stroke-width="1.2"/>
+            <text x="60" y="70" class="name">둘 다 10을 읽음</text>
+            <text x="60" y="98" class="body">새 수가 적히기 전에 읽음</text>
+          </g>
+          <g class="node" data-node-id="relations-write" data-box="40,188,320,112">
+            <rect x="40" y="188" width="320" height="112" rx="6" fill="#fff" stroke="#4f5d75" stroke-width="1.2"/>
+            <text x="60" y="218" class="name">읽은 수 + 1을 각각 적음</text>
+            <text x="60" y="246" class="body">둘 다 끝남. 다른 쓰기는 없음.</text>
+          </g>
+          <g class="node" data-node-id="relations-both" data-box="432,128,144,88">
+            <rect x="432" y="128" width="144" height="88" rx="6" fill="#f5f5f5"/>
+            <rect x="432" y="128" width="144" height="88" rx="6" fill="rgba(191,69,32,.08)" stroke="#bf4520" stroke-width="1.2"/>
+            <text x="504" y="178" class="name" text-anchor="middle">모두 맞음</text>
+          </g>
+          <g class="node" data-node-id="relations-result" data-box="664,132,256,80">
+            <rect x="664" y="132" width="256" height="80" rx="6" fill="#fff" stroke="#4f5d75" stroke-width="1.2"/>
+            <text x="684" y="162" class="name">마지막 숫자는 11</text>
+            <text x="684" y="190" class="body">둘 다 11을 적었기 때문</text>
+          </g>
+          <line x1="40" y1="336" x2="920" y2="336" stroke="rgba(45,49,66,.16)"/>
+          <text x="40" y="364" class="legend">화살표: 앞의 두 조건을 함께 써서 결과를 설명합니다.</text>
+        </svg>
+      </div>
+      <figcaption>“둘 다 10을 읽었다”만으로는 마지막 숫자를 알 수 없습니다. 이후 무엇을 적었는지도 알아야 합니다.</figcaption>
+    </figure>
+    <h3>나. 먼저 무엇을 배울지 알려주는 선</h3>
+    <p class="formula">숫자 읽고 쓰기 이해 → 두 작업이 섞이는 상황 이해</p>
+    <p>이것은 <strong>공부하는 순서</strong>입니다. 앞 내용을 이미 알면 건너뛸 수 있습니다. 그렇다고 위 결과를 설명하는 데 필요한 사실까지 없어진 것은 아닙니다.</p>
+    <h3>다. 배운 내용을 어디에 쓸지 알려주는 선</h3>
+    <p class="formula">‘증가가 빠질 수 있다’는 내용 → 포인트 프로그램 살펴보기</p>
+    <p>이것은 <strong>사용하는 곳</strong>입니다. 프로젝트와 연결됐다고 내가 설명하거나 해결할 수 있게 된 것은 아닙니다. 실제 답과 행동을 따로 봐야 합니다.</p>
+    <p class="result"><strong>우리가 정한 방식:</strong> ‘왜?’, ‘무엇부터?’, ‘어디에?’를 섞지 않습니다. 같은 결과를 설명하는 다른 이유가 있다면 그 설명도 따로 남깁니다.</p>
+  </section>
+
+  <section id="intake" aria-labelledby="intake-heading" data-decision="confirmed">
+    <p class="section-number">4 / 아무 설명이나 믿어도 될까?</p>
+    <h2 id="intake-heading">저장하기 전에, 어디서 나온 말인지 확인하기</h2>
+    <p class="one-thing">노트에 적었다고 모두 맞는 말이 되는 것은 아닙니다.</p>
+    <ol class="steps">
+      <li>자료나 AI 설명에서 기억할 만한 내용을 찾습니다. 사용자가 자료로 지정한 개인 노트도 읽을 수 있습니다.</li>
+      <li><strong>어디에서 나온 말인지</strong>, <strong>어떤 조건에서 맞는지</strong> 확인합니다. 자료에 적힌 말과 AI가 덧붙인 추측을 구별합니다.</li>
+      <li>근거가 충분하면 기존 노트와 비교해서 정리합니다. 어떻게 합치거나 고치는지는 아래 5번에서 설명합니다.</li>
+      <li>아직 확인하지 못했다면 <strong>‘미확정’</strong>이라고 적습니다. 잊어버리지는 않되, 시험의 정답이나 확정된 교재 설명으로 쓰지 않습니다.</li>
+    </ol>
+    <figure>
+      <div class="diagram-container" role="region" tabindex="0" aria-label="확인한 내용과 아직 모르는 내용을 나누기. 좁은 화면에서는 옆으로 넘겨 볼 수 있습니다.">
+        <svg id="adoption-intake" viewBox="0 0 960 568" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="adoption-intake-title adoption-intake-desc">
+          <title id="adoption-intake-title">확인한 내용과 아직 모르는 내용을 나누기</title>
+          <desc id="adoption-intake-desc">새 설명의 자료와 조건을 확인한 뒤, 근거가 충분하면 기존 노트와 비교하고 부족하면 미확정으로 저장합니다.</desc>
+          <defs>
+            <marker id="intake-arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0,8 3,0 6" fill="#4f5d75"/></marker>
+            <marker id="intake-arrow-accent" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0,8 3,0 6" fill="#bf4520"/></marker>
+            <marker id="intake-arrow-link" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0,8 3,0 6" fill="#2e5aa8"/></marker>
+          </defs>
+          <rect width="960" height="568" fill="#f5f5f5"/>
+          <path class="connector" d="M 224 88 V 120" marker-end="url(#intake-arrow)"/>
+          <path class="connector" d="M 224 200 V 236" marker-end="url(#intake-arrow)"/>
+          <path class="connector" d="M 384 284 H 576" marker-end="url(#intake-arrow)"/>
+          <path class="connector" d="M 224 332 V 392" marker-end="url(#intake-arrow)"/>
+          <g class="edge-label"><rect x="432" y="252" width="96" height="24" rx="2" class="label-mask"/><text x="480" y="270" text-anchor="middle">확인됨</text></g>
+          <g class="edge-label"><rect x="232" y="348" width="112" height="24" rx="2" class="label-mask"/><text x="288" y="366" text-anchor="middle">아직 모름</text></g>
+          <g class="node" data-node-id="intake-start" data-box="64,40,320,48">
+            <rect x="64" y="40" width="320" height="48" rx="20" fill="#fff" stroke="#4f5d75" stroke-width="1.2"/>
+            <text x="84" y="70" class="name">1. 새 설명을 만남</text>
+          </g>
+          <g class="node" data-node-id="intake-check" data-box="64,120,320,80">
+            <rect x="64" y="120" width="320" height="80" rx="6" fill="#fff" stroke="#4f5d75" stroke-width="1.2"/>
+            <text x="84" y="150" class="name">2. 자료와 조건을 확인</text>
+            <text x="84" y="178" class="body">어디에서 나온 말인지 살펴봄</text>
+          </g>
+          <g class="node" data-node-id="intake-judge" data-box="64,236,320,96">
+            <polygon points="224,236 384,284 224,332 64,284" fill="#fff" stroke="#4f5d75" stroke-width="1.2"/>
+            <text x="224" y="290" text-anchor="middle" class="name">근거가 충분한가?</text>
+          </g>
+          <g class="node" data-node-id="intake-next" data-box="576,232,344,104">
+            <rect x="576" y="232" width="344" height="104" rx="6" fill="#f5f5f5"/>
+            <rect x="576" y="232" width="344" height="104" rx="6" fill="rgba(191,69,32,.08)" stroke="#bf4520" stroke-width="1.2"/>
+            <text x="596" y="262" class="name">3. 기존 내용과 비교</text>
+            <text x="596" y="290" class="body">아래 5번 방식으로 정리한 뒤</text>
+            <text x="596" y="314" class="body">함께 쓰는 노트와 교재에 반영</text>
+          </g>
+          <g class="node" data-node-id="intake-unknown" data-box="64,392,320,80">
+            <rect x="64" y="392" width="320" height="80" rx="6" fill="#ececec" stroke="#4f5d75" stroke-width="1.2"/>
+            <text x="84" y="422" class="name">미확정으로 저장</text>
+            <text x="84" y="450" class="body">정답으로는 쓰지 않음</text>
+          </g>
+          <line x1="40" y1="512" x2="920" y2="512" stroke="rgba(45,49,66,.16)"/>
+          <text x="40" y="540" class="legend">화살표: 다음에 할 일 · 마름모: 확인할 질문</text>
+        </svg>
+      </div>
+      <figcaption>확인은 틀릴 수도 있습니다. 출처가 있거나 AI가 확인했다고 절대적인 정답이 되는 것은 아닙니다.</figcaption>
+    </figure>
+    <h3>내 답은 따로 남깁니다</h3>
+    <p>내가 “마지막 숫자는 12”라고 답했다면, 그 답은 <strong>내 공부 기록</strong>에 그대로 남습니다. 잘못된 답을 함께 쓰는 노트의 사실로 옮기지는 않습니다. 맞는 답도 자동으로 공통 설명에 넣는 것은 아닙니다.</p>
+    <p class="result"><strong>우리가 정한 방식:</strong> ‘배울 내용이 맞는가?’와 ‘내가 어떻게 답했는가?’를 따로 관리합니다.</p>
+  </section>
+
+  <section id="revision" aria-labelledby="revision-heading" data-decision="confirmed">
+    <p class="section-number">5 / 새 설명이 생기면 어떻게 할까?</p>
+    <h2 id="revision-heading">같은 뜻이면 모으고, 틀렸다면 고친 흔적 남기기</h2>
+    <p class="one-thing">제목이 비슷하다고 서로 다른 내용을 합치지 않습니다.</p>
+    <ol class="steps">
+      <li>AI가 새 설명을 찾습니다.</li>
+      <li>함께 쓰는 노트에서 비슷한 내용을 찾습니다.</li>
+      <li>문장 모양만 보지 않고 <strong>뜻과 조건</strong>을 비교합니다.</li>
+      <li>아래 세 경우 중 어디에 해당하는지 나눕니다. 잘 모르겠으면 억지로 합치지 않습니다.</li>
+    </ol>
+    <div class="table-scroll" role="region" tabindex="0" aria-label="설명을 모으거나 고치는 세 가지 경우">
+      <table>
+        <thead><tr><th scope="col">경우</th><th scope="col">비교할 예시</th><th scope="col">실제로 하는 일</th></tr></thead>
+        <tbody>
+          <tr><td><strong>같은 뜻</strong></td><td>기존: “둘 다 10을 읽고 11을 쓰면 마지막 값은 11이다.”<br>새 설명: “두 작업이 각각 11로 덮어쓰므로 결과는 11이다.”<br><small>두 설명의 다른 조건도 같다고 가정합니다.</small></td><td>기존 내용에 새 표현과 출처를 붙입니다. 같은 내용의 원본을 하나 더 만들지 않습니다.</td></tr>
+          <tr><td><strong>같은 설명의 오류</strong></td><td>방금 예시의 풀이에 마지막 값을 실수로 <del>12</del>라고 적음.<br>같은 순서를 다시 따라가 보니 <strong>11</strong>이 맞음.</td><td>12를 11로 고칩니다. 이전 설명, 새 설명, 고친 이유를 남깁니다. 이전 설명을 지워 없애지는 않습니다.</td></tr>
+          <tr><td><strong>조건이 다른 내용</strong></td><td>기존: 두 사람이 <strong>둘 다 쓰기 전에 읽음</strong>.<br>새 설명: 민수가 다 끝낸 다음에 지우가 <strong>바뀐 수를 읽음</strong>.</td><td>서로 다른 내용으로 남깁니다. 이번에는 결과가 12이므로, 앞의 규칙과 같은 뜻이라고 합치면 안 됩니다.</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <ol class="steps" start="5">
+      <li>정리한 내용을 노트에 반영하고, 어떤 내용이 바뀌었는지 사용자에게 알려줍니다.</li>
+      <li>교재에서 자동으로 관리하는 설명 부분도 갱신합니다. <strong>내 메모와 프로젝트만의 예시는 함부로 덮어쓰지 않습니다.</strong></li>
+      <li>내 예전 답은 당시 설명과 연결된 채 남습니다. 오늘 교재를 고쳤다고 어제 내가 다른 답을 했던 것처럼 바꾸지 않습니다.</li>
+    </ol>
+    <p class="result"><strong>우리가 정한 방식:</strong> AI가 먼저 정리하고 변경 내용을 알려줍니다. 잘못 합쳤다면 이전 내용과 출처, 공부 기록의 연결을 되살립니다. 관계없는 공부 기록까지 되돌리지는 않습니다.</p>
+    <p class="note">‘같은 설명의 오류’인지는 쉬운 숫자 오타뿐 아니라 잘못 설명한 내용을 바로잡을 때도 판단합니다. 같은 뜻인지 확신할 수 없다면, 먼저 따로 남깁니다.</p>
+  </section>
+
+  <section id="learning" aria-labelledby="learning-heading" data-decision="confirmed">
+    <p class="section-number">6 / 교재와 복습은 어떻게 달라질까?</p>
+    <h2 id="learning-heading">읽을 때는 이어서, 기록할 때는 정확하게</h2>
+    <p class="one-thing">내용을 나눠 저장한다고 교재까지 잘게 찢어 놓지는 않습니다.</p>
+    <h3>먼저, 읽기 좋은 교재를 만듭니다</h3>
+    <ol class="steps">
+      <li>함께 쓰는 노트에서 이번 공부에 필요한 내용을 고릅니다.</li>
+      <li>그 내용들 사이에 설명을 붙이고, 포인트나 방문 수 같은 프로젝트 예시를 넣습니다.</li>
+      <li>교재를 읽고 연습한 다음, 관련 내용을 묶어서 물어봅니다. <strong>저장한 내용 하나마다 문제 하나를 만들 필요는 없습니다.</strong></li>
+    </ol>
+    <figure>
+      <div class="diagram-container" role="region" tabindex="0" aria-label="내용을 읽기 좋은 교재와 질문으로 만들기. 좁은 화면에서는 옆으로 넘겨 볼 수 있습니다.">
+        <svg id="adoption-learning-content" viewBox="0 0 960 256" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="adoption-learning-content-title adoption-learning-content-desc">
+          <title id="adoption-learning-content-title">내용을 읽기 좋은 교재와 질문으로 만들기</title>
+          <desc id="adoption-learning-content-desc">함께 쓰는 노트의 내용을 프로젝트 교재로 이어 설명하고 관련 내용을 복습 질문으로 묶습니다.</desc>
+          <defs>
+            <marker id="content-arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0,8 3,0 6" fill="#4f5d75"/></marker>
+            <marker id="content-arrow-accent" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0,8 3,0 6" fill="#bf4520"/></marker>
+            <marker id="content-arrow-link" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0,8 3,0 6" fill="#2e5aa8"/></marker>
+          </defs>
+          <rect width="960" height="256" fill="#f5f5f5"/>
+          <path class="connector" d="M 296 116 H 352" marker-end="url(#content-arrow)"/>
+          <path class="connector" d="M 608 116 H 664" marker-end="url(#content-arrow)"/>
+          <g class="node" data-node-id="learn-note" data-box="40,64,256,104">
+            <rect x="40" y="64" width="256" height="104" rx="6" fill="#fff" stroke="#4f5d75" stroke-width="1.2"/>
+            <text x="60" y="94" class="name">함께 쓰는 노트</text><text x="60" y="122" class="body">기억할 내용과 설명</text>
+          </g>
+          <g class="node" data-node-id="learn-book" data-box="352,64,256,104">
+            <rect x="352" y="64" width="256" height="104" rx="6" fill="#f5f5f5"/>
+            <rect x="352" y="64" width="256" height="104" rx="6" fill="rgba(191,69,32,.08)" stroke="#bf4520" stroke-width="1.2"/>
+            <text x="372" y="94" class="name">프로젝트 교재</text><text x="372" y="122" class="body">앞뒤 설명과 예시를 붙임</text>
+          </g>
+          <g class="node" data-node-id="learn-question" data-box="664,64,256,104">
+            <rect x="664" y="64" width="256" height="104" rx="6" fill="#fff" stroke="#4f5d75" stroke-width="1.2"/>
+            <text x="684" y="94" class="name">복습 질문</text><text x="684" y="122" class="body">관련 내용을 함께 물음</text>
+          </g>
+          <line x1="40" y1="200" x2="920" y2="200" stroke="rgba(45,49,66,.16)"/>
+          <text x="40" y="228" class="legend">화살표: 앞의 내용을 다음 형태로 바꿉니다.</text>
+        </svg>
+      </div>
+      <figcaption>공통 설명은 최신 내용으로 맞추되, 개인 메모와 예전 답은 보존합니다.</figcaption>
+    </figure>
+    <h3>그다음, 내 답에서 확인한 것만 기록합니다</h3>
+    <p class="question-example"><strong>질문 예:</strong> “방금 순서의 마지막 숫자는 무엇이고, 왜 그렇게 될까?”</p>
+    <ol class="steps" start="4">
+      <li>내가 실제로 한 답을 남깁니다. 힌트를 받았다면 그 사실도 남깁니다.</li>
+      <li>답에 나온 부분만 확인합니다. “11”이라고만 썼다면 숫자 예상은 맞았지만, <strong>이유를 설명할 수 있는지는 아직 모릅니다.</strong></li>
+      <li>서로 필요한 사실을 따로 외웠다고 전체 설명도 할 수 있다고 처리하지 않습니다. 전체 과정을 연결해서 설명했는지 따로 봅니다.</li>
+      <li>기억할 내용마다 복습 기록을 이어갑니다. 같은 내용을 다른 프로젝트에서 읽었다고 복습 일정을 하나 더 만들거나 자동으로 늦추지는 않습니다.</li>
+    </ol>
+    <figure>
+      <div class="diagram-container" role="region" tabindex="0" aria-label="내 답에서 확인한 것만 공부 기록에 남기기. 좁은 화면에서는 옆으로 넘겨 볼 수 있습니다.">
+        <svg id="adoption-learning-record" viewBox="0 0 960 256" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="adoption-learning-record-title adoption-learning-record-desc">
+          <title id="adoption-learning-record-title">내 답에서 확인한 것만 공부 기록에 남기기</title>
+          <desc id="adoption-learning-record-desc">내 실제 답과 도움 여부에서 확인한 내용을 공부 기록에 남기고 같은 내용의 다음 복습을 관리합니다.</desc>
+          <defs>
+            <marker id="record-arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0,8 3,0 6" fill="#4f5d75"/></marker>
+            <marker id="record-arrow-accent" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0,8 3,0 6" fill="#bf4520"/></marker>
+            <marker id="record-arrow-link" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0,8 3,0 6" fill="#2e5aa8"/></marker>
+          </defs>
+          <rect width="960" height="256" fill="#f5f5f5"/>
+          <path class="connector" d="M 296 116 H 352" marker-end="url(#record-arrow)"/>
+          <path class="connector" d="M 608 116 H 664" marker-end="url(#record-arrow)"/>
+          <g class="node" data-node-id="learn-answer" data-box="40,64,256,104">
+            <rect x="40" y="64" width="256" height="104" rx="6" fill="#fff" stroke="#4f5d75" stroke-width="1.2"/>
+            <text x="60" y="94" class="name">내가 실제로 한 답</text><text x="60" y="122" class="body">쓴 내용과 사용한 힌트</text>
+          </g>
+          <g class="node" data-node-id="learn-evidence" data-box="352,64,256,104">
+            <rect x="352" y="64" width="256" height="104" rx="6" fill="#f5f5f5"/>
+            <rect x="352" y="64" width="256" height="104" rx="6" fill="rgba(191,69,32,.08)" stroke="#bf4520" stroke-width="1.2"/>
+            <text x="372" y="94" class="name">내 공부 기록</text><text x="372" y="122" class="body">확인한 것만 표시</text>
+          </g>
+          <g class="node" data-node-id="learn-schedule" data-box="664,64,256,104">
+            <rect x="664" y="64" width="256" height="104" rx="6" fill="#fff" stroke="#4f5d75" stroke-width="1.2"/>
+            <text x="684" y="94" class="name">다음 복습</text><text x="684" y="122" class="body">기억할 내용별로 관리</text>
+          </g>
+          <line x1="40" y1="200" x2="920" y2="200" stroke="rgba(45,49,66,.16)"/>
+          <text x="40" y="228" class="legend">화살표: 내 답을 바탕으로 공부 기록과 복습을 이어갑니다.</text>
+        </svg>
+      </div>
+      <figcaption>며칠 뒤에 다시 물을지, 예전 복습 일정을 어떻게 가져올지는 아직 정하지 않았습니다.</figcaption>
+    </figure>
+    <p class="result"><strong>우리가 정한 방식:</strong> 교재와 질문은 자연스럽게 묶습니다. 다만 공부 기록에는 내가 실제로 보여 준 것만 남깁니다.</p>
+  </section>
+
+  <section id="recap" aria-labelledby="recap-heading">
+    <p class="section-number">마지막으로, 전체 흐름</p>
+    <h2 id="recap-heading">한 번 공부하면 이렇게 이어집니다</h2>
+    <ol class="steps">
+      <li>자료를 읽고 설명을 듣습니다.</li>
+      <li>나중에도 쓸 내용을 골라, 따로 다룰 필요가 있는 것만 나눕니다.</li>
+      <li>그 설명이 맞는지 자료와 조건을 확인합니다. 아직 모르면 그렇게 표시합니다.</li>
+      <li>기존 노트와 같은 뜻이면 모으고, 틀렸으면 고친 흔적을 남깁니다. 조건이 다르면 따로 둡니다.</li>
+      <li>함께 쓰는 설명에 프로젝트 예시를 붙여 교재와 질문을 만듭니다.</li>
+      <li>내가 답합니다. 도구는 내 답과 도움 여부를 보고, 실제 확인한 부분만 기록합니다.</li>
+      <li>나중에 같은 내용을 다시 물어봅니다. 다른 프로젝트에서 배워도 그 내용의 공부 기록과 복습은 이어집니다.</li>
+    </ol>
+    <p class="answer"><strong>핵심은 두 가지입니다.</strong><br>‘배울 내용’과 ‘내가 배웠다는 기록’을 섞지 않습니다.<br>같은 내용은 여러 프로젝트에서 함께 씁니다.</p>
+    <p class="note">실습과 마지막 HTML 시험은 유지합니다. 복습을 며칠 간격으로 할지, 기존 기록을 어떻게 연결할지, 저장 중 문제가 나면 어떻게 복구할지는 아직 정하지 않았습니다.</p>
+  </section>
+
+  <details id="terms">
+    <summary>이전 문서의 어려운 말이 궁금하다면</summary>
+    <div class="details-body">
+      <div class="table-scroll" role="region" tabindex="0" aria-label="어려운 말을 쉽게 풀기">
+        <table>
+          <thead><tr><th scope="col">이전 설명의 말</th><th scope="col">쉽게 풀면</th></tr></thead>
+          <tbody>
+            <tr><td>명제</td><td>참인지 거짓인지 따져볼 수 있는 구체적인 주장. 이 페이지에서는 ‘기억할 내용’으로 설명. 미확정인 주장도 있을 수 있음</td></tr>
+            <tr><td>정본 / 중앙 지식</td><td>여러 프로젝트가 함께 참고하는 원본. 이 페이지에서는 ‘함께 쓰는 노트’</td></tr>
+            <tr><td>공동 전제</td><td>어떤 결과를 설명하는 데 함께 필요한 사실들</td></tr>
+            <tr><td>선수 학습</td><td>이번 목표를 위해 먼저 배울 내용</td></tr>
+            <tr><td>적용 맥락</td><td>배운 내용을 사용하는 프로젝트나 상황</td></tr>
+            <tr><td>수행 근거</td><td>내가 실제로 한 답, 설명, 코드 실행과 그때 받은 도움</td></tr>
+            <tr><td>동일성 / 병합</td><td>뜻과 조건이 같은지 판단하고, 같은 내용이라면 한곳으로 모으는 것</td></tr>
+            <tr><td>버전</td><td>고치기 전과 후를 구분하기 위한 표시. 예: 첫 번째 설명, 고친 설명</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </details>
+
+  <details id="source-comparison">
+    <summary>LearnHarness에서는 무엇을 가져왔을까?</summary>
+    <div class="details-body">
+      <ul>
+        <li><strong>가져온 생각:</strong> 큰 제목만 남기지 않고 구체적인 주장을 남기기. 결과를 설명하는 이유와 공부 순서를 구별하기. 같은 주장을 다시 쓸 때 기존 내용과 연결하기.</li>
+        <li><strong>우리 쪽에 맞춘 점:</strong> 자료와 조건 확인, 아직 모르는 내용 표시, 조심스럽게 합치기, 고친 이력과 내 답 보존, 프로젝트 교재와 복습 연결.</li>
+        <li>LearnHarness의 같은 내용 찾기 단계가 그 내용의 참·거짓까지 독립적으로 검증하는 것은 아닙니다. 또 처음 저장한 설명을 유지하는 방식은 우리 교재 수정 방식과 다릅니다.</li>
+        <li>자세한 근거는 <a href="learnharness-knowledge-model.md">원본 조사 문서</a>에 있습니다. 커밋 <code>3dd52110bbcbcba81645453ce0a8fdc230594c47</code>의 소스를 읽은 결과이며, 실제 앱이나 AI 추출 품질을 실행해서 측정한 결과는 아닙니다.</li>
+      </ul>
+    </div>
+  </details>
+
+  <footer id="sources">
+    <p><a href="learnharness-adoption-review.md">여섯 선택의 자세한 기록</a> · <a href="decisions.md">정한 것과 남은 것</a> · <a href="design-draft.md">전체 설계 초안</a></p>
+    <p>민수·지우·포인트·방문 수는 설명용 예시입니다. 이번 변경은 설명 문서에만 적용됩니다. 글꼴을 불러오지 못하면 기기의 기본 글꼴로 표시됩니다.</p>
+  </footer>
+</main>
+</body>
+</html>
