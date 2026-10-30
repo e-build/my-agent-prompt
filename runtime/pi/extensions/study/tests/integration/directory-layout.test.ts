@@ -14,6 +14,7 @@ const features = [
   "project",
   "review",
   "session",
+  "workspace",
 ];
 
 async function typescriptFiles(directory: string): Promise<string[]> {
