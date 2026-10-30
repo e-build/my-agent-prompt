@@ -7,6 +7,9 @@ import { projectPath } from "../project/project-path.ts";
 import { validateChapterEvidence } from "../session/chapter-evidence.ts";
 import { applyTestRecovery, syncReviewPhase } from "../session/study-state.ts";
 import { buildReviewStartPage } from "./review-page.ts";
+import { findWorkspaceRoot, projectForPath } from "../workspace/workspace-root.ts";
+import { buildIntegratedReviewPage } from "./integrated-review-page.ts";
+import { dueReviews } from "./review-query.ts";
 
 export function registerReviewTools(pi: ExtensionAPI) {
   // Legacy name remains an alias; neither tool generates a study pack.
@@ -14,12 +17,28 @@ export function registerReviewTools(pi: ExtensionAPI) {
     pi.registerTool({
       name,
       label: "Study Review Refresh",
-      description: `${name === "study_pack_refresh" ? "Deprecated alias. " : ""}schedule.md를 읽어 정답 비노출 review/README.md를 갱신합니다. 기존 pack의 고유 회상 기록은 보존하며 새 pack은 생성하지 않습니다.`,
+      description: `${name === "study_pack_refresh" ? "Deprecated alias. " : ""}정답 비노출 복습 안내 페이지를 갱신합니다. 등록된 study 루트의 프로젝트는 통합 복습 일정(review/items)을, 미등록 프로젝트는 기존 schedule.md를 기준으로 합니다. 새 pack은 생성하지 않습니다.`,
       promptSnippet:
         "Refresh review navigation from the canonical schedule without copying answers",
       parameters: Type.Object({ chapterSlug: Type.String({ description: "챕터 slug" }) }),
       async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
         const projectRoot = await findStudyProjectRoot(ctx?.cwd ?? process.cwd());
+        const workspace = await findWorkspaceRoot(projectRoot);
+        const project = workspace ? projectForPath(workspace, projectRoot) : null;
+        if (workspace && project) {
+          // Registered: the integrated schedule is canonical. No chapter schedule copy is made.
+          const path = await buildIntegratedReviewPage(workspace.root);
+          const due = await dueReviews(workspace.root, { projectId: project.id, chapterSlug: params.chapterSlug, includeFuture: true });
+          return {
+            content: [
+              {
+                type: "text",
+                text: `통합 복습 안내 갱신: ${path}\n${params.chapterSlug}: ${due.items.length ? due.items.map((i) => `${i.name} ${i.dueDate} ${i.round}/${i.totalRounds}`).join(", ") : "등록된 복습 일정 없음"}`,
+              },
+            ],
+            details: { path, integrated: true, items: due.items },
+          };
+        }
         return withFileMutationQueue(
           projectPath(projectRoot, params.chapterSlug, "review", "README.md"),
           async () => {

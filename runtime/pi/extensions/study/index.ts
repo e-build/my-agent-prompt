@@ -29,6 +29,7 @@ import { registerTextbookTools } from "./src/knowledge/textbook-tools.ts";
 import { registerQuestionTools } from "./src/evidence/question-tools.ts";
 import { reviewMergeChanges } from "./src/review/review-merge.ts";
 import { reviewAnswerOptions } from "./src/review/review-store.ts";
+import { registerReviewNextTool } from "./src/review/review-next-tool.ts";
 
 export default function (pi: ExtensionAPI) {
   const sessionStore = createStudySessions();
@@ -86,6 +87,7 @@ export default function (pi: ExtensionAPI) {
   registerLearningRouteTools(pi);
   registerLabTools(pi, updateProjectPhase);
   registerReviewTools(pi);
+  registerReviewNextTool(pi);
   registerPreflightTool(pi);
   registerCurriculumTool(pi, {
     curriculumSessions,

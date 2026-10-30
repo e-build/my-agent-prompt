@@ -81,6 +81,7 @@ test(
         "study_question_prepare",
         "study_answer_record",
         "study_learning_route",
+        "study_review_next",
       ].sort(),
     );
     assert.deepEqual([...h.commands.keys()].sort(), [
@@ -209,5 +210,21 @@ test(
     const nudges = h.messages.filter((m) => m.includes("STUDY_ASSESSMENT_OPEN_REQUIRED"));
     assert.equal(nudges.length, 1);
     assert.match(nudges[0], /study_test_open/);
+  },
+);
+
+test(
+  "review refresh uses the integrated schedule for registered projects",
+  options,
+  async (t) => {
+    const h = await harness();
+    const { workspaceFixture } = await import("../support/workspace-fixture.ts");
+    const root = await workspaceFixture(t);
+    const result = await h.tools
+      .get("study_review_refresh")
+      .execute("call", { chapterSlug: "ch-01-intro" }, undefined, undefined, { cwd: join(root, "study-alpha") });
+    assert.equal(result.details.integrated, true);
+    assert.match(await readFile(join(root, "review", "README.md"), "utf8"), /통합 복습/);
+    assert.equal(existsSync(join(root, "study-alpha", "ch-01-intro", "review", "schedule.md")), false);
   },
 );
