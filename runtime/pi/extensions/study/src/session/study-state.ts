@@ -260,6 +260,8 @@ export function resolveNextTarget(
 export async function syncReviewPhase(projectRoot: string, chapterSlug: string): Promise<void> {
   const state = await loadStudyState(projectRoot);
   if (!state.chapters[chapterSlug]) return;
+  // Never downgrade an explicit learner choice (e.g. skipped_understood) from a schedule file.
+  if (state.chapters[chapterSlug].review.status === "skipped_understood") return;
   const schedule = await text(join(projectRoot, chapterSlug, "review", "schedule.md"));
   const progress = await recordedScheduleProgress(projectRoot, chapterSlug, schedule);
   const status: StudyPhaseStatus = progress.completed

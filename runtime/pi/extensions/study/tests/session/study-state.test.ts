@@ -201,3 +201,13 @@ test("unknown state fields and legacy absolute roots survive a load and save", a
   assert.equal(saved.closedAt, "2026-10-06");
   assert.equal(saved.projectRoot, "/old/pc/study-x");
 });
+
+test("review synchronization keeps an explicit skipped review choice", async () => {
+  const root = await project();
+  await chapter(root, "ch-01-cache");
+  const state = await loadStudyState(root);
+  updatePhaseState(state, "ch-01-cache", "review", { status: "skipped_understood", reason: "사용자 선택" });
+  await saveStudyState(root, state);
+  await studyState.syncReviewPhase(root, "ch-01-cache");
+  assert.equal((await loadStudyState(root)).chapters["ch-01-cache"].review.status, "skipped_understood");
+});

@@ -204,9 +204,19 @@ export function createStudyRoutes({
         },
         passed,
       );
-      if (completion.pagePath)
+      if (completion.review)
+        pi.sendUserMessage(
+          `# STUDY_REVIEW_READY\n\n통합 복습 등록: 새 일정 ${completion.review.created.length}개, 기존 일정 유지 ${completion.review.existing.length}개 (기준일 ${completion.review.completedOn}, 첫 복습 다음 날).${completion.pagePath ? `\n안내 페이지: ${completion.pagePath}` : ""}\n오늘 모든 복습을 몰아서 하지 말고 예정일에 /study-review로 진행하세요.`,
+          { deliverAs: "followUp" },
+        );
+      else if (completion.pagePath)
         pi.sendUserMessage(
           `# STUDY_REVIEW_READY\n\n복습 시작 페이지: ${completion.pagePath}\n일정이 미설정이면 간격·기준일·시간대를 먼저 확인하세요.`,
+          { deliverAs: "followUp" },
+        );
+      if (completion.reviewWarning)
+        pi.sendUserMessage(
+          `# STUDY_REVIEW_LINK_PENDING\n\ntest는 completed입니다. 통합 복습 연결만 대기 중입니다: ${completion.reviewWarning}`,
           { deliverAs: "followUp" },
         );
       if (completion.evidenceError)
