@@ -27,6 +27,8 @@ import { registerWorkspaceCommand } from "./src/workspace/workspace-command.ts";
 import { registerKnowledgeTools } from "./src/knowledge/knowledge-tools.ts";
 import { registerTextbookTools } from "./src/knowledge/textbook-tools.ts";
 import { registerQuestionTools } from "./src/evidence/question-tools.ts";
+import { reviewMergeChanges } from "./src/review/review-merge.ts";
+import { reviewAnswerOptions } from "./src/review/review-store.ts";
 
 export default function (pi: ExtensionAPI) {
   const sessionStore = createStudySessions();
@@ -78,9 +80,9 @@ export default function (pi: ExtensionAPI) {
   pi.on("turn_end", () => guard.onTurnEnd());
 
   registerWorkspaceCommand(pi);
-  registerKnowledgeTools(pi);
+  registerKnowledgeTools(pi, (root) => ({ extraChanges: (record) => reviewMergeChanges(root, record) }));
   registerTextbookTools(pi);
-  registerQuestionTools(pi, { prepareOptions: diagnosisPrepareOptions });
+  registerQuestionTools(pi, { prepareOptions: diagnosisPrepareOptions, answerOptions: reviewAnswerOptions });
   registerLearningRouteTools(pi);
   registerLabTools(pi, updateProjectPhase);
   registerReviewTools(pi);

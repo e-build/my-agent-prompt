@@ -13,7 +13,7 @@ function parsePayload<T>(payloadJson: string | undefined, fallback: T): T {
   }
 }
 
-export function registerKnowledgeTools(pi: ExtensionAPI, applyOptions: () => ApplyOptions = () => ({})) {
+export function registerKnowledgeTools(pi: ExtensionAPI, applyOptions: (root: string) => ApplyOptions = () => ({})) {
   pi.registerTool({
     name: "study_knowledge",
     label: "Study Knowledge",
@@ -45,7 +45,7 @@ export function registerKnowledgeTools(pi: ExtensionAPI, applyOptions: () => App
       }
       const request = parsePayload<KnowledgeChangeRequest | null>(params.payloadJson, null);
       if (!request) throw new Error("apply에는 payloadJson이 필요합니다.");
-      const result = await applyKnowledgeChange(workspace.root, request, applyOptions());
+      const result = await applyKnowledgeChange(workspace.root, request, applyOptions(workspace.root));
       return {
         content: [{ type: "text", text: `${result.status}: ${result.summary}` }],
         details: result,

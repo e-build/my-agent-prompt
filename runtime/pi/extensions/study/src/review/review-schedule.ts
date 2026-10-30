@@ -36,6 +36,8 @@ export type ReviewSchedule = {
   mergedInto?: string;
   /** Schedules absorbed by a merge, kept for undo and lineage. */
   absorbed?: ReviewSchedule[];
+  /** This schedule as it was right before absorbing each source (for unmerge). */
+  preMerge?: Record<string, ReviewSchedule>;
 };
 
 export type ReviewEvent = {
