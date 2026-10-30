@@ -79,7 +79,7 @@ test("the menu starts with the recommended resume and adds context actions", asy
   const menu = buildChapterMenu(catalog, { registered: false, staleDiagnosis: () => false });
   assert.match(menu[0].label, /이어서.*01.*개념 학습/);
   assert.deepEqual(menu[0].action, { type: "open", chapterSlug: "ch-01-basics", phase: "concept" });
-  assert.ok(menu.some((m) => m.action.type === "pick-chapter"));
+  assert.ok(menu.some((m) => m.action.type === "pick-chapter" && m.label === "챕터 고르기"));
   assert.ok(menu.some((m) => m.action.type === "pick-phase"));
   assert.ok(!menu.some((m) => m.action.type === "start-review"));
 
@@ -93,4 +93,23 @@ test("the menu starts with the recommended resume and adds context actions", asy
   assert.ok(review.some((m) => m.action.type === "start-review" && m.action.chapterSlug === "ch-01-basics"));
   catalog.chapters[0].phases.review = "skipped_understood";
   assert.ok(!buildChapterMenu(catalog, { registered: true, staleDiagnosis: () => false }).some((m) => m.action.type === "start-review"));
+});
+
+test("titles drop a repeated chapter prefix and finished projects get no resume item", async () => {
+  const root = join(await mkdtemp(join(tmpdir(), "catalog-done-")), "study-x");
+  await mkdir(join(root, "ch-01-a"), { recursive: true });
+  await writeFile(join(root, "ch-01-a", "README.md"), "# ch-01 동시성 기초\n");
+  await mkdir(join(root, "ch-02-b"), { recursive: true });
+  await writeFile(join(root, "ch-02-b", "README.md"), "# Ch 02: 큐\n");
+  const finished = createEmptyChapterState();
+  for (const phase of ["diagnosis", "concept", "lab", "test", "review"] as const) finished[phase].status = "skipped_understood";
+  const tested = createEmptyChapterState();
+  for (const phase of ["diagnosis", "concept", "lab", "test"] as const) tested[phase].status = "completed";
+  await saveStudyState(root, { version: 1, projectRoot: root, createdAt: "x", updatedAt: "x", chapters: { "ch-01-a": tested, "ch-02-b": finished } });
+  const catalog = await readChapterCatalog(root);
+  assert.deepEqual(catalog.chapters.map((c) => c.title), ["동시성 기초", "큐"]);
+  const menu = buildChapterMenu(catalog, { registered: true, staleDiagnosis: () => false });
+  assert.ok(!menu.some((m) => m.label.startsWith("▶")));
+  assert.ok(menu.some((m) => m.action.type === "start-review" && m.action.chapterSlug === "ch-01-a"));
+  assert.ok(!menu.some((m) => m.action.type === "pick-phase" && m.action.chapterSlug === "ch-02-b"));
 });

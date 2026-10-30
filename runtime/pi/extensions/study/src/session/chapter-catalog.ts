@@ -73,7 +73,7 @@ export function nextPhaseOf(phases: Record<StudyPhase, StudyPhaseStatus>): Study
 async function titleOf(projectRoot: string, slug: string): Promise<string> {
   try {
     const content = await readFile(join(projectRoot, slug, "README.md"), "utf8");
-    return content.match(/^#\s+(?:Ch\s*\d+\s*[—-]\s*)?(.+)$/m)?.[1]?.trim() || slug;
+    return content.match(/^#\s+(?:ch[-\s]*\d+\s*[—:.-]?\s*)?(.+)$/im)?.[1]?.trim() || slug;
   } catch {
     return slug;
   }
@@ -172,10 +172,11 @@ export function buildChapterMenu(
   context: { registered: boolean; staleDiagnosis: (chapterSlug: string) => boolean },
 ): MenuItem[] {
   const items: MenuItem[] = [];
+  // Resume only real unfinished work: a core phase, or a review already in progress.
+  const unfinished = (c: CatalogChapter) =>
+    PHASE_ORDER.slice(0, 4).some((p) => !done(c.phases[p])) || c.phases.review === "in_progress";
   const current =
-    catalog.chapters.find((c) => c.active && !PHASE_ORDER.every((p) => done(c.phases[p]))) ??
-    catalog.chapters.find((c) => PHASE_ORDER.slice(0, 4).some((p) => !done(c.phases[p]))) ??
-    catalog.chapters.at(-1);
+    catalog.chapters.find((c) => c.active && unfinished(c)) ?? catalog.chapters.find(unfinished);
   if (current)
     items.push({
       label: `▶ 이어서: ${current.number} ${current.title} — ${PHASE_LONG[current.next]}`,
@@ -199,6 +200,6 @@ export function buildChapterMenu(
   }
   if (current)
     items.push({ label: `${current.number} 챕터의 다른 단계 고르기`, action: { type: "pick-phase", chapterSlug: current.slug } });
-  if (catalog.chapters.length > 1) items.push({ label: "다른 챕터 고르기", action: { type: "pick-chapter" } });
+  if (catalog.chapters.length > 1 || !current) items.push({ label: "챕터 고르기", action: { type: "pick-chapter" } });
   return items;
 }
