@@ -13,6 +13,7 @@ import {
   previewWorkspaceRegistration,
 } from "./workspace-registration.ts";
 import { requireWorkspace } from "./workspace-root.ts";
+import { applyMigration, previewMigration, undoMigration } from "./migration-plan.ts";
 
 export type CommandUi = Pick<ExtensionCommandContext, "cwd" | "hasUI" | "isIdle"> & {
   ui: Pick<ExtensionCommandContext["ui"], "notify" | "confirm">;
@@ -48,6 +49,26 @@ export async function runWorkspaceCommand(
     return result.issues.length
       ? `검사 결과 문제 ${result.issues.length}건:\n- ${result.issues.join("\n- ")}`
       : `검사 통과: ${result.root}`;
+  }
+  if (command.action === "migrate") {
+    const root = expandRoot(ctx.cwd, command.root);
+    if (command.step === "preview") {
+      const preview = await previewMigration(root);
+      return `${preview.summary}${preview.blockers.length ? `\n\n적용 전 해결 필요:\n- ${preview.blockers.join("\n- ")}` : `\n\n적용하려면 사용자가 \`/study-workspace migrate apply ${preview.digest} ${command.root}\`를 실행하세요.`}`;
+    }
+    if (command.step === "apply") {
+      const preview = await previewMigration(root);
+      const approved = ctx.hasUI
+        ? await ctx.ui.confirm("기존 기록 이전", `${preview.summary}\n\n원본 파일은 바꾸지 않고 등록 파일만 추가합니다. 진행할까요?`)
+        : true;
+      if (!approved) return "이전을 취소했습니다. 파일은 바뀌지 않았습니다.";
+      const result = await applyMigration(root, { digest: command.digest, approved });
+      return `기존 기록 이전 ${result.status}: ${result.migrationId} (되돌리기: /study-workspace migrate undo ${result.migrationId})`;
+    }
+    const approved = ctx.hasUI ? await ctx.ui.confirm("이전 되돌리기", `${command.migrationId}에서 추가한 파일만 제거합니다. 진행할까요?`) : true;
+    if (!approved) return "되돌리기를 취소했습니다.";
+    await undoMigration(root, command.migrationId);
+    return `이전 되돌림: ${command.migrationId}`;
   }
   if (command.action === "init") {
     const root = expandRoot(ctx.cwd, command.root);

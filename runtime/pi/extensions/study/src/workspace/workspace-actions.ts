@@ -75,10 +75,13 @@ export type WorkspaceCommand =
   | { action: "inspect" }
   | { action: "check" }
   | { action: "init"; root: string }
-  | { action: "recover"; mode: "retry" | "rollback" };
+  | { action: "recover"; mode: "retry" | "rollback" }
+  | { action: "migrate"; step: "preview"; root: string }
+  | { action: "migrate"; step: "apply"; root: string; digest: string }
+  | { action: "migrate"; step: "undo"; root: string; migrationId: string };
 
 export function parseWorkspaceCommand(args: string): WorkspaceCommand {
-  const [action = "inspect", value] = args.trim().split(/\s+/).filter(Boolean);
+  const [action = "inspect", value, third, fourth] = args.trim().split(/\s+/).filter(Boolean);
   if (action === "inspect") return { action };
   if (action === "check") return { action };
   if (action === "init") return { action, root: value ?? "." };
@@ -87,7 +90,14 @@ export function parseWorkspaceCommand(args: string): WorkspaceCommand {
       throw new Error("recover 방식은 retry 또는 rollback입니다.");
     return { action, mode: (value as "retry" | "rollback") ?? "retry" };
   }
-  throw new Error("사용법: /study-workspace inspect|init <루트>|check|recover [retry|rollback]");
+  if (action === "migrate") {
+    const step = value ?? "preview";
+    if (step === "preview") return { action, step, root: third ?? "." };
+    if (step === "apply" && third) return { action, step, digest: third, root: fourth ?? "." };
+    if (step === "undo" && third) return { action, step, migrationId: third, root: fourth ?? "." };
+    throw new Error("사용법: /study-workspace migrate preview [루트] | apply <digest> [루트] | undo <migrationId> [루트]");
+  }
+  throw new Error("사용법: /study-workspace inspect|init <루트>|check|recover [retry|rollback]|migrate preview|apply|undo");
 }
 
 export function expandRoot(cwd: string, value: string): string {
