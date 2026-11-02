@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { buildProviderConfigs } from "./index.ts";
+import { buildModelsDevMetadataByOwner, buildProviderConfigs } from "./index.ts";
 
 type BuiltProviders = ReturnType<typeof buildProviderConfigs>;
 
@@ -171,4 +171,39 @@ test("supportsReasoningEffort is enabled on proxy providers", () => {
   const providers = buildProviderConfigs(baseConfig, models, {}, codex);
 
   assert.equal(providers["cp-zai"]?.compat.supportsReasoningEffort, true);
+});
+
+// --- maxTokens (output limit) coverage ---
+
+test("maxTokens uses models.dev output limit as-is (no extension-side cap)", () => {
+  const models = [{ id: "anthropic/claude-opus-5-5", owned_by: "anthropic" }];
+  const catalog = { anthropic: { models: { "claude-opus-5-5": { limit: { context: 1000000, output: 128000 } } } } };
+  const metadata = buildModelsDevMetadataByOwner(catalog, models);
+  const providers = buildProviderConfigs(baseConfig, models, metadata);
+
+  assert.equal(findModel(providers, "cp-anthropic", "anthropic/claude-opus-5-5").maxTokens, 128000);
+});
+
+test("maxTokens keeps very large provider output limits", () => {
+  const models = [{ id: "deepseek/deepseek-v4-pro", owned_by: "deepseek" }];
+  const catalog = { deepseek: { models: { "deepseek-v4-pro": { limit: { output: 393216 } } } } };
+  const providers = buildProviderConfigs(baseConfig, models, buildModelsDevMetadataByOwner(catalog, models));
+
+  assert.equal(findModel(providers, "cp-deepseek", "deepseek/deepseek-v4-pro").maxTokens, 393216);
+});
+
+test("maxTokens falls back to 16384 when output limit is unknown", () => {
+  const models = [{ id: "zai/glm-5.3", owned_by: "zai" }];
+  const providers = buildProviderConfigs(baseConfig, models, {});
+
+  assert.equal(findModel(providers, "cp-zai", "zai/glm-5.3").maxTokens, 16384);
+});
+
+test("reasoning variant inherits base model output limit", () => {
+  const models = [{ id: "anthropic/claude-opus-5-5", owned_by: "anthropic" }];
+  const catalog = { anthropic: { models: { "claude-opus-5-5": { limit: { output: 128000 } } } } };
+  const config = { ...baseConfig, reasoningVariants: { "claude-opus-5-5": ["high" as const] } };
+  const providers = buildProviderConfigs(config, models, buildModelsDevMetadataByOwner(catalog, models));
+
+  assert.equal(findModel(providers, "cp-anthropic", "anthropic/claude-opus-5-5-high").maxTokens, 128000);
 });

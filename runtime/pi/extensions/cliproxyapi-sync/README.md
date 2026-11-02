@@ -34,7 +34,15 @@ CLIProxyAPI의 plain `/v1/models`는 OpenAI 표준 4필드(`id`, `object`, `crea
 
 ## maxTokens
 
-이번 변경에서 다루지 않는다. codex 응답에 신뢰할 수 있는 max-output 필드가 없기 때문(`truncation_policy.limit`은 truncation 룰이지 출력 한도가 아님). 기존 기본값(16384)을 유지한다.
+models.dev `limit.output` 을 출력 한도 소스로 쓴다(codex 응답의 `truncation_policy.limit`은 truncation 룰이지 출력 한도가 아니므로 쓰지 않는다).
+
+```
+maxTokens = models.dev limit.output   // limit.output 없으면 16384
+```
+
+- extension에서 임의 상한을 두지 않고 공급사·모델이 선언한 출력 한도를 그대로 쓴다. 남은 context 기준 조정은 pi-ai(`clampMaxTokensToContext`)가 요청 시점에 한다.
+- reasoning variant(`-high` 등)는 base 모델의 한도를 그대로 쓴다.
+- 배경: 16384 고정값에서 Claude가 thinking과 큰 `write` 도구 호출을 함께 내보내다 한도에 닿아 `stopReason: "length"`("Response was truncated before completion.")가 반복됐다.
 
 ## 설정
 

@@ -57,6 +57,7 @@ type ManagedModelModality = "text" | "audio" | "image" | "video" | "pdf";
 
 type ModelMetadata = {
   attachment?: boolean;
+  outputLimit?: number;
   modalities?: {
     input: ManagedModelModality[];
     output: ManagedModelModality[];
@@ -74,6 +75,10 @@ type ModelsDevCatalog = Record<
         attachment?: unknown;
         modalities?: {
           input?: unknown;
+          output?: unknown;
+        };
+        limit?: {
+          context?: unknown;
           output?: unknown;
         };
       }
@@ -120,6 +125,8 @@ const DEFAULT_CONFIG: CliproxyapiConfig = {
 const DEFAULT_CONFIG_PATH = join(homedir(), ".config/opencode/cliproxyapi-sync-config.jsonc");
 const SUPPORTED_MODALITIES = new Set<ManagedModelModality>(["text", "audio", "image", "video", "pdf"]);
 const DEFAULT_CONTEXT_WINDOW = 128000;
+// Used only when models.dev has no output limit for the model.
+const DEFAULT_MAX_TOKENS = 16384;
 const REASONING_SUFFIX_PATTERN = /-(?:minimal|low|medium|high|xhigh)$/i;
 
 export default async function cliproxyapiSync(pi: ExtensionAPI) {
@@ -212,7 +219,7 @@ export function buildProviderConfigs(
         input: supportsImageInput(owner, normalizedId, metadata) ? ["text", "image"] : ["text"],
         cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
         contextWindow: resolvedContextWindow,
-        maxTokens: 16384,
+        maxTokens: resolveMaxTokens(metadata),
         compat: MODEL_COMPAT,
         ...(thinkingLevelMap ? { thinkingLevelMap } : {}),
       });
@@ -346,7 +353,12 @@ async function fetchModelsDevMetadataByOwner(models: ProxyModel[]): Promise<Mode
   }
 }
 
-function buildModelsDevMetadataByOwner(catalog: ModelsDevCatalog, models: ProxyModel[]): ModelMetadataByOwner {
+// Provider/model-declared output limit (models.dev limit.output); no extension-side cap.
+function resolveMaxTokens(metadata: ModelMetadata | undefined): number {
+  return metadata?.outputLimit ?? DEFAULT_MAX_TOKENS;
+}
+
+export function buildModelsDevMetadataByOwner(catalog: ModelsDevCatalog, models: ProxyModel[]): ModelMetadataByOwner {
   const byOwner: ModelMetadataByOwner = {};
 
   for (const model of models) {
@@ -360,10 +372,12 @@ function buildModelsDevMetadataByOwner(catalog: ModelsDevCatalog, models: ProxyM
 
     const attachment = modelEntry.attachment === true ? true : undefined;
     const modalities = normalizeModalities(modelEntry.modalities);
-    if (!attachment && !modalities) continue;
+    const outputLimit = asPositiveInteger(modelEntry.limit?.output);
+    if (!attachment && !modalities && !outputLimit) continue;
 
     const metadata: ModelMetadata = {
       ...(attachment ? { attachment } : {}),
+      ...(outputLimit ? { outputLimit } : {}),
       ...(modalities ? { modalities } : {}),
     };
 
