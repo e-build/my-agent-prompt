@@ -125,3 +125,18 @@
 - 미리보기: `curriculum.html`의 CurriculumPreview JSON에 `placement` 포함. 패널 렌더링은 Task 6 전이라 없음
 - 사용자 평가: 규칙 준수(A)·결과물(B)·학습자 체감(C) 모두 문제 없음("모두 완벽")
 - 한계: `.study/placement.json` 없음. 채점 기준은 에이전트 메시지에 남지 않았으므로 사후 검증 불가. Task 3~5의 도구로 해결
+
+### extension 확장 (Task 3~8) 검증
+
+기준일 2026-11-02. 커밋 `a0392f8`…`af6252c`, 모두 푸시 안 함.
+
+| 명령 | 결과 |
+|---|---|
+| `NODE_PATH="$(npm root -g)" node --test 'tests/**/*.test.ts'` | tests 372 / pass 372 / fail 0 / skipped 0 (Task 2 전 348 → +24) |
+| `node --test 'tests/**/*.test.ts'` (Pi host 없이) | tests 372 / pass 366 / skipped 6 |
+| `bash scripts/check-resources` | All checks passed |
+| `git diff --check` | 문제 없음 |
+
+새 파일: `src/placement/{placement-state,placement-store,placement-actions,placement-tools}.ts`, `src/evidence/question-id.ts`(`questionIdFor` 분리), `tests/placement/*`. 변경: `index.ts`(도구 등록), `project-manifest.ts`(`placement` 보존), `curriculum-template.html`(진단 근거 패널), `dialogue-prompt.ts`·`study-command.ts`(챕터 진단이 배치 결과 이어받기), `existing-record-links.ts`(`kind:"placement"`), `instructions/diagnosis.md`, `README.md`.
+
+하지 않은 것: 실제 Pi `/reload` 후 미리보기 패널 육안 확인(템플릿 스크립트는 Node에서 구문·렌더 함수만 검증). 2차 파일럿(Task 9 6~7번)은 미실행. `study-java-threads`의 README 기록을 `placement.json`으로 옮기는 작업은 사용자 결정 대기.

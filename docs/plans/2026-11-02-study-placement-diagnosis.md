@@ -334,11 +334,12 @@ placement?: {
 
 - [x] Task 1 설계 문서 정정 — `8b92f23`
 - [x] Task 2 `study-init.md` — `a7a0df6`, 349 tests pass
-- [ ] Task 3 `placement-state.ts`
-- [ ] Task 4 `placement-store.ts`
-- [ ] Task 5 `study_placement` 도구
-- [ ] Task 6 미리보기·manifest
-- [ ] Task 7 챕터 진단 연계
-- [ ] Task 8 `diagnosis.md`·README
-- [ ] Task 9 파일럿
-- [ ] Task 10 검증 기록
+- [x] Task 3 `placement-state.ts` — `a0392f8`
+- [x] Task 4 `placement-store.ts` — `7e7ef45`
+- [x] Task 5 `study_placement` 도구 — `d56542c` (`placement-actions.ts`로 Pi 의존 분리)
+- [x] Task 6 미리보기·manifest — `b8d2b54`
+- [x] Task 7 챕터 진단 연계 — `93a86e1`
+- [x] Task 8 `diagnosis.md`·README — `af6252c`
+- [x] Task 9 1차 파일럿 — `study-java-threads`, 7문항 조기 종료, 사용자 평가 "A·B·C 모두 완벽" (`33888fb`)
+- [ ] Task 9 2차 파일럿 — 도구 포함. `/reload` 후 ch-01 진단에서 배치 요약 표시 확인
+- [x] Task 10 검증 기록 — 372 tests pass
