@@ -332,8 +332,8 @@ placement?: {
 
 ## 진행 체크리스트
 
-- [ ] Task 1 설계 문서 정정
-- [ ] Task 2 `study-init.md`
+- [x] Task 1 설계 문서 정정 — `8b92f23`
+- [x] Task 2 `study-init.md` — `a7a0df6`, 349 tests pass
 - [ ] Task 3 `placement-state.ts`
 - [ ] Task 4 `placement-store.ts`
 - [ ] Task 5 `study_placement` 도구
