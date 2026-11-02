@@ -54,6 +54,20 @@ test("integrated review is finite, restarts on errors, has no daily cap and neve
   assert.match(prompt, /미래 회차는 미리 하지 않음/);
 });
 
+test("study-init runs a placement diagnosis before the curriculum is fixed", async () => {
+  const text = await read("prompts/study-init.md");
+  assert.match(text, /## 3b\. 배치 진단/);
+  assert.match(text, /study_placement/);
+  assert.match(text, /상한 8문항/);
+  assert.match(text, /최소 문항 수 없음/);
+  assert.match(text, /placement\?: \{/);
+  assert.match(text, /자기보고/);
+  assert.match(text, /건너뛴 범위와 근거/);
+  assert.match(text, /미확인은 이해 완료로/);
+  assert.doesNotMatch(text, /기초부터 전문가 수준까지/);
+  assert.doesNotMatch(text, /헷갈리는 개념: 챕터의 사전 진단/);
+});
+
 test("study-init no longer prescribes HTML diagnosis or the old review cadence", async () => {
   const text = await read("prompts/study-init.md");
   assert.match(text, /사전진단 — Pi 대화/);
