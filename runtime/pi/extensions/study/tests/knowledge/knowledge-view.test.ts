@@ -33,17 +33,31 @@ test("the view is a proposition graph: joint premises meet at an invisible junct
   assert.ok(Number.isFinite(view.positions[j.id].x));
   const node = view.nodes.find((n) => n.id === a.id)!;
   assert.equal(node.review?.timing, "overdue");
-  assert.deepEqual(node.chapters, ["study-alpha/ch-01-intro"]);
+  assert.deepEqual(node.sources, ["m-redis-docs"]);
 });
 
-test("unconnected knowledge is marked as an orphan on the rim; connected ones form a labelled cluster", async (t) => {
+test("clusters come from links only, never from chapters, and fall back to the hub name", async (t) => {
   const { root, a, c, d } = await setup(t);
   const view = await buildKnowledgeView(root, { today: "2026-10-05" });
   assert.ok(view.orphans.includes(d.id));
   assert.ok(!view.orphans.includes(a.id));
   const cluster = view.clusters.find((k) => k.members.includes(c.id))!;
   assert.ok(cluster.members.includes(a.id));
-  assert.equal(cluster.label, "study-alpha/ch-01-intro");
+  assert.equal(cluster.labelled, false);
+  assert.ok(["TTL", "Lazy expiry", "<script>alert(1)</script>"].includes(cluster.label!));
+  assert.doesNotMatch(JSON.stringify(view.clusters), /ch-01-intro/);
+});
+
+test("a stored label is shown and survives while half the core remains", async (t) => {
+  const { root, a, b, c } = await setup(t);
+  const { labelCluster } = await import("../../src/knowledge/knowledge-clusters-store.ts");
+  await labelCluster(root, { members: [a.id, b.id, c.id], label: "만료 처리", reason: "구성 지식의 공통 주제" });
+  const view = await buildKnowledgeView(root, { today: "2026-10-05" });
+  const cluster = view.clusters.find((k) => k.members.includes(c.id))!;
+  assert.equal(cluster.label, "만료 처리");
+  assert.equal(cluster.labelled, true);
+  await assert.rejects(labelCluster(root, { members: [a.id, "k-unknown0"], label: "x", reason: "r" }), /지식/);
+  await assert.rejects(labelCluster(root, { members: [a.id, b.id, c.id], label: " ", reason: "r" }), /label/);
 });
 
 test("statements, explanations and answers never reach the page", async (t) => {

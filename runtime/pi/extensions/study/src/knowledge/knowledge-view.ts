@@ -7,6 +7,8 @@ import { readWorkspace } from "../workspace/workspace-root.ts";
 import type { ChapterBinding } from "./chapter-bindings.ts";
 import { layoutGraph, type Point } from "./knowledge-layout.ts";
 import { loadAllItems, loadChains } from "./knowledge-store.ts";
+import { assignLabels, detectCommunities } from "./knowledge-clusters.ts";
+import { loadLabelRecords } from "./knowledge-clusters-store.ts";
 import type { KnowledgeStatus } from "./knowledge-types.ts";
 
 export type ViewNode = {
@@ -15,12 +17,16 @@ export type ViewNode = {
   status: KnowledgeStatus;
   version: number;
   sourceCount: number;
+  /** Material IDs (display only; never used for grouping). */
+  sources: string[];
+  /** Chapters that teach this item (display only; never used for grouping). */
   chapters: string[];
   review?: { dueDate: string | null; timing: "overdue" | "today" | "future" | "done"; round: number; total: number };
 };
 /** Joint premises converge on an invisible point; one arrow leaves it. */
 export type ViewJunction = { id: string; premises: string[]; conclusion: string };
-export type ViewCluster = { id: string; label: string | null; members: string[] };
+/** A knowledge region found from links alone; `labelled` = a stored, coined name. */
+export type ViewCluster = { id: string; label: string | null; labelled: boolean; members: string[] };
 export type KnowledgeView = {
   generatedAt: string;
   today: string;
@@ -85,6 +91,7 @@ export async function buildKnowledgeView(
       status: item.status,
       version: item.version,
       sourceCount: item.sources.length,
+      sources: [...new Set(item.sources.map((s) => s.materialId))],
       chapters: chaptersOf.get(item.id) ?? [],
       ...(s && s.status !== "merged"
         ? {
@@ -119,39 +126,40 @@ export async function buildKnowledgeView(
     focus: options.focus && known.has(options.focus) ? options.focus : null,
     nodes,
     junctions,
-    clusters: connectedClusters(nodes, junctions),
+    clusters: regions(nodes, junctions, await loadLabelRecords(root)),
     orphans: layout.orphans,
     positions: layout.positions,
   };
 }
 
-/** Connected components over inference links, named by the chapter most members share. */
-function connectedClusters(nodes: ViewNode[], junctions: ViewJunction[]): ViewCluster[] {
-  const parent = new Map(nodes.map((n) => [n.id, n.id]));
-  const find = (id: string): string => {
-    let r = id;
-    while (parent.get(r) !== r) r = parent.get(r)!;
-    parent.set(id, r);
-    return r;
-  };
-  for (const j of junctions)
-    for (const p of j.premises) {
-      const a = find(p);
-      const b = find(j.conclusion);
-      if (a !== b) parent.set(a < b ? b : a, a < b ? a : b);
-    }
-  const groups = new Map<string, string[]>();
-  for (const n of nodes) groups.set(find(n.id), [...(groups.get(find(n.id)) ?? []), n.id]);
+/**
+ * Regions from inference structure only: each premise links to its
+ * conclusion, and co-premises of one argument link to each other (they are
+ * jointly needed). Unlabelled regions show their best-connected member's name.
+ */
+function regions(nodes: ViewNode[], junctions: ViewJunction[], records: Awaited<ReturnType<typeof loadLabelRecords>>): ViewCluster[] {
+  const edges: Array<[string, string]> = [];
+  for (const j of junctions) {
+    for (const p of j.premises) edges.push([p, j.conclusion]);
+    for (let i = 0; i < j.premises.length; i++)
+      for (let k = i + 1; k < j.premises.length; k++) edges.push([j.premises[i], j.premises[k]]);
+  }
+  const degree = new Map<string, number>();
+  for (const [a, b] of edges) {
+    degree.set(a, (degree.get(a) ?? 0) + 1);
+    degree.set(b, (degree.get(b) ?? 0) + 1);
+  }
   const byId = new Map(nodes.map((n) => [n.id, n]));
-  return [...groups.values()]
-    .filter((members) => members.length > 1)
-    .map((members) => {
-      const counts = new Map<string, number>();
-      for (const id of members) for (const c of byId.get(id)!.chapters) counts.set(c, (counts.get(c) ?? 0) + 1);
-      const best = [...counts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0];
-      return { id: `cl-${members.sort()[0]}`, label: best ? best[0] : null, members: members.sort() };
-    })
-    .sort((a, b) => b.members.length - a.members.length || a.id.localeCompare(b.id));
+  const communities = detectCommunities(nodes.map((n) => n.id), edges, { minSize: 3 });
+  return assignLabels(communities, records).map((c) => {
+    const hub = [...c.members].sort((a, b) => (degree.get(b) ?? 0) - (degree.get(a) ?? 0) || a.localeCompare(b))[0];
+    return {
+      id: c.labelId ?? `cl-${c.members[0]}`,
+      label: c.label ?? byId.get(hub)?.label ?? null,
+      labelled: c.label !== null,
+      members: c.members,
+    };
+  });
 }
 
 function escapeHtml(value: string): string {
@@ -182,6 +190,10 @@ const pos = data.positions;
 const clusterOf = new Map();
 data.clusters.forEach((c, i) => c.members.forEach((m) => clusterOf.set(m, i)));
 const NODE_R = 3.2, LABEL = 9, GAP = 5;
+const degree = new Map();
+for (const j of data.junctions) for (const id of [...j.premises, j.conclusion]) degree.set(id, (degree.get(id) || 0) + 1);
+const orphanSet = new Set(data.orphans);
+const short = (label) => (label.length > 24 ? label.slice(0, 23) + "…" : label);
 let cam = { k: 1, x: 0, y: 0 }, hover = null, selected = null, matches = null, dirty = true;
 const near = new Set();
 if (data.focus) {
@@ -215,13 +227,16 @@ function draw() {
   dirty = false;
   ctx.fillStyle = "#141416"; ctx.fillRect(0, 0, innerWidth, innerHeight);
   ctx.save(); ctx.translate(cam.x, cam.y); ctx.scale(cam.k, cam.k);
+  // Region glow follows its members: one soft disc per member, so a region's
+  // shape is the shape of its knowledge rather than a circle around a centroid.
   data.clusters.forEach((c, i) => {
-    const pts = c.members.map((m) => pos[m]).filter(Boolean);
-    const cx = pts.reduce((s, p) => s + p.x, 0) / pts.length, cy = pts.reduce((s, p) => s + p.y, 0) / pts.length;
-    const r = Math.max(...pts.map((p) => Math.hypot(p.x - cx, p.y - cy))) + 70;
-    const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
-    g.addColorStop(0, PALETTE[i % PALETTE.length] + "40"); g.addColorStop(1, PALETTE[i % PALETTE.length] + "00");
-    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.fill();
+    const color = PALETTE[i % PALETTE.length];
+    for (const m of c.members) {
+      const p = pos[m]; if (!p) continue;
+      const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, 46);
+      g.addColorStop(0, color + "2e"); g.addColorStop(1, color + "00");
+      ctx.fillStyle = g; ctx.beginPath(); ctx.arc(p.x, p.y, 46, 0, Math.PI * 2); ctx.fill();
+    }
   });
   ctx.lineWidth = 0.9 / cam.k; ctx.lineCap = "round";
   for (const j of data.junctions) {
@@ -240,21 +255,40 @@ function draw() {
     ctx.lineTo(tip.x - ux * L - uy * L * 0.45, tip.y - uy * L + ux * L * 0.45);
     ctx.lineTo(tip.x - ux * L + uy * L * 0.45, tip.y - uy * L - ux * L * 0.45); ctx.fill();
   }
-  const labelAlpha = Math.max(0, Math.min(1, (cam.k - 0.45) / 0.35));
+  // One zoom gate, two views: zoomed out = region names, zoomed in = knowledge names.
+  const GATE = 1.15, SPAN = 0.35;
+  const labelAlpha = Math.max(0, Math.min(1, (cam.k - (GATE - SPAN / 2)) / SPAN));
+  const placed = [];
+  const free = (x, y, w, h) => {
+    for (const b of placed) if (x < b.x + b.w && x + w > b.x && y < b.y + b.h && y + h > b.y) return false;
+    placed.push({ x, y, w, h }); return true;
+  };
+  const order = [...data.nodes].sort((a, b) => (degree.get(b.id) || 0) - (degree.get(a.id) || 0));
+  const showLabel = new Set();
+  if (labelAlpha > 0.01) {
+    ctx.font = "500 " + LABEL + "px -apple-system, system-ui, sans-serif";
+    for (const n of order) {
+      const p = pos[n.id]; if (!p || alphaFor(n.id) < 0.5) continue;
+      const s = screen(p), w = ctx.measureText(short(n.label)).width * cam.k, h = (LABEL + 2) * cam.k;
+      if (free(s.x - w / 2, s.y + (NODE_R + GAP) * cam.k, w, h)) showLabel.add(n.id);
+    }
+  }
   for (const n of data.nodes) {
     const p = pos[n.id]; if (!p) continue;
     const a = alphaFor(n.id);
     ctx.globalAlpha = a;
     ctx.fillStyle = STATUS[n.status] || STATUS.confirmed;
-    ctx.beginPath(); ctx.arc(p.x, p.y, NODE_R, 0, Math.PI * 2); ctx.fill();
+    if (orphanSet.has(n.id)) ctx.globalAlpha = a * 0.6;
+    ctx.beginPath(); ctx.arc(p.x, p.y, NODE_R + Math.min(2.4, (degree.get(n.id) || 0) * 0.35), 0, Math.PI * 2); ctx.fill();
+    ctx.globalAlpha = a;
     if (n.review && (n.review.timing === "overdue" || n.review.timing === "today")) {
       ctx.strokeStyle = "#e0a96d"; ctx.lineWidth = 1.2 / cam.k; ctx.beginPath(); ctx.arc(p.x, p.y, NODE_R + 2.2, 0, Math.PI * 2); ctx.stroke();
     }
-    if (labelAlpha > 0.01 || hover === n.id) {
+    if (showLabel.has(n.id) || hover === n.id) {
       ctx.globalAlpha = a * (hover === n.id ? 1 : labelAlpha) * 0.85;
       ctx.font = "500 " + LABEL + "px -apple-system, system-ui, sans-serif";
       ctx.fillStyle = "#cfcfd4"; ctx.textAlign = "center"; ctx.textBaseline = "top";
-      ctx.fillText(n.label.length > 28 ? n.label.slice(0, 27) + "…" : n.label, p.x, p.y + NODE_R + GAP);
+      ctx.fillText(short(n.label), p.x, p.y + NODE_R + GAP);
     }
   }
   ctx.globalAlpha = 1;
@@ -265,15 +299,26 @@ function draw() {
     ctx.fillStyle = g; ctx.beginPath(); ctx.arc(p.x, p.y, NODE_R * 5, 0, Math.PI * 2); ctx.fill();
   }
   ctx.restore();
-  const regionAlpha = Math.max(0, Math.min(1, (1.1 - cam.k) / 0.5));
+  const regionAlpha = 1 - labelAlpha;
   if (regionAlpha > 0.01) {
-    ctx.globalAlpha = regionAlpha; ctx.fillStyle = "#d8d4ce"; ctx.textAlign = "center"; ctx.font = "600 13px -apple-system, system-ui, sans-serif";
-    data.clusters.forEach((c) => {
+    const regionPlaced = [];
+    ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.font = "600 14px -apple-system, system-ui, sans-serif";
+    data.clusters.forEach((c, i) => {
       if (!c.label) return;
       const pts = c.members.map((m) => pos[m]).filter(Boolean);
-      const s = screen({ x: pts.reduce((t, p) => t + p.x, 0) / pts.length, y: Math.min(...pts.map((p) => p.y)) });
-      ctx.fillText(c.label, s.x, s.y - 18);
+      const s = screen({ x: pts.reduce((t, p) => t + p.x, 0) / pts.length, y: pts.reduce((t, p) => t + p.y, 0) / pts.length });
+      const w = ctx.measureText(c.label).width + 12, h = 20;
+      if (regionPlaced.some((b) => s.x - w / 2 < b.x + b.w && s.x + w / 2 > b.x && s.y - h / 2 < b.y + b.h && s.y + h / 2 > b.y)) return;
+      regionPlaced.push({ x: s.x - w / 2, y: s.y - h / 2, w, h });
+      ctx.globalAlpha = regionAlpha * (c.labelled ? 1 : 0.7);
+      ctx.fillStyle = PALETTE[i % PALETTE.length]; ctx.fillText(c.label, s.x + 1, s.y + 1);
+      ctx.fillStyle = "#ece8e2"; ctx.fillText(c.label, s.x, s.y);
     });
+    if (data.orphans.length) {
+      const op = data.orphans.map((id) => pos[id]).filter(Boolean);
+      const top = op.reduce((m, p) => (p.y < m.y ? p : m), op[0]);
+      if (top) { const s = screen(top); ctx.globalAlpha = regionAlpha * 0.6; ctx.font = "500 12px -apple-system, system-ui, sans-serif"; ctx.fillStyle = "#9a9894"; ctx.fillText("아직 연결 안 된 지식", s.x, s.y - 16); }
+    }
     ctx.globalAlpha = 1;
   }
 }
@@ -289,7 +334,9 @@ function showCard(id, mx, my) {
   if (!id) { card.hidden = true; return; }
   const n = byId.get(id);
   card.append(text(document.createElement("h3"), n.label));
-  const rows = [["상태", n.status + " · v" + n.version], ["출처", n.sourceCount + "개"], ["챕터", n.chapters.join(", ") || "연결 없음"]];
+  const region = data.clusters.find((c) => c.members.includes(id));
+  const rows = [["상태", n.status + " · v" + n.version], ["영역", region ? region.label + (region.labelled ? "" : " (임시 이름)") : "-"], ["출처", n.sources.join(", ") || "-"]];
+  if (n.chapters.length) rows.push(["배운 곳", n.chapters.join(", ")]);
   if (n.review) rows.push(["복습", n.review.timing === "done" ? "주기 완료" : n.review.dueDate + " (" + n.review.round + "/" + n.review.total + ")"]);
   if (data.orphans.includes(id)) rows.push(["관계", "아직 다른 지식과 연결 안 됨"]);
   for (const [k, v] of rows) { const p = document.createElement("p"); p.append(text(document.createElement("b"), k + " "), document.createTextNode(v)); card.append(p); }
@@ -327,7 +374,7 @@ export function renderKnowledgeMap(view: KnowledgeView): string {
     .map((n) => {
       const review = n.review ? (n.review.timing === "done" ? "주기 완료" : `${n.review.dueDate} (${n.review.round}/${n.review.total})`) : "-";
       const relation = view.orphans.includes(n.id) ? "연결 없음" : "추론 연결";
-      return `<tr><td>${escapeHtml(n.label)}</td><td>${escapeHtml(n.status)}</td><td>v${n.version}</td><td>${n.sourceCount}</td><td>${escapeHtml(n.chapters.join(", ") || "-")}</td><td>${escapeHtml(review)}</td><td>${relation}</td></tr>`;
+      return `<tr><td>${escapeHtml(n.label)}</td><td>${escapeHtml(n.status)}</td><td>v${n.version}</td><td>${n.sourceCount}</td><td>${escapeHtml(n.sources.join(", ") || "-")}</td><td>${escapeHtml(review)}</td><td>${relation}</td></tr>`;
     })
     .join("");
   const empty = view.nodes.length
@@ -357,7 +404,7 @@ table{border-collapse:collapse;width:100%}td,th{border-bottom:1px solid #2c2c30;
 <div class="legend">● 확정 <span style="color:#d9a441">●</span> 미확정 <span style="color:#e06c6c">●</span> 충돌 · <span style="color:#e0a96d">○</span> 오늘 복습 · 전제 선이 모이는 점 → 결론 · 바깥 테두리 = 아직 연결 안 된 지식 · 읽기 전용</div>
 ${empty}
 <div id="card" hidden></div>
-<div id="table-view" hidden><table><thead><tr><th>지식</th><th>상태</th><th>버전</th><th>출처</th><th>챕터</th><th>복습</th><th>관계</th></tr></thead><tbody>${tableRows}</tbody></table></div>
+<div id="table-view" hidden><table><thead><tr><th>지식</th><th>상태</th><th>버전</th><th>출처 수</th><th>출처</th><th>복습</th><th>관계</th></tr></thead><tbody>${tableRows}</tbody></table></div>
 <script id="graph-data" type="application/json">${jsonForScript(view)}</script>
 <script>${GRAPH_SCRIPT}</script>
 </body></html>
