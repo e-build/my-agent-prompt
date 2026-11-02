@@ -1,7 +1,35 @@
+import type { PlacementSummary } from "../project/project-manifest.ts";
 import type { DiagnosisRun } from "./dialogue-state.ts";
+
+/** Public placement summary for the chapter diagnosis prompt. Never includes criteria. */
+export function buildPlacementStatus(placement: PlacementSummary): string {
+  const skip = placement.skip.map((s) => (s.reason ? `${s.what} (${s.reason})` : s.what));
+  return [
+    "## 배치 진단 결과",
+    "",
+    `- 요약: ${placement.summary}`,
+    `- 시작점: ${placement.startAt}`,
+    `- 집중: ${placement.focus.join(", ") || "없음"}`,
+    `- 건너뜀: ${skip.join("; ") || "없음"}`,
+    `- 미확인: ${placement.unverified.join("; ") || "없음"}`,
+    `- 질문 수: ${placement.questionCount}`,
+    "- 배치 진단에서 확인된 갈래는 다시 묻지 말고, 미확인 항목과 이 챕터 고유 개념만 질문하세요.",
+    "- 결과가 승인된 커리큘럼과 어긋나면 수정을 말로 제안하고, 동의하면 README·챕터를 고친 뒤 study_curriculum_open으로 재승인받으세요.",
+  ].join("\n");
+}
 
 /** Resume status appended to the diagnosis phase prompt. Contains no criteria. */
 export function buildDialogueStatus(
+  args:
+    | { registered: false }
+    | { registered: true; projectSlug: string; run: DiagnosisRun | null; placement?: PlacementSummary | null },
+): string {
+  const base = dialogueStatus(args);
+  if (!args.registered || !args.placement) return base;
+  return `${buildPlacementStatus(args.placement)}\n\n${base}`;
+}
+
+function dialogueStatus(
   args: { registered: false } | { registered: true; projectSlug: string; run: DiagnosisRun | null },
 ): string {
   if (!args.registered)

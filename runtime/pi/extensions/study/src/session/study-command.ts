@@ -16,6 +16,8 @@ import {
   type MenuAction,
 } from "./chapter-catalog.ts";
 import { currentRun, loadDialogue } from "./dialogue-store.ts";
+import { loadPlacement, placementSummaryOf } from "../placement/placement-store.ts";
+import { loadProjectManifest } from "../project/project-manifest.ts";
 import { findWorkspaceRoot, projectForPath } from "../workspace/workspace-root.ts";
 import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import {
@@ -132,7 +134,8 @@ export async function diagnosisStatus(target: Pick<StudyChapterTarget, "projectR
   const project = workspace ? projectForPath(workspace, target.projectRoot) : null;
   if (!workspace || !project) return buildDialogueStatus({ registered: false });
   const dialogue = await loadDialogue(workspace.root, project.slug, target.chapterSlug);
-  return buildDialogueStatus({ registered: true, projectSlug: project.slug, run: currentRun(dialogue) });
+  const placement = placementSummaryOf(await loadPlacement(target.projectRoot)) ?? (await loadProjectManifest(target.projectRoot))?.placement ?? null;
+  return buildDialogueStatus({ registered: true, projectSlug: project.slug, run: currentRun(dialogue), placement });
 }
 
 type ChapterUi = Pick<ExtensionCommandContext, "cwd" | "hasUI" | "isIdle"> & {

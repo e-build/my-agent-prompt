@@ -58,3 +58,26 @@ test("retrying the same link is idempotent", async (t) => {
   await linkExistingRecord(root, input);
   assert.equal((await listRecordLinks(root, "study-alpha", "ch-01-intro")).length, 1);
 });
+
+test("a placement record can be linked by question id once the project is registered", async (t) => {
+  const { root, refA } = await knowledgeWorkspace(t);
+  const projectRoot = join(root, "study-alpha");
+  const { startPlacement, preparePlacementQuestion } = await import("../../src/placement/placement-store.ts");
+  await startPlacement(projectRoot, { projectSlug: "study-alpha", strands: [{ id: "s", name: "갈래", why: "" }] });
+  const q = await preparePlacementQuestion(projectRoot, { requestId: "p1", strandId: "s", prompt: "?", scored: true, criteria: { answer: "A", acceptable: [], rubric: "r", conditions: [] } });
+  const link = await linkExistingRecord(root, {
+    linkId: "placement-p1",
+    projectSlug: "study-alpha",
+    chapterSlug: "ch-01-intro",
+    kind: "placement",
+    recordPath: ".study/placement.json",
+    anchor: q.id,
+    assistance: "independent",
+    refs: [refA],
+  });
+  assert.equal(link.kind, "placement");
+  await assert.rejects(
+    linkExistingRecord(root, { linkId: "placement-x", projectSlug: "study-alpha", chapterSlug: "ch-01-intro", kind: "placement", recordPath: ".study/placement.json", anchor: "q-00000000000000000000", assistance: "independent", refs: [refA] }),
+    /위치를 찾지/,
+  );
+});

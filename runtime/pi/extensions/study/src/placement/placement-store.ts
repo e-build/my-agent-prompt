@@ -8,6 +8,7 @@ import { isAbsolute } from "node:path";
 import { currentSha256, readTextOptional, writeFileAtomic } from "../workspace/atomic-file.ts";
 import { safeProjectWritePath } from "../workspace/safe-path.ts";
 import type { DiagnosisEndReason, LearningRoute } from "../session/dialogue-state.ts";
+import type { PlacementSummary } from "../project/project-manifest.ts";
 import {
   addPlacementQuestion,
   createPlacement,
@@ -32,6 +33,26 @@ function requireAbsolute(projectRoot: string): string {
 
 async function placementPath(projectRoot: string): Promise<string> {
   return safeProjectWritePath(requireAbsolute(projectRoot), PLACEMENT_FILE);
+}
+
+/** Public summary of a finished placement for prompts and manifests. Null while open or absent. */
+export function placementSummaryOf(run: PlacementRun | null): PlacementSummary | null {
+  if (!run || run.status !== "finished" || !run.route) return null;
+  const skip = run.route.skip.map((what) => {
+    const strand = run.strands.find((s) => s.id === what || s.name === what);
+    const evidence = run.answers
+      .filter((a) => a.result === "demonstrated" && run.questions.find((q) => q.id === a.questionId)?.strandId === strand?.id)
+      .map((a) => run.questions.find((q) => q.id === a.questionId)!.prompt.slice(0, 80));
+    return { what: strand?.name ?? what, reason: evidence.length ? `확인: ${evidence.join(" / ")}` : "" };
+  });
+  return {
+    summary: run.route.summary,
+    startAt: run.route.startAt,
+    focus: run.route.focus,
+    skip,
+    unverified: run.unverified,
+    questionCount: run.questions.length,
+  };
 }
 
 /** Read-only. Missing file → null; corrupt file → error, never recreated. */

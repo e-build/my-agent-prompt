@@ -108,6 +108,29 @@ test("diagnosis prompt includes resumable dialogue status for registered workspa
   assert.match(messages[0], /대화형 진단 상태/);
   assert.match(messages[0], /projectSlug: study-alpha/);
   assert.doesNotMatch(messages[0], /study_diagnosis_open을 호출/);
+  assert.doesNotMatch(messages[0], /배치 진단 결과/);
+});
+
+test("diagnosis prompt carries the placement summary when the project has one", async (t) => {
+  const { workspaceFixture } = await import("../support/workspace-fixture.ts");
+  const root = await workspaceFixture(t);
+  const projectRoot = join(root, "study-alpha");
+  const { startPlacement, preparePlacementQuestion, finishPlacementRun } = await import("../../src/placement/placement-store.ts");
+  await startPlacement(projectRoot, { projectSlug: "study-alpha", strands: [{ id: "s", name: "갈래", why: "" }] });
+  await preparePlacementQuestion(projectRoot, { requestId: "p1", strandId: "s", prompt: "?", scored: true, criteria: { answer: "PLACEMENT-KEY", acceptable: [], rubric: "r", conditions: [] } });
+  await finishPlacementRun(projectRoot, { reason: "route_decided", route: { summary: "요약", startAt: "ch-01-intro", focus: ["s"], skip: [] }, unverified: ["interrupt"] });
+  let command: any;
+  const messages: string[] = [];
+  registerStudyChapterCommand({
+    registerCommand: (_name: string, definition: any) => {
+      command = definition;
+    },
+    sendUserMessage: (prompt: string) => messages.push(prompt),
+  } as any);
+  await command.handler("01 diagnosis", { cwd: projectRoot, isIdle: () => true, ui: { notify() {} } });
+  assert.match(messages[0], /배치 진단 결과/);
+  assert.match(messages[0], /미확인: interrupt/);
+  assert.equal(messages[0].includes("PLACEMENT-KEY"), false);
 });
 
 test("pending legacy HTML diagnosis is resumed instead of starting a dialogue", async () => {

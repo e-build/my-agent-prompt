@@ -13,7 +13,7 @@ import { ASSISTANCE, type Assistance } from "./evidence-types.ts";
  */
 export type RecordLink = {
   linkId: string;
-  kind: "lab" | "test" | "legacy-diagnosis";
+  kind: "lab" | "test" | "legacy-diagnosis" | "placement";
   recordPath: string;
   anchor: string;
   digest: string;
@@ -30,10 +30,11 @@ export type RecordLinkInput = Omit<RecordLink, "digest" | "linkedAt" | "refs"> &
   agentAuthored?: boolean;
 };
 
-const KINDS: RecordLink["kind"][] = ["lab", "test", "legacy-diagnosis"];
+const KINDS: RecordLink["kind"][] = ["lab", "test", "legacy-diagnosis", "placement"];
 
 function anchorPresent(kind: RecordLink["kind"], content: string, anchor: string): boolean {
   if (kind === "lab") return content.includes(`- Step ID: \`${anchor}\``);
+  if (kind === "placement") return content.includes(`"id": ${JSON.stringify(anchor)}`);
   return content.includes(anchor);
 }
 

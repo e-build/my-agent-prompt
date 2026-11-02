@@ -38,3 +38,23 @@ test("no run yet means the first prepared question starts the attempt", () => {
   const text = buildDialogueStatus({ registered: true, projectSlug: "study-alpha", run: null });
   assert.match(text, /첫 질문/);
 });
+
+test("placement results are summarised without criteria and ask only for unverified strands", () => {
+  const placement = {
+    summary: "7문항. 생명주기·가시성 확인",
+    startAt: "ch-01 — join/interrupt부터",
+    focus: ["공유 상태"],
+    skip: [{ what: "start/run", reason: "Q2 정답" }],
+    unverified: ["interrupt", "spurious wakeup"],
+    questionCount: 7,
+  };
+  const text = buildDialogueStatus({ registered: true, projectSlug: "study-alpha", run: null, placement });
+  assert.match(text, /## 배치 진단 결과/);
+  assert.match(text, /시작점: ch-01 — join\/interrupt부터/);
+  assert.match(text, /건너뜀: start\/run \(Q2 정답\)/);
+  assert.match(text, /미확인: interrupt; spurious wakeup/);
+  assert.match(text, /확인된 갈래는 다시 묻지/);
+  assert.doesNotMatch(text, /criteria|rubric/);
+  const plain = buildDialogueStatus({ registered: true, projectSlug: "study-alpha", run: null });
+  assert.doesNotMatch(plain, /배치 진단 결과/);
+});
