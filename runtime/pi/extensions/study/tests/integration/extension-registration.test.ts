@@ -82,6 +82,7 @@ test(
         "study_answer_record",
         "study_learning_route",
         "study_review_next",
+        "study_placement",
       ].sort(),
     );
     assert.deepEqual([...h.commands.keys()].sort(), [
@@ -294,6 +295,20 @@ test(
     assert.match(ws.content[0].text, /검사 통과/);
     const next = await call("study_review_next", {});
     assert.match(next.content[0].text, /오늘 할 복습 없음/);
+    const placementRoot = join(root, "study-new");
+    await mkdir(placementRoot, { recursive: true });
+    const started = await call("study_placement", {
+      action: "start",
+      projectRoot: placementRoot,
+      payloadJson: JSON.stringify({ projectSlug: "study-new", strands: [{ id: "s", name: "갈래", why: "" }] }),
+    });
+    assert.match(started.content[0].text, /상한 8/);
+    const placed = await call("study_placement", {
+      action: "prepare",
+      projectRoot: placementRoot,
+      payloadJson: JSON.stringify({ requestId: "p1", strandId: "s", prompt: "?", scored: true, criteria: { answer: "PLACEMENT-KEY", acceptable: [], rubric: "r", conditions: [] } }),
+    });
+    assert.equal(JSON.stringify(placed).includes("PLACEMENT-KEY"), false);
     await h.emit("session_shutdown");
   },
 );

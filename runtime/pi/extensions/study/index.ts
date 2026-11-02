@@ -13,6 +13,7 @@ import { createStudySessions } from "./src/session/study-sessions.ts";
 import { updateProjectPhase } from "./src/session/phase-state.ts";
 import { createAssessmentOpenGuard } from "./src/session/assessment-open-guard.ts";
 import { registerLearningRouteTools } from "./src/session/learning-route-tools.ts";
+import { registerPlacementTools } from "./src/placement/placement-tools.ts";
 import { diagnosisPrepareOptions } from "./src/session/dialogue-store.ts";
 import { createBrowserServer } from "./src/bridge/browser-server.ts";
 import { createStudyRoutes } from "./src/bridge/study-routes.ts";
@@ -123,6 +124,7 @@ export default function (pi: ExtensionAPI) {
   registerTextbookTools(pi);
   registerQuestionTools(pi, { prepareOptions: diagnosisPrepareOptions, answerOptions: reviewAnswerOptions });
   registerLearningRouteTools(pi);
+  registerPlacementTools(pi);
   registerLabTools(pi, updateProjectPhase);
   registerReviewTools(pi);
   registerReviewNextTool(pi);
