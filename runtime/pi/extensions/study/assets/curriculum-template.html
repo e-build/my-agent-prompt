@@ -221,6 +221,12 @@
       <dl class="summaryList" id="summaryGrid"></dl>
     </section>
 
+    <section class="panel" id="placementPanel" style="display:none">
+      <h2 class="panelTitle">진단 근거 — 배치 진단</h2>
+      <p id="placementSummary" class="phaseGoal"></p>
+      <dl class="summaryList" id="placementGrid"></dl>
+    </section>
+
     <section class="panel">
       <h2 class="panelTitle">왜 이 순서인가</h2>
       <ul class="bullets" id="rationaleList"></ul>
@@ -287,6 +293,9 @@
       topMeta: document.getElementById("topMeta"),
       summaryText: document.getElementById("summaryText"),
       summaryGrid: document.getElementById("summaryGrid"),
+      placementPanel: document.getElementById("placementPanel"),
+      placementSummary: document.getElementById("placementSummary"),
+      placementGrid: document.getElementById("placementGrid"),
       rationaleList: document.getElementById("rationaleList"),
       roadmap: document.getElementById("roadmap"),
       conceptMap: document.getElementById("conceptMap"),
@@ -358,6 +367,8 @@
       els.summaryGrid.innerHTML = summaryItems.map(([label, value]) => `
         <div class="summaryRow"><dt>${escapeHtml(label)}</dt><dd>${escapeHtml(value)}</dd></div>
       `).join("") || `<div class="summaryRow"><dt>요약</dt><dd>README의 커리큘럼 설계 근거를 확인하세요.</dd></div>`;
+
+      renderPlacement(data.placement);
 
       const rationale = asArray(data.rationale);
       els.rationaleList.innerHTML = rationale.length
@@ -453,6 +464,31 @@
         renderMermaidDiagram(source);
       }, 180);
     });
+
+    function renderPlacement(placement) {
+      if (!placement || typeof placement !== "object") {
+        els.placementPanel.style.display = "none";
+        return;
+      }
+      els.placementPanel.style.display = "";
+      els.placementSummary.textContent = text(placement.summary, "");
+      const skip = asArray(placement.skip).map(item => {
+        if (typeof item === "string") return item;
+        const reason = text(item && item.reason, "");
+        return `${text(item && item.what, "")}${reason ? ` — ${reason}` : ""}`;
+      });
+      const rows = [
+        ["시작점", text(placement.startAt, "")],
+        ["집중", asArray(placement.focus).join(", ")],
+        ["건너뜀", skip.length ? skip.join(" / ") : "없음"],
+        ["미확인", asArray(placement.unverified).length ? asArray(placement.unverified).join(", ") : "없음"],
+        ["질문 수", Number.isFinite(Number(placement.questionCount)) ? String(placement.questionCount) : ""],
+        ["자기보고 수준", text(placement.selfReportedLevel, "")]
+      ].filter(([, value]) => text(value, "") !== "");
+      els.placementGrid.innerHTML = rows.map(([label, value]) => `
+        <div class="summaryRow"><dt>${escapeHtml(label)}</dt><dd>${escapeHtml(value)}</dd></div>
+      `).join("");
+    }
 
     function renderPhase(phase, phaseIndex) {
       const chapters = asArray(phase.chapters);

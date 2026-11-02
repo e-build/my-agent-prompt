@@ -41,6 +41,24 @@ test("extracts environment and chapter lab modes from curriculum", async () => {
   assert.deepEqual(await loadProjectManifest(root), manifest);
 });
 
+test("placement summary is preserved in the manifest when the preview carries one", () => {
+  const placement = {
+    summary: "7문항",
+    startAt: "ch-01",
+    focus: ["공유 상태"],
+    skip: [{ what: "start/run", reason: "Q2 정답" }],
+    unverified: ["interrupt"],
+    questionCount: 7,
+    selfReportedLevel: "용어만 앎",
+  };
+  const withPlacement = manifestFromCurriculum({ placement, phases: [] }, "study-threads", "Threads");
+  assert.deepEqual(withPlacement.placement, placement);
+  const without = manifestFromCurriculum({ phases: [] }, "study-threads", "Threads");
+  assert.equal("placement" in without, false);
+  const junk = manifestFromCurriculum({ placement: "nope", phases: [] }, "study-threads", "Threads");
+  assert.equal("placement" in junk, false);
+});
+
 test("missing manifests are null but corrupt manifests are errors", async () => {
   const root = await mkdtemp(join(tmpdir(), "study-manifest-"));
   assert.equal(await loadProjectManifest(root), null);

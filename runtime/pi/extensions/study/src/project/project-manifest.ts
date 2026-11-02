@@ -3,6 +3,34 @@ import { join } from "node:path";
 
 export type LabMode = "cli" | "application" | "document" | "mixed";
 
+export type PlacementSummary = {
+  summary: string;
+  startAt: string;
+  focus: string[];
+  skip: Array<{ what: string; reason: string }>;
+  unverified: string[];
+  questionCount: number;
+  selfReportedLevel?: string;
+};
+
+function placementSummary(value: unknown): PlacementSummary | null {
+  if (!value || typeof value !== "object") return null;
+  const p = value as Record<string, any>;
+  if (typeof p.summary !== "string" || typeof p.startAt !== "string") return null;
+  const strings = (v: unknown) => (Array.isArray(v) ? v.map(String) : []);
+  return {
+    summary: p.summary,
+    startAt: p.startAt,
+    focus: strings(p.focus),
+    skip: Array.isArray(p.skip)
+      ? p.skip.map((s: any) => ({ what: String(s?.what ?? ""), reason: String(s?.reason ?? "") }))
+      : [],
+    unverified: strings(p.unverified),
+    questionCount: Number.isInteger(p.questionCount) ? p.questionCount : 0,
+    ...(typeof p.selfReportedLevel === "string" ? { selfReportedLevel: p.selfReportedLevel } : {}),
+  };
+}
+
 export type StudyProjectManifest = {
   version: 1;
   /** Stable workspace project ID, added when a workspace is registered. */
@@ -17,6 +45,8 @@ export type StudyProjectManifest = {
     sharedWorkspace?: string;
     services?: Array<{ name: string; hostPort?: number; containerPort?: number; image?: string }>;
   };
+  /** Public summary of the pre-curriculum placement diagnosis. Never carries answer keys. */
+  placement?: PlacementSummary;
   chapters: Record<
     string,
     {
@@ -62,6 +92,7 @@ export function manifestFromCurriculum(
     ...(value.environment && typeof value.environment === "object"
       ? { environment: value.environment }
       : {}),
+    ...(placementSummary(value.placement) ? { placement: placementSummary(value.placement)! } : {}),
     chapters,
   };
 }

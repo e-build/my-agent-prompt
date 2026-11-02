@@ -82,6 +82,16 @@ test("invalid root fails before any artifact is created", async (t) => {
   await assert.rejects(access(join(base, "study-other")), { code: "ENOENT" });
 });
 
+test("the bundled template renders placement evidence when present", async () => {
+  const html = await readFile(new URL("../../assets/curriculum-template.html", import.meta.url), "utf8");
+  assert.match(html, /id="placementPanel"/);
+  assert.match(html, /data\.placement/);
+  assert.match(html, /진단 근거/);
+  assert.match(html, /건너뜀/);
+  assert.match(html, /미확인/);
+  assert.match(html, /자기보고/);
+});
+
 test("curriculum writer escapes HTML titles without changing payload JSON", async (t) => {
   const write = writeCurriculumArtifacts;
   const base = await fixture(t);
