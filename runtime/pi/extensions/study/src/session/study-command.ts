@@ -134,7 +134,8 @@ export async function diagnosisStatus(target: Pick<StudyChapterTarget, "projectR
   const project = workspace ? projectForPath(workspace, target.projectRoot) : null;
   if (!workspace || !project) return buildDialogueStatus({ registered: false });
   const dialogue = await loadDialogue(workspace.root, project.slug, target.chapterSlug);
-  const placement = placementSummaryOf(await loadPlacement(target.projectRoot)) ?? (await loadProjectManifest(target.projectRoot))?.placement ?? null;
+  // The manifest copy is the summary the learner approved in the preview; the raw run is the fallback.
+  const placement = (await loadProjectManifest(target.projectRoot))?.placement ?? placementSummaryOf(await loadPlacement(target.projectRoot));
   return buildDialogueStatus({ registered: true, projectSlug: project.slug, run: currentRun(dialogue), placement });
 }
 
