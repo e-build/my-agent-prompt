@@ -3,6 +3,7 @@ import { loadChains, loadHistory, loadItem } from "../knowledge/knowledge-store.
 import { validateRef } from "../knowledge/knowledge-validation.ts";
 import type { KnowledgeItem, KnowledgeRef } from "../knowledge/knowledge-types.ts";
 import { readTextOptional, sha256 } from "../workspace/atomic-file.ts";
+import { questionIdFor } from "./question-id.ts";
 import { executePlan, preparePlan, type PlannedChange } from "../workspace/change-plan.ts";
 import { readWorkspace } from "../workspace/workspace-root.ts";
 import {
@@ -28,11 +29,7 @@ export type QuestionInput = {
 
 export const REVIEW_QUESTIONS = "review/questions";
 
-export function questionIdFor(requestId: string): string {
-  if (typeof requestId !== "string" || !/^[A-Za-z0-9_.:-]{1,128}$/.test(requestId))
-    throw new Error(`requestId 형식이 올바르지 않습니다: ${requestId}`);
-  return `q-${sha256(`question:${requestId}`).slice(0, 20)}`;
-}
+export { questionIdFor };
 
 /** Revision lookup: current item or a snapshot in its history. */
 export async function itemAtRef(root: string, ref: KnowledgeRef): Promise<KnowledgeItem> {
