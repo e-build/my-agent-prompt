@@ -29,6 +29,8 @@ test("the tool runs start → prepare → get → record → finish without expo
     criteria: { answer: "ANSWER-KEY", acceptable: [], rubric: "r", conditions: [] },
   });
   assert.equal(JSON.stringify(q).includes("ANSWER-KEY"), false);
+  assert.match(q.text, /확신도\(0~10\)/);
+  assert.ok(PLACEMENT_GUIDELINES.some((g) => /학습자가 직접 말한/.test(g)));
   const view = await call("get");
   assert.equal(JSON.stringify(view).includes("ANSWER-KEY"), false);
   assert.equal((view.details as any).questions.length, 1);

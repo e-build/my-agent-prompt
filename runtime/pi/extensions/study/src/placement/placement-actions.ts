@@ -2,6 +2,7 @@
 import type { DiagnosisEndReason, LearningRoute } from "../session/dialogue-state.ts";
 import type { PlacementAnswerInput, PlacementQuestionInput, PlacementStrand } from "./placement-state.ts";
 import { publicPlacement } from "./placement-state.ts";
+import { CONFIDENCE_RECORD_GUIDELINE, publicQuestionHint } from "../evidence/question-hints.ts";
 import {
   finishPlacementRun,
   loadPlacement,
@@ -17,6 +18,7 @@ export type PlacementResult = { text: string; details: unknown };
 export const PLACEMENT_GUIDELINES = [
   "study_placement prepare가 반환한 공개 질문만 학습자에게 보여 주고, 답을 듣기 전에 채점 기준을 말하지 마세요.",
   "study_placement record에는 학습자가 실제로 쓴 답만 넣고, 비채점 질문은 result=unverified만 허용됩니다. 설명해 준 갈래는 확인된 것이 아닙니다.",
+  CONFIDENCE_RECORD_GUIDELINE.replace("study_answer_record", "study_placement record"),
 ];
 
 function parse<T>(json: string | undefined): T {
@@ -46,7 +48,7 @@ export async function runPlacementAction(
   if (action === "prepare") {
     const payload = parse<Omit<PlacementQuestionInput, "at">>(payloadJson);
     const question = await preparePlacementQuestion(projectRoot, payload);
-    return { text: JSON.stringify(question, null, 2), details: question };
+    return { text: `${JSON.stringify(question, null, 2)}\n\n${publicQuestionHint("diagnosis")}`, details: question };
   }
   if (action === "record") {
     const payload = parse<Omit<PlacementAnswerInput, "at">>(payloadJson);

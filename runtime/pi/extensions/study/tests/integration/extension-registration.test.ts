@@ -271,6 +271,8 @@ test(
       payloadJson: JSON.stringify({ requestId: "r1", purpose: "diagnosis", scored: true, prompt: "TTL?", refs: [ref], criteria: { answer: "ANSWER-KEY", acceptable: [], rubric: "r", conditions: [] }, context: { projectSlug: "study-alpha", chapterSlug: "ch-01-intro" } }),
     });
     assert.equal(JSON.stringify(q).includes("ANSWER-KEY"), false);
+    assert.match(q.content[0].text, /확신도\(0~10\)/);
+    assert.ok(h.tools.get("study_answer_record").promptGuidelines.some((g: string) => /학습자가 직접 말한/.test(g)));
     const recorded = await call("study_answer_record", {
       payloadJson: JSON.stringify({ submissionId: "s1", questionId: q.details.id, response: "모름", responseAnchor: "session#1", assistance: "independent", submittedAt: "2026-10-30T00:00:00Z", findings: [{ ref, result: "incorrect", reason: "" }] }),
     });

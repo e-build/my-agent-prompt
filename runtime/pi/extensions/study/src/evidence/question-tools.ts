@@ -4,6 +4,7 @@ import { requireWorkspace } from "../workspace/workspace-root.ts";
 import { recordAnswer, type AnswerInput } from "./evidence-store.ts";
 import { prepareQuestion, type PrepareOptions, type QuestionInput } from "./question-store.ts";
 import { linkExistingRecord, type RecordLinkInput } from "./existing-record-links.ts";
+import { CONFIDENCE_RECORD_GUIDELINE, publicQuestionHint } from "./question-hints.ts";
 
 function parse<T>(payloadJson: string): T {
   try {
@@ -41,7 +42,9 @@ export function registerQuestionTools(pi: ExtensionAPI, hooks: QuestionToolHooks
       const workspace = await requireWorkspace(ctx?.cwd ?? process.cwd(), params.workspaceRoot);
       const input = parse<QuestionInput>(params.payloadJson);
       const question = await prepareQuestion(workspace.root, input, (await hooks.prepareOptions?.(workspace.root, input)) ?? {});
-      return { content: [{ type: "text", text: JSON.stringify(question, null, 2) }], details: question };
+      const hint = publicQuestionHint(question.purpose);
+      const text = `${JSON.stringify(question, null, 2)}${hint ? `\n\n${hint}` : ""}`;
+      return { content: [{ type: "text", text }], details: question };
     },
   });
 
@@ -54,6 +57,7 @@ export function registerQuestionTools(pi: ExtensionAPI, hooks: QuestionToolHooks
     promptGuidelines: [
       "study_answer_record에는 학습자가 실제로 쓴 답만 넣으세요. 교사 설명을 학습자 응답으로 기록하지 마세요.",
       "도움 여부를 모르면 assistance=unknown, 확인하지 못한 지식은 unverified로 기록하고 추측하지 마세요.",
+      CONFIDENCE_RECORD_GUIDELINE,
     ],
     parameters: Type.Object({
       payloadJson: Type.String({
