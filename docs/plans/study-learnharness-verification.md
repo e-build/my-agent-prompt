@@ -10,6 +10,7 @@
 - [기존 동작에서 바뀐 점](#기존-동작에서-바뀐-점)
 - [하지 않은 것과 한계](#하지-않은-것과-한계)
 - [다음 단계 — 별도 승인 필요](#다음-단계--별도-승인-필요)
+- [배치 진단 파일럿](#배치-진단-파일럿)
 
 ## 요약
 
@@ -112,3 +113,15 @@
    - `/study-workspace migrate preview ~/IdeaProjects/study`로 미리 보기 확인
    - 승인 후 `migrate apply <digest>`. redis ch-03/04는 건너뜀 유지, ch-01/02는 요청할 때만 복습 시작
 3. `main` 푸시
+
+## 배치 진단 파일럿
+
+기준일 2026-11-02. 계획 [2026-11-02-study-placement-diagnosis.md](2026-11-02-study-placement-diagnosis.md) Task 9 1차. `study_placement` 도구 없이 `prompts/study-init.md`(`a7a0df6`)만으로 실행.
+
+- 대상: `/study-init 자바 스레드` → `/Users/jimmylee/IdeaProjects/study/study-java-threads`. 승인 후 자동 등록(`p-2082e65513eb`)
+- 배치 진단: **7문항, 종료 사유 경로 결정(조기 종료)**. 갈래 5개(생명주기 / 공유 상태·원자성 / 가시성 / 대기·통지 / 실행기). 질문·답·판정·도움 정도가 README `배치 진단 기록` 표에 남음. 설명한 부분(Q4 `synchronized` 가시성, Q5 `shutdown`)은 미확인으로 분리
+- 커리큘럼: 5갈래 → 4챕터. `start()` vs `run()`은 `건너뛴 범위와 근거` 표에 Q2 근거와 함께 기록, ch-03은 "압축" 표시. 자기보고("용어만 앎")보다 실제 확인 범위가 넓다고 명시하고 진단 결과를 따름
+- 챕터 연계: ch-01 README `학습 흐름 > 사전진단에서 확인할 것`에 배치 미질문 항목과 건너뛴 항목 명시
+- 미리보기: `curriculum.html`의 CurriculumPreview JSON에 `placement` 포함. 패널 렌더링은 Task 6 전이라 없음
+- 사용자 평가: 규칙 준수(A)·결과물(B)·학습자 체감(C) 모두 문제 없음("모두 완벽")
+- 한계: `.study/placement.json` 없음. 채점 기준은 에이전트 메시지에 남지 않았으므로 사후 검증 불가. Task 3~5의 도구로 해결
