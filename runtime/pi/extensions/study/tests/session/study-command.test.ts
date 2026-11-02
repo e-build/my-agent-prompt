@@ -108,7 +108,7 @@ test("diagnosis prompt includes resumable dialogue status for registered workspa
   assert.match(messages[0], /대화형 진단 상태/);
   assert.match(messages[0], /projectSlug: study-alpha/);
   assert.doesNotMatch(messages[0], /study_diagnosis_open을 호출/);
-  assert.doesNotMatch(messages[0], /배치 진단 결과/);
+  assert.doesNotMatch(messages[0], /^## 배치 진단 결과$/m);
 });
 
 test("diagnosis prompt carries the placement summary when the project has one", async (t) => {
@@ -128,7 +128,7 @@ test("diagnosis prompt carries the placement summary when the project has one", 
     sendUserMessage: (prompt: string) => messages.push(prompt),
   } as any);
   await command.handler("01 diagnosis", { cwd: projectRoot, isIdle: () => true, ui: { notify() {} } });
-  assert.match(messages[0], /배치 진단 결과/);
+  assert.match(messages[0], /^## 배치 진단 결과$/m);
   assert.match(messages[0], /미확인: interrupt/);
   assert.equal(messages[0].includes("PLACEMENT-KEY"), false);
 });

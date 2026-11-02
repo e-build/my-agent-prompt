@@ -29,7 +29,7 @@
 | `/study-checkpoint` | 진도 갈무리·커밋 | 현재 챕터 | 챕터 번호 |
 | `/study-map` | 현재 프로젝트 학습 로드맵 | 터미널 오른쪽 패널 켜기/끄기 | — |
 | `/study-knowledge-graph` | 여러 프로젝트의 공통 지식(명제) 그래프 | 브라우저로 전체 그래프 | 지식 이름 → 그 주변만 |
-| `/study-init` | 새 학습 프로젝트 | — | — |
+| `/study-init` | 새 학습 프로젝트. 브리프 → 배치 진단(`study_placement`, 상한 8) → 커리큘럼 미리보기 | — | — |
 
 화면 위젯 마지막 줄에 `메뉴: /study-chapter`가 항상 보인다.
 
@@ -54,6 +54,7 @@ study/
 │   ├── evidence/               # 출제 전 기준 저장·원 응답·지식별 판정·기존 기록 연결
 │   ├── knowledge/              # 명제·추론 사슬·버전·병합, 교재 관리 영역, 지도
 │   ├── lab/                    # 실습 검증·환경 검사·명령 실행 adapter
+│   ├── placement/              # 커리큘럼 확정 전 배치 진단(등록 전 프로젝트에 저장)
 │   ├── project/                # 프로젝트 경로·manifest
 │   ├── review/                 # 통합 복습 일정·조회·시작 페이지, 기존 고정 회차형
 │   ├── session/                # 상태·챕터 명령·대화형 진단·개념 완료·위젯·지침 로더
@@ -66,6 +67,7 @@ study/
 │   ├── evidence/
 │   ├── knowledge/
 │   ├── lab/
+│   ├── placement/
 │   ├── project/
 │   ├── review/
 │   ├── session/
@@ -204,10 +206,13 @@ test phase에서 `study_test_open` 호출 없이 turn이 끝나면 extension이 
 
 ```text
 .study/
-├── project.json       # 환경, shared workspace, 서비스, 챕터 lab mode
+├── project.json       # 환경, shared workspace, 서비스, 챕터 lab mode, 배치 진단 공개 요약
+├── placement.json     # 배치 진단 1회 시도: 갈래·질문(채점 기준 포함)·응답·경로. 등록 전에 생김
 ├── state.json         # 챕터별 phase 상태
 └── assessments/*.json# question/submission/validated grade
 ```
+
+배치 진단은 커리큘럼 승인(= 등록) 전에 일어나므로 루트의 질문 저장소를 쓰지 않고 `placement.json`에 따로 저장한다. `/study-chapter` 진단 프롬프트는 이 결과를 읽어 확인된 갈래를 다시 묻지 않는다. 등록 뒤 `study_answer_record kind:"link"`의 `kind:"placement"`으로 질문 id를 공통 지식에 연결할 수 있다.
 
 상태:
 

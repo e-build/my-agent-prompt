@@ -19,6 +19,17 @@ test("diagnosis is a route-finding dialogue with an eight-question cap and preco
   assert.doesNotMatch(text, /최소 10문항|study_diagnosis_open을 호출한다/);
 });
 
+test("chapter diagnosis inherits the placement result and re-approves a changed curriculum", async () => {
+  const text = await read("instructions/diagnosis.md");
+  assert.match(text, /배치 진단 결과/);
+  assert.match(text, /확인된 갈래는 다시 묻지/);
+  assert.match(text, /study_curriculum_open/);
+  const readme = await read("README.md");
+  assert.match(readme, /placement\.json/);
+  assert.match(readme, /placement\/ +# /);
+  assert.match(readme, /study_placement/);
+});
+
 test("the completion exam stays in the browser", async () => {
   const text = await read("instructions/test.md");
   assert.match(text, /study_test_open을 호출한다/);
