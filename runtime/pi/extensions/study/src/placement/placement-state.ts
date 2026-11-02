@@ -32,6 +32,8 @@ export type PlacementAnswer = {
   response: string;
   responseAnchor: string;
   assistance: Assistance;
+  /** Learner's self-reported confidence, 0~1 (asked as 0~10). Absent when not given. */
+  confidence?: number;
   result: Demonstration;
   reason: string;
   at: string;
@@ -163,6 +165,8 @@ export function recordPlacementAnswer(run: PlacementRun, input: PlacementAnswerI
   if (typeof input.responseAnchor !== "string" || !input.responseAnchor.trim()) throw new Error("responseAnchor(원 응답 위치)가 필요합니다.");
   if (!ASSISTANCE.includes(input.assistance)) throw new Error(`assistance가 올바르지 않습니다: ${input.assistance}`);
   if (!DEMONSTRATIONS.includes(input.result)) throw new Error(`result가 올바르지 않습니다: ${input.result}`);
+  if (input.confidence !== undefined && !(typeof input.confidence === "number" && input.confidence >= 0 && input.confidence <= 1))
+    throw new Error("confidence는 0~1 사이여야 합니다(학습자의 0~10 답을 10으로 나눈 값).");
   if (!question.scored && input.result !== "unverified")
     throw new Error("비채점 질문의 응답으로 이해 여부를 판정할 수 없습니다. unverified만 허용합니다.");
   const answer: PlacementAnswer = {
@@ -170,6 +174,7 @@ export function recordPlacementAnswer(run: PlacementRun, input: PlacementAnswerI
     response: clip(input.response, 50_000),
     responseAnchor: clip(input.responseAnchor, 1000),
     assistance: input.assistance,
+    ...(input.confidence !== undefined ? { confidence: input.confidence } : {}),
     result: input.result,
     reason: clip(input.reason, 2000),
     at: input.at,

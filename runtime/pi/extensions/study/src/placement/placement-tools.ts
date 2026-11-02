@@ -22,7 +22,7 @@ export function registerPlacementTools(pi: ExtensionAPI) {
       payloadJson: Type.Optional(
         Type.String({
           description:
-            "start: {projectSlug,strands:[{id,name,why}],limit?}. prepare: {requestId,strandId,prompt,options?,scored,criteria?:{answer,acceptable,rubric,conditions}}. record: {questionId,response,responseAnchor,assistance,result,reason?}. finish: {reason,route?:{summary,startAt,focus,skip},unverified}",
+            "start: {projectSlug,strands:[{id,name,why}],limit?}. prepare: {requestId,strandId,prompt,options?,scored,criteria?:{answer,acceptable,rubric,conditions}}. record: {questionId,response,responseAnchor,assistance,confidence?(0~1, 학습자 0~10 답÷10),result,reason?}. finish: {reason,route?:{summary,startAt,focus,skip},unverified}",
         }),
       ),
     }),

@@ -53,7 +53,7 @@ export async function runPlacementAction(
     const run = await recordPlacementAnswerRun(projectRoot, payload);
     const answer = run.answers.at(-1)!;
     return {
-      text: `응답 기록: ${answer.questionId} → ${answer.result} (${answer.assistance}). 질문 ${run.questions.length}/${run.limit}`,
+      text: `응답 기록: ${answer.questionId} → ${answer.result} (${answer.assistance}${answer.confidence !== undefined ? `, 확신 ${Math.round(answer.confidence * 10)}/10` : ""}). 질문 ${run.questions.length}/${run.limit}`,
       details: run,
     };
   }

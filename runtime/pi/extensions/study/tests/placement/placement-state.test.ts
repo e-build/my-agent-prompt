@@ -115,3 +115,13 @@ test("restore rejects corrupt or inconsistent records", () => {
   const orphan = { ...run, answers: [{ questionId: "q-00000000000000000000", response: "x", responseAnchor: "y", assistance: "unknown", result: "unverified", reason: "", at: AT }] };
   assert.throws(() => restorePlacement(JSON.stringify(orphan)), /질문/);
 });
+
+test("answers keep an optional 0-1 confidence and reject out-of-range values", () => {
+  const run = addPlacementQuestion(start(), scored("r1"));
+  const q = run.questions[0];
+  const base = { questionId: q.id, response: "A", responseAnchor: "메시지", assistance: "independent" as const, result: "demonstrated" as const, at: AT };
+  assert.equal(recordPlacementAnswer(run, { ...base, confidence: 0.7 }).answers[0].confidence, 0.7);
+  assert.equal("confidence" in recordPlacementAnswer(run, base).answers[0], false);
+  assert.throws(() => recordPlacementAnswer(run, { ...base, confidence: 7 }), /confidence/);
+  assert.throws(() => recordPlacementAnswer(run, { ...base, confidence: -0.1 }), /confidence/);
+});

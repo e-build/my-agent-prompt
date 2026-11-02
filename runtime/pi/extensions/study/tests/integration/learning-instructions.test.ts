@@ -93,3 +93,13 @@ test("the legacy chapter guide is marked as legacy-only", async () => {
   const text = await read("instructions/legacy-study-chapter.md");
   assert.match(text, /레거시 참고 문서/);
 });
+
+test("diagnosis asks a 0-10 confidence with every question and never guesses it", async () => {
+  for (const name of ["instructions/diagnosis.md", "prompts/study-init.md"]) {
+    const text = await read(name);
+    assert.match(text, /확신도\(0~10\)/, name);
+    assert.match(text, /confidence/, name);
+    assert.match(text, /10으로 나눈/, name);
+    assert.match(text, /추측하지 않는다/, name);
+  }
+});
