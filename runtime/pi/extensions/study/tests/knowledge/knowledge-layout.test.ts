@@ -61,3 +61,26 @@ test("empty and single-node graphs are handled", () => {
   const one = layoutGraph({ nodes: [{ id: "k-x", junction: false }], edges: [] });
   assert.ok(Number.isFinite(one.positions["k-x"].x));
 });
+
+test("cluster pull keeps each region together and apart from other regions", () => {
+  // Two regions joined by a single bridge: members should sit nearer their own centroid.
+  const ids = ["a1", "a2", "a3", "a4", "b1", "b2", "b3", "b4"];
+  const input: LayoutInput = {
+    nodes: ids.map((id) => ({ id, junction: false })),
+    edges: [
+      { from: "a1", to: "a2" }, { from: "a2", to: "a3" }, { from: "a3", to: "a4" }, { from: "a4", to: "a1" },
+      { from: "b1", to: "b2" }, { from: "b2", to: "b3" }, { from: "b3", to: "b4" }, { from: "b4", to: "b1" },
+      { from: "a1", to: "b1" }, { from: "a3", to: "b3" },
+    ],
+  };
+  const clusters = [["a1", "a2", "a3", "a4"], ["b1", "b2", "b3", "b4"]];
+  const plain = layoutGraph(input).positions;
+  const pulled = layoutGraph(input, {}, { clusters }).positions;
+  const spread = (p: Record<string, { x: number; y: number }>) => {
+    const c = (m: string[]) => ({ x: m.reduce((s, id) => s + p[id].x, 0) / m.length, y: m.reduce((s, id) => s + p[id].y, 0) / m.length });
+    const [ca, cb] = clusters.map(c);
+    const inner = clusters.flatMap((m, i) => m.map((id) => dist(p[id], i ? cb : ca))).reduce((s, d) => s + d, 0) / 8;
+    return dist(ca, cb) / inner;
+  };
+  assert.ok(spread(pulled) > spread(plain) * 1.2, `${spread(pulled)} vs ${spread(plain)}`);
+});

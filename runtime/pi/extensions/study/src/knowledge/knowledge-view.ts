@@ -116,9 +116,11 @@ export async function buildKnowledgeView(
     ...j.premises.map((p) => ({ from: p, to: j.id })),
     { from: j.id, to: j.conclusion },
   ]);
+  const clusters = regions(nodes, junctions, await loadLabelRecords(root));
   const layout = layoutGraph(
     { nodes: [...nodes.map((n) => ({ id: n.id, junction: false })), ...junctions.map((j) => ({ id: j.id, junction: true }))], edges },
     options.previousPositions,
+    { clusters: clusters.map((c) => c.members) },
   );
   return {
     generatedAt: new Date().toISOString(),
@@ -126,7 +128,7 @@ export async function buildKnowledgeView(
     focus: options.focus && known.has(options.focus) ? options.focus : null,
     nodes,
     junctions,
-    clusters: regions(nodes, junctions, await loadLabelRecords(root)),
+    clusters,
     orphans: layout.orphans,
     positions: layout.positions,
   };
@@ -183,18 +185,20 @@ const canvas = document.getElementById("graph");
 const ctx = canvas.getContext("2d");
 const card = document.getElementById("card");
 const search = document.getElementById("search");
-const PALETTE = ["#8f6bb3", "#5f8f9f", "#b39a5f", "#6f9f6f", "#a86f8f", "#6f7fb3"];
+const PALETTE = ["#9a6fd0", "#4fa3b8", "#c9a24f", "#5fb06f", "#c96f9a", "#6f86d0", "#d07f4f", "#8fb04f"];
 const STATUS = { confirmed: "#e9e6e1", uncertain: "#d9a441", conflicted: "#e06c6c", retired: "#777" };
 const byId = new Map(data.nodes.map((n) => [n.id, n]));
 const pos = data.positions;
 const clusterOf = new Map();
 data.clusters.forEach((c, i) => c.members.forEach((m) => clusterOf.set(m, i)));
-const NODE_R = 3.2, LABEL = 9, GAP = 5;
+const NODE_R = 3.2, GAP = 5;
+// Knowledge names keep a readable on-screen size (about 11-13px) instead of shrinking with zoom.
+const labelPx = () => Math.max(11, Math.min(13, 9 * cam.k / kFit * 0.75));
 const degree = new Map();
 for (const j of data.junctions) for (const id of [...j.premises, j.conclusion]) degree.set(id, (degree.get(id) || 0) + 1);
 const orphanSet = new Set(data.orphans);
 const short = (label) => (label.length > 24 ? label.slice(0, 23) + "…" : label);
-let cam = { k: 1, x: 0, y: 0 }, hover = null, selected = null, matches = null, dirty = true;
+let cam = { k: 1, x: 0, y: 0 }, kFit = 1, hover = null, selected = null, matches = null, dirty = true;
 const near = new Set();
 if (data.focus) {
   near.add(data.focus);
@@ -233,9 +237,9 @@ function draw() {
     const color = PALETTE[i % PALETTE.length];
     for (const m of c.members) {
       const p = pos[m]; if (!p) continue;
-      const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, 46);
-      g.addColorStop(0, color + "2e"); g.addColorStop(1, color + "00");
-      ctx.fillStyle = g; ctx.beginPath(); ctx.arc(p.x, p.y, 46, 0, Math.PI * 2); ctx.fill();
+      const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, 60);
+      g.addColorStop(0, color + "38"); g.addColorStop(0.5, color + "14"); g.addColorStop(1, color + "00");
+      ctx.fillStyle = g; ctx.beginPath(); ctx.arc(p.x, p.y, 60, 0, Math.PI * 2); ctx.fill();
     }
   });
   ctx.lineWidth = 0.9 / cam.k; ctx.lineCap = "round";
@@ -256,8 +260,10 @@ function draw() {
     ctx.lineTo(tip.x - ux * L + uy * L * 0.45, tip.y - uy * L - ux * L * 0.45); ctx.fill();
   }
   // One zoom gate, two views: zoomed out = region names, zoomed in = knowledge names.
-  const GATE = 1.15, SPAN = 0.35;
-  const labelAlpha = Math.max(0, Math.min(1, (cam.k - (GATE - SPAN / 2)) / SPAN));
+  // Gate is relative to the fit zoom (ratio 1 = whole graph): at about 1.7x the fit
+  // zoom the view turns from region names into knowledge names.
+  const ratio = cam.k / kFit, GATE = 1.7, SPAN = 0.5;
+  const labelAlpha = Math.max(0, Math.min(1, (ratio - (GATE - SPAN / 2)) / SPAN));
   const placed = [];
   const free = (x, y, w, h) => {
     for (const b of placed) if (x < b.x + b.w && x + w > b.x && y < b.y + b.h && y + h > b.y) return false;
@@ -266,11 +272,11 @@ function draw() {
   const order = [...data.nodes].sort((a, b) => (degree.get(b.id) || 0) - (degree.get(a.id) || 0));
   const showLabel = new Set();
   if (labelAlpha > 0.01) {
-    ctx.font = "500 " + LABEL + "px -apple-system, system-ui, sans-serif";
+    ctx.font = "500 " + labelPx() + "px -apple-system, system-ui, sans-serif";
     for (const n of order) {
       const p = pos[n.id]; if (!p || alphaFor(n.id) < 0.5) continue;
-      const s = screen(p), w = ctx.measureText(short(n.label)).width * cam.k, h = (LABEL + 2) * cam.k;
-      if (free(s.x - w / 2, s.y + (NODE_R + GAP) * cam.k, w, h)) showLabel.add(n.id);
+      const s = screen(p), w = ctx.measureText(short(n.label)).width + 6, h = labelPx() + 4;
+      if (free(s.x - w / 2, s.y + NODE_R * cam.k + GAP, w, h)) showLabel.add(n.id);
     }
   }
   for (const n of data.nodes) {
@@ -284,14 +290,20 @@ function draw() {
     if (n.review && (n.review.timing === "overdue" || n.review.timing === "today")) {
       ctx.strokeStyle = "#e0a96d"; ctx.lineWidth = 1.2 / cam.k; ctx.beginPath(); ctx.arc(p.x, p.y, NODE_R + 2.2, 0, Math.PI * 2); ctx.stroke();
     }
-    if (showLabel.has(n.id) || hover === n.id) {
-      ctx.globalAlpha = a * (hover === n.id ? 1 : labelAlpha) * 0.85;
-      ctx.font = "500 " + LABEL + "px -apple-system, system-ui, sans-serif";
-      ctx.fillStyle = "#cfcfd4"; ctx.textAlign = "center"; ctx.textBaseline = "top";
-      ctx.fillText(short(n.label), p.x, p.y + NODE_R + GAP);
-    }
   }
   ctx.globalAlpha = 1;
+  ctx.restore();
+  // Knowledge names are drawn in screen space so their size stays readable.
+  ctx.textAlign = "center"; ctx.textBaseline = "top"; ctx.font = "500 " + labelPx() + "px -apple-system, system-ui, sans-serif";
+  for (const n of data.nodes) {
+    const p = pos[n.id]; if (!p || !(showLabel.has(n.id) || hover === n.id)) continue;
+    const s = screen(p);
+    ctx.globalAlpha = alphaFor(n.id) * (hover === n.id ? 1 : labelAlpha) * 0.9;
+    ctx.fillStyle = hover === n.id ? "#ffffff" : "#d4d2ce";
+    ctx.fillText(short(n.label), s.x, s.y + NODE_R * cam.k + GAP);
+  }
+  ctx.globalAlpha = 1;
+  ctx.save(); ctx.translate(cam.x, cam.y); ctx.scale(cam.k, cam.k);
   if (hover && pos[hover]) {
     const p = pos[hover];
     const g = ctx.createRadialGradient(p.x, p.y, NODE_R, p.x, p.y, NODE_R * 5);
@@ -360,7 +372,7 @@ search.addEventListener("input", () => {
 search.addEventListener("keydown", (e) => { if (e.key === "Enter" && matches && matches.size) { fit([...matches]); dirty = true; } if (e.key === "Escape") { search.value = ""; matches = null; dirty = true; } });
 document.getElementById("toggle-table").addEventListener("click", () => { const t = document.getElementById("table-view"); t.hidden = !t.hidden; });
 addEventListener("resize", resize);
-resize(); fit(data.focus ? [...near] : Object.keys(pos)); loop();
+resize(); fit(Object.keys(pos)); kFit = cam.k; if (data.focus) fit([...near]); loop();
 })();`;
 
 /** CSP hash for the inline renderer (constant across graphs). */

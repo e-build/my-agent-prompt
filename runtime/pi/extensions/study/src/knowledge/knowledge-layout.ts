@@ -37,7 +37,18 @@ function seedAngle(id: string): number {
   return ((hash(id) % 3600) / 3600) * Math.PI * 2;
 }
 
-export function layoutGraph(input: LayoutInput, previous: Record<string, Point> = {}): LayoutResult {
+/** Strength of the pull toward a region's centroid (LearnHarness "cluster pull", a virtual node without the node). */
+const CLUSTER_PULL = 0.12;
+/** Extra repulsion between nodes of different regions, so regions read as separate islands. */
+const CROSS_REGION_CHARGE = 2.2;
+/** Links that cross regions are longer, so bridges stay visible without dragging regions together. */
+const CROSS_REGION_LINK = 2.5;
+
+export function layoutGraph(
+  input: LayoutInput,
+  previous: Record<string, Point> = {},
+  options: { clusters?: string[][] } = {},
+): LayoutResult {
   const ids = input.nodes.map((n) => n.id).sort();
   const junction = new Set(input.nodes.filter((n) => n.junction).map((n) => n.id));
   const known = new Set(ids);
@@ -75,13 +86,26 @@ export function layoutGraph(input: LayoutInput, previous: Record<string, Point> 
     }
   });
 
+  // Region membership; a junction belongs to the region of its conclusion's neighbours.
+  const regionOf = new Map<string, number>();
+  (options.clusters ?? []).forEach((members, i) => members.forEach((m) => regionOf.set(m, i)));
+  for (const id of live)
+    if (junction.has(id) && !regionOf.has(id)) {
+      const counts = new Map<number, number>();
+      for (const n of neighbours.get(id)!) if (regionOf.has(n)) counts.set(regionOf.get(n)!, (counts.get(regionOf.get(n)!) ?? 0) + 1);
+      const best = [...counts.entries()].sort((a, b) => b[1] - a[1] || a[0] - b[0])[0];
+      if (best) regionOf.set(id, best[0]);
+    }
+  const crosses = (a: string, b: string) => regionOf.has(a) && regionOf.has(b) && regionOf.get(a) !== regionOf.get(b);
   const links = edges
     .filter((e) => pos.has(e.from) && pos.has(e.to))
     .map((e) => ({
       a: pos.get(e.from)!,
       b: pos.get(e.to)!,
-      length: junction.has(e.from) || junction.has(e.to) ? LINK_DISTANCE / 2 : LINK_DISTANCE,
+      length:
+        (junction.has(e.from) || junction.has(e.to) ? LINK_DISTANCE / 2 : LINK_DISTANCE) * (crosses(e.from, e.to) ? CROSS_REGION_LINK : 1),
     }));
+  const regionOfBody = live.map((id) => regionOf.get(id));
   const degree = new Map(live.map((id) => [id, Math.max(1, neighbours.get(id)!.length)]));
   const linkBias = edges
     .filter((e) => pos.has(e.from) && pos.has(e.to))
@@ -115,7 +139,8 @@ export function layoutGraph(input: LayoutInput, previous: Record<string, Point> 
           dy = 1e-3;
           d2 = dx * dx + dy * dy;
         }
-        const w = (CHARGE * alpha) / d2;
+        const ra = regionOfBody[i], rb = regionOfBody[j];
+        const w = ((ra !== undefined && rb !== undefined && ra !== rb ? CROSS_REGION_CHARGE : 1) * CHARGE * alpha) / d2;
         a.vx += dx * w;
         a.vy += dy * w;
         b.vx -= dx * w;
@@ -123,6 +148,23 @@ export function layoutGraph(input: LayoutInput, previous: Record<string, Point> 
       }
       a.vx -= a.x * GRAVITY * alpha;
       a.vy -= a.y * GRAVITY * alpha;
+    }
+    if (regionOf.size) {
+      const sums = new Map<number, { x: number; y: number; n: number }>();
+      live.forEach((id, i) => {
+        const r = regionOfBody[i];
+        if (r === undefined) return;
+        const s = sums.get(r) ?? { x: 0, y: 0, n: 0 };
+        s.x += bodies[i].x; s.y += bodies[i].y; s.n++;
+        sums.set(r, s);
+      });
+      live.forEach((_, i) => {
+        const r = regionOfBody[i];
+        if (r === undefined) return;
+        const s = sums.get(r)!;
+        bodies[i].vx += (s.x / s.n - bodies[i].x) * CLUSTER_PULL * alpha;
+        bodies[i].vy += (s.y / s.n - bodies[i].y) * CLUSTER_PULL * alpha;
+      });
     }
     for (const id of live) {
       const p = pos.get(id)!;
