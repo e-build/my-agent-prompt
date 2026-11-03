@@ -70,7 +70,7 @@
 <study 루트>/
 ├── study-*/ch-*/README.md          # 재료: 챕터 교재 (변경 없음)
 ├── knowledge/items/k-*.md          # 정본: 명제 (변경 없음)
-├── knowledge/concepts/c-*.json     # 신규 정본: 개념 노드 (트리·명제 소속·출처)
+├── knowledge/concepts/cn-*.json     # 신규 정본: 개념 노드 (트리·명제 소속·출처)
 ├── knowledge/concepts/history/     # 신규: 개념·페이지 버전 스냅숏 (추가만)
 ├── knowledge/concepts/changes/     # 신규: 변경 기록 (멱등 재시도·undo)
 ├── book/                           # 신규 정본: 개념 페이지 md (Git 추적)
@@ -133,7 +133,7 @@ sequenceDiagram
 ```ts
 type ConceptNode = {
   schemaVersion: 1;
-  id: string;              // c-<uuid>. 이름·위치가 바뀌어도 바뀌지 않는다
+  id: string;              // cn-<uuid>. 이름·위치가 바뀌어도 바뀌지 않는다 (추론 사슬 id가 c-를 쓰므로 cn-)
   version: number;
   revisionId: string;
   name: string;            // 표시 이름이자 디렉터리 이름
@@ -143,14 +143,14 @@ type ConceptNode = {
   aliases: string[];
   members: string[];       // 이 페이지에 속한 명제 id (명제는 한 곳에만)
   learnedIn: Array<{ projectId: string; chapterSlug: string; completedOn: string }>;
-  pageHash: string;        // 마지막으로 에이전트가 쓴 관리 영역 hash
   related: string[];
   retired?: { into?: string; at: string };
 };
 ```
 
-- 페이지 본문은 `book/…/README.md`에 둔다. JSON에는 본문을 넣지 않는다.
-- 페이지 버전 스냅숏은 `history/`에 개념 노드와 함께 남긴다. undo하면 본문도 되돌아간다.
+- 페이지 본문은 `book/…/README.md`에 둔다. JSON에는 본문을 넣지 않는다. 직접 수정 감지는 페이지 관리 영역의 hash로 하고, 동시 변경은 개념 노드의 revisionId로 막는다(페이지를 쓰면 노드 revision도 올라감).
+- 변경 기록(`changes/<changeId>.json`)에 바뀐 파일의 전후 내용을 남긴다. undo는 그 파일들이 그대로일 때만 전 내용으로 되돌리므로 트리와 본문이 함께 돌아간다. `history/`에는 노드 스냅숏만 추가한다.
+- 페이지 관리 영역은 세 개다: `head`(경로·하위 개념 목차, 자동), `main`(에이전트 본문), `foot`(배운 곳, 자동). 영역 밖은 사용자 메모다.
 - 이름은 파일 시스템에서 쓸 수 없는 문자를 거부하고, 형제 이름 중복도 거부한다.
 - 쓰기는 모두 기존 `change-plan`(전후 내용 저장, hash 비교, 원자적 교체)을 거친다.
 
@@ -167,8 +167,12 @@ type ConceptNode = {
 | operation | 설명 |
 |---|---|
 | `write_page` | 개념 페이지를 새로 쓰거나 관리 영역을 고친다. 기대 `pageHash` 필수 |
-| `create` / `rename` / `move` / `split` / `merge` | 하위 개념 트리 변경. 페이지 파일도 함께 옮기거나 나누거나 합친다 |
-| `place` / `move_member` | 명제를 페이지에 넣거나 옮긴다 |
+| `create` / `rename` / `move` / `retire` | 하위 개념 트리 변경. 페이지 파일도 함께 옮긴다. `retire`는 메모를 `into` 페이지로 옮기고 페이지를 지운다 |
+| `place` / `unplace` / `move_member` | 명제를 페이지에 넣거나 빼거나 옮긴다 |
+| `adopt_page` | 사용자가 직접 고친 본문을 새 기준으로 받는다 (사용자에게 물은 뒤) |
+| `record_learned` | "배운 곳"에 챕터를 남긴다 |
+
+쪼개기(split)와 합치기(merge)는 따로 두지 않고 한 묶음으로 조합한다. 쪼개기 = `create` + `move_member` + `write_page`, 합치기 = `move_member` + `write_page` + `retire(into)`. 같은 묶음에서 새로 만든 개념은 `create`의 `key`로 이름 붙여 `key:<key>`로 가리킨다.
 | `propose` | `owner: user` 노드의 변경을 제안만 한다 |
 | `undo` | changeId 단위로 되돌린다 (트리와 본문 모두) |
 
@@ -181,11 +185,15 @@ type ConceptNode = {
 
 ~~~markdown
 ---
-concept: c-1a2b3c4d
+concept: cn-1a2b3c4d
 ---
-<!-- study:book region=main hash=… -->
+<!-- study:book region=head hash=… -->
 [동시성](../../README.md) › [자바 스레드](../README.md) › **인터럽트**
 
+# 인터럽트
+<!-- /study:book -->
+
+<!-- study:book region=main hash=… -->
 (핵심 한 문장)
 
 ## 설명
@@ -203,7 +211,9 @@ concept: c-1a2b3c4d
 
 ## 관련
 - [취소와 종료](…): 한 줄 요약
+<!-- /study:book -->
 
+<!-- study:book region=foot hash=… -->
 ## 배운 곳
 - [study-java-threads · ch-01 스레드 생성·생명주기·인터럽트](…) · 2026-11-10
 <!-- /study:book -->
@@ -253,14 +263,14 @@ concept: c-1a2b3c4d
 | 시험 완료 (`completeAcknowledgedTest`) | 끝에 교과서 정리 follow-up을 추가한다. 실패는 경고 |
 | 챕터 교재 (README, `study:knowledge` 영역) | 그대로. book의 재료로 읽기만 한다 |
 | `instructions/concept.md` | 그대로. 새 `instructions/book.md`가 재구성 원칙의 정본이다 |
-| `study_knowledge` | 그대로. 명제 merge 때 `members`도 같은 변경 계획 안에서 합친다 |
+| `study_knowledge` | 그대로. 명제 merge 때 `members`도 같은 변경 계획 안에서 합친다(2단계). 1단계에서는 무결성 검사가 "병합된 지식이 남아 있음"으로 알린다 |
 | 지식 영역(Louvain) | 미배치 명제를 묶을 때 힌트로만 쓴다 |
 | `/study-knowledge-graph` | 그대로 둔다 |
 | 통합 복습 | 그대로. 대시보드가 개수만 읽는다 |
 
 ## 오류 처리
 
-- 손상된 `c-*.json`은 다시 만들지 않고 오류로 알린다. 세션 시작 점검에 검사를 추가한다: 순환, 없는 상위 개념, 명제 중복 소속, 없는 명제, 형제 이름 중복, 개념과 페이지 파일 불일치.
+- 손상된 `cn-*.json`은 다시 만들지 않고 오류로 알린다. 세션 시작 점검에 검사를 추가한다: 순환, 없는 상위 개념, 명제 중복 소속, 없는 명제, 형제 이름 중복, 개념과 페이지 파일 불일치.
 - 교과서 정리가 실패하거나 중간에 끊겨도 챕터 완료는 유지한다. 완료 챕터 중 `learnedIn`에 없는 것을 "교과서 정리 대기"로 대시보드와 세션 시작 알림에 보여 준다. `/study-chapter` 메뉴에서 이어서 처리할 수 있다.
 - 렌더링할 수 없는 md 요소는 원문을 `<pre>`로 보여 주고, 빌드 보고에 위치를 남긴다.
 
@@ -286,4 +296,4 @@ concept: c-1a2b3c4d
 
 없음. 링크 공유 방식은 4단계에서 정한다.
 
-보고 형식: apply 결과는 페이지마다 `새로 씀 | 보강함`, 바뀐 절 제목, 차이 링크를 돌려준다. 차이 링크는 `.study/local/book-diff/<changeId>.html`에 적용 전후를 비교해 렌더링한 페이지로, `/study-book`에서도 연다. 마지막으로 undo할 changeId를 함께 돌려준다. 대시보드의 "최근 book 변경"에서도 같은 차이 링크를 연다.
+보고 형식: apply 결과는 페이지마다 `created | updated | moved | removed`와 이전 경로를 돌려준다(1단계). 차이 링크는 3단계 렌더러와 함께 넣는다. 차이 링크는 `.study/local/book-diff/<changeId>.html`에 적용 전후를 비교해 렌더링한 페이지로, `/study-book`에서도 연다. 마지막으로 undo할 changeId를 함께 돌려준다. 대시보드의 "최근 book 변경"에서도 같은 차이 링크를 연다.
