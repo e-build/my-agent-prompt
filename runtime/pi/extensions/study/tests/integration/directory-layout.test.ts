@@ -7,6 +7,7 @@ import { dirname, join, relative, resolve, sep } from "node:path";
 const root = fileURLToPath(new URL("../../", import.meta.url));
 const features = [
   "assessment",
+  "book",
   "bridge",
   "checkpoint",
   "curriculum",

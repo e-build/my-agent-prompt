@@ -34,6 +34,9 @@ import { reviewAnswerOptions } from "./src/review/review-store.ts";
 import { registerReviewNextTool } from "./src/review/review-next-tool.ts";
 import { createKnowledgeMapStore } from "./src/bridge/knowledge-routes.ts";
 import { registerMapCommand } from "./src/knowledge/map-command.ts";
+import { registerBookTools } from "./src/book/book-tools.ts";
+import { registerConceptsCommand } from "./src/book/concepts-command.ts";
+import { checkBookIntegrity } from "./src/book/book-integrity.ts";
 import { createStudyWidget } from "./src/session/study-widget.ts";
 import { checkKnowledgeIntegrity } from "./src/knowledge/knowledge-integrity.ts";
 import { chapterReviewHooks } from "./src/review/chapter-review-start.ts";
@@ -119,9 +122,11 @@ export default function (pi: ExtensionAPI) {
     },
   });
 
-  registerWorkspaceTools(pi, [checkKnowledgeIntegrity]);
+  registerWorkspaceTools(pi, [checkKnowledgeIntegrity, checkBookIntegrity]);
   registerKnowledgeTools(pi, (root) => ({ extraChanges: (record) => reviewMergeChanges(root, record) }));
   registerTextbookTools(pi);
+  registerBookTools(pi);
+  registerConceptsCommand(pi);
   registerQuestionTools(pi, { prepareOptions: diagnosisPrepareOptions, answerOptions: reviewAnswerOptions });
   registerLearningRouteTools(pi);
   registerPlacementTools(pi);

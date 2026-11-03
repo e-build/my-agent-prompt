@@ -77,6 +77,7 @@ test(
         "study_test_open",
         "study_workspace",
         "study_knowledge",
+        "study_book",
         "study_textbook_refresh",
         "study_question_prepare",
         "study_answer_record",
@@ -88,6 +89,7 @@ test(
     assert.deepEqual([...h.commands.keys()].sort(), [
       "study-chapter",
       "study-checkpoint",
+      "study-concepts",
       "study-knowledge-graph",
       "study-map",
     ]);
