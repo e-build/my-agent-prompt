@@ -1,4 +1,7 @@
-import { posix } from "node:path";
+import { copyFile, mkdir, readFile, writeFile } from "node:fs/promises";
+import { existsSync } from "node:fs";
+import { dirname, join, posix } from "node:path";
+import { safeWorkspacePath } from "../workspace/safe-path.ts";
 import { notionToMarkdown } from "./notion-md.ts";
 
 /** One fetched Notion page (MCP `fetch`): id, title, last edit and the inner `<content>` text. */
@@ -142,4 +145,59 @@ export function planNotionImport(pages: NotionPage[], options: { rootId: string 
   if (orphans.length) index.push("## 기타", "", ...orphans.map((id) => `- [${clean(byId.get(id)!.title)}](${relativeLink(indexPath, pathOf.get(id)!)})`), "");
   files.push({ path: indexPath, notionId: root.id, content: `${index.join("\n").replace(/\n{3,}/g, "\n\n").trim()}\n` });
   return { files, images, empty, orphans, databases, warnings };
+}
+
+function sniffExtension(bytes: Buffer): string | null {
+  if (bytes[0] === 0x89 && bytes[1] === 0x50) return "png";
+  if (bytes[0] === 0xff && bytes[1] === 0xd8) return "jpg";
+  if (bytes.subarray(0, 4).toString("latin1") === "GIF8") return "gif";
+  if (bytes.subarray(0, 4).toString("latin1") === "RIFF" && bytes.subarray(8, 12).toString("latin1") === "WEBP") return "webp";
+  if (/^\s*<(\?xml|svg)/.test(bytes.subarray(0, 64).toString("utf8"))) return "svg";
+  return null;
+}
+
+/**
+ * Write the planned sources once. Sources are append-only imports, so any
+ * existing target aborts before anything is written (no partial overwrite).
+ * Media come from `mediaDir` (downloaded beforehand) and are renamed when the
+ * bytes disagree with the planned extension; page links follow the rename.
+ */
+export async function writeImport(root: string, plan: ImportPlan, mediaDir: string): Promise<{ written: number; media: number; renamed: string[]; missing: string[] }> {
+  const targets = [...plan.files.map((f) => f.path), ...plan.images.map((i) => i.path)];
+  for (const target of targets) {
+    if (existsSync(await safeWorkspacePath(root, target))) throw new Error(`이미 있습니다. 덮어쓰지 않습니다: ${target}`);
+  }
+  const renamed: string[] = [];
+  const missing: string[] = [];
+  const rename = new Map<string, string>();
+  let media = 0;
+  for (const image of plan.images) {
+    const name = posix.basename(image.path);
+    let bytes: Buffer;
+    try {
+      bytes = await readFile(join(mediaDir, name));
+    } catch {
+      missing.push(image.path);
+      continue;
+    }
+    const ext = sniffExtension(bytes);
+    let target = image.path;
+    if (ext && !name.toLowerCase().endsWith(`.${ext}`)) {
+      target = image.path.replace(/\.[^./]+$/, `.${ext}`);
+      rename.set(name, posix.basename(target));
+      renamed.push(`${name} → ${posix.basename(target)}`);
+    }
+    const out = await safeWorkspacePath(root, target);
+    await mkdir(dirname(out), { recursive: true });
+    await copyFile(join(mediaDir, name), out);
+    media++;
+  }
+  for (const file of plan.files) {
+    let content = file.content;
+    for (const [from, to] of rename) content = content.split(`](media/${from})`).join(`](media/${to})`);
+    const out = await safeWorkspacePath(root, file.path);
+    await mkdir(dirname(out), { recursive: true });
+    await writeFile(out, content, { encoding: "utf8", flag: "wx" });
+  }
+  return { written: plan.files.length, media, renamed, missing };
 }

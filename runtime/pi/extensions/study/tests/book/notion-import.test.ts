@@ -56,3 +56,23 @@ test("pages reachable from nowhere are reported, not dropped silently", () => {
   assert.deepEqual(plan.orphans, [id(9)]);
   assert.ok(plan.files.some((f) => f.path === "sources/notion/_기타/고아.md"));
 });
+
+test("writeImport writes sources once, copies media with sniffed extensions, and never overwrites existing files", async (t) => {
+  const { writeImport } = await import("../../src/book/notion-import.ts");
+  const { workspaceFixture } = await import("../support/workspace-fixture.ts");
+  const { mkdir, readFile, writeFile } = await import("node:fs/promises");
+  const { existsSync } = await import("node:fs");
+  const { join } = await import("node:path");
+  const root = await workspaceFixture(t);
+  const plan = planNotionImport(pages(), { rootId: id(1) });
+  const media = join(root, ".study", "local", "import", "notion", "media");
+  await mkdir(media, { recursive: true });
+  await writeFile(join(media, `${id(2)}-0.png`), Buffer.from([0xff, 0xd8, 0xff, 0xe0, 1, 2]));
+  const result = await writeImport(root, plan, media);
+  assert.equal(result.written, plan.files.length);
+  assert.deepEqual(result.renamed, [`${id(2)}-0.png → ${id(2)}-0.jpg`]);
+  const page = await readFile(join(root, "sources", "notion", "1. 자바", "1.2 스레드", "스레드 개념.md"), "utf8");
+  assert.match(page, /!\[\]\(media\/00000000000000000000000000000002-0\.jpg\)/);
+  assert.ok(existsSync(join(root, "sources", "notion", "1. 자바", "1.2 스레드", "media", `${id(2)}-0.jpg`)));
+  await assert.rejects(writeImport(root, plan, media), /이미 있습니다/);
+});
