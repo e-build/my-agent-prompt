@@ -97,6 +97,7 @@ test("rename and move relocate page files with notes; edited body is never overw
   const renamed = await applyBookChange(root, "agent", { changeId: "a2", reason: "이름", operations: [{ op: "rename", id: node.id, name: "자바 스레드", expectedRevisionId: node.revisionId }] }, { now });
   assert.deepEqual(renamed.pages.find((p) => p.conceptId === node.id), { conceptId: node.id, path: "book/동시성/자바 스레드/README.md", action: "moved", from: "book/동시성/스레드/README.md" });
   assert.equal(existsSync(oldPath), false);
+  assert.equal(existsSync(join(root, "book", "동시성", "스레드")), false);
   const newPath = join(root, "book", "동시성", "자바 스레드", "README.md");
   assert.match(await readFile(newPath, "utf8"), /내 메모/);
 
@@ -129,6 +130,7 @@ test("retire carries notes into the target page; undo restores files and nodes",
     { op: "retire", id: a.id, into: b.id },
   ] }, { now });
   assert.equal(existsSync(aPath), false);
+  assert.equal(existsSync(join(root, "book", "동시성", "A")), false);
   assert.match(await read(root, "book/동시성/B/README.md"), /### A에서 옮긴 메모\n\nA 메모/);
   assert.deepEqual((await loadConcepts(root)).find((n) => n.id === b.id)!.members, [k.id]);
 

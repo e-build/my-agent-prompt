@@ -1,4 +1,6 @@
 import { randomUUID } from "node:crypto";
+import { rmdir } from "node:fs/promises";
+import { posix } from "node:path";
 import { readTextOptional, sha256 } from "../workspace/atomic-file.ts";
 import { executePlan, preparePlan, type PlannedChange } from "../workspace/change-plan.ts";
 import { readWorkspace } from "../workspace/workspace-root.ts";
@@ -394,6 +396,20 @@ async function computeUndo(root: string, request: { changeId: string; reason: st
   return { changes, pages, nodes };
 }
 
+/** Removed or moved pages leave directories behind; rmdir only succeeds on empty ones, so user files stay. */
+async function pruneEmptyPageDirs(root: string, removed: string[]): Promise<void> {
+  for (const path of removed) {
+    if (!path.startsWith("book/")) continue;
+    for (let dir = posix.dirname(path); dir !== "book" && dir.startsWith("book/"); dir = posix.dirname(dir)) {
+      try {
+        await rmdir(abs(root, dir));
+      } catch {
+        break;
+      }
+    }
+  }
+}
+
 /**
  * Apply one book change atomically: concept nodes, append-only history,
  * page files (create/move/regenerate), proposals and the change record.
@@ -416,6 +432,7 @@ export async function applyBookChange(root: string, actor: Actor, request: BookC
   const record: BookChangeRecord = { changeId: request.changeId, reason: request.reason, actor, at, payloadSha256, ...("undo" in request ? { undoOf: request.undo } : {}), files, pages: computed.pages, summary };
   const plan = await preparePlan(root, `book-${request.changeId}`, [...computed.changes, { path: conceptChangePath(request.changeId), after: `${JSON.stringify(record, null, 2)}\n` }]);
   await executePlan(root, plan);
+  await pruneEmptyPageDirs(root, computed.changes.filter((c) => c.after === null).map((c) => c.path));
   return { status: "committed", changeId: request.changeId, pages: computed.pages, nodes: computed.nodes, summary };
 }
 
