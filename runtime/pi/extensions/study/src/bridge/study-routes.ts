@@ -26,6 +26,8 @@ type RouteDependencies = StudySessions & {
   knowledgeMaps?: KnowledgeMapStore;
   /** Approving a curriculum registers the project in its study root. */
   registerApprovedProject?: (projectRoot: string) => Promise<AutoRegistration>;
+  /** Test seam; defaults to the real completion processing. */
+  completeTest?: typeof completeAcknowledgedTest;
 };
 
 export function createStudyRoutes({
@@ -37,6 +39,7 @@ export function createStudyRoutes({
   getPort,
   knowledgeMaps,
   registerApprovedProject,
+  completeTest = completeAcknowledgedTest,
 }: RouteDependencies) {
   async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise<void> {
     // CORS preflight — same-origin normally, but allow fetch from file:// fallback.
@@ -209,7 +212,7 @@ export function createStudyRoutes({
       await markAssessmentAcknowledged(session.projectRoot, session.id);
       const grade = session.grade;
       const passed = Boolean(grade?.passed);
-      const completion = await completeAcknowledgedTest(
+      const completion = await completeTest(
         session.projectRoot,
         session.chapterSlug,
         {
@@ -245,6 +248,7 @@ export function createStudyRoutes({
           `# STUDY_REVIEW_PAGE_WARNING\n\ntest는 completed입니다. 안내 페이지 갱신만 실패했습니다: ${completion.navigationWarning}`,
           { deliverAs: "followUp" },
         );
+      if (completion.book) pi.sendUserMessage(completion.book.message, { deliverAs: "followUp" });
       deliverToAgent(pi, buildTestReviewPrompt(session, payload), "test review ack");
       return sendJson(res, 200, {
         ok: true,

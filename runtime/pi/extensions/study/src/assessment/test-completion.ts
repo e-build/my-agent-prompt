@@ -11,6 +11,7 @@ import {
   type StudyPhaseStatus,
 } from "../session/study-state.ts";
 import type { RecoverablePassedTest } from "./assessment-grade.ts";
+import { bookFollowUp } from "../book/book-followup.ts";
 
 export type TestCompletionResult = {
   status: StudyPhaseStatus;
@@ -20,6 +21,8 @@ export type TestCompletionResult = {
   /** Integrated review registration (registered workspaces only). */
   review?: { created: string[]; existing: string[]; completedOn: string };
   reviewWarning?: string;
+  /** Textbook rebuild request for the agent (registered workspaces, completed only). */
+  book?: { message: string };
 };
 
 type ChapterCompletions = Record<string, { completedOn: string; completedAt: string; source: string }>;
@@ -66,6 +69,7 @@ export async function completeAcknowledgedTest(
   if (status !== "completed") return { status, evidenceError };
 
   if (workspace && project && completedOn) {
+    const book = { message: await bookFollowUp({ projectId: project.id, projectSlug: project.slug, chapterSlug, completedOn }) };
     // Test pass is an independent fact: review linking failures are warnings.
     try {
       const review = await registerChapterReviews(workspace.root, project.slug, chapterSlug, completedOn);
@@ -76,9 +80,9 @@ export async function completeAcknowledgedTest(
       } catch (error) {
         navigationWarning = error instanceof Error ? error.message : String(error);
       }
-      return { status, review: { ...review, completedOn }, pagePath, navigationWarning };
+      return { status, review: { ...review, completedOn }, pagePath, navigationWarning, book };
     } catch (error) {
-      return { status, reviewWarning: error instanceof Error ? error.message : String(error) };
+      return { status, reviewWarning: error instanceof Error ? error.message : String(error), book };
     }
   }
   // Navigation is a derived artifact; failure cannot invalidate verified learning evidence.

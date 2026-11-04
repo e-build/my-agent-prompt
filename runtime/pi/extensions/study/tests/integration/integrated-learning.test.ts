@@ -55,6 +55,7 @@ test("register → dialogue diagnosis → concept → lab evidence → HTML test
   await writeFile(join(chapter, "test.md"), "## Attempt 1\nPASSED\n");
   const done = await completeAcknowledgedTest(projectRoot, "ch-01-ttl", { id: "t1", attempt: 1, score: 9, maxScore: 10 }, true, { now: () => new Date("2026-10-01T03:00:00.000Z") });
   assert.equal(done.status, "completed");
+  assert.match(done.book!.message, /STUDY_BOOK_PENDING[\s\S]*study-cache · ch-01-ttl[\s\S]*"completedOn":"2026-10-01"/);
   const state = await loadStudyState(projectRoot);
   assert.deepEqual(
     ["diagnosis", "concept", "test"].map((p) => state.chapters["ch-01-ttl"][p as "test"].status),

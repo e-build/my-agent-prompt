@@ -33,6 +33,7 @@ test("a navigation page failure cannot block an evidence-verified passed test", 
   assert.equal(result.status, "completed");
   assert.match(result.navigationWarning!, /既|既存|기존/);
   assert.equal((await loadStudyState(root)).chapters["ch-01-cache"].test.status, "completed");
+  assert.equal(result.book, undefined, "unregistered projects have no shared textbook");
 });
 
 test("missing execution evidence remains a separate completion blocker", async () => {
@@ -40,6 +41,7 @@ test("missing execution evidence remains a separate completion blocker", async (
   await writeFile(join(chapter, "lab", "results.md"), "다른 기록\n");
   const result = await finish(root);
   assert.equal(result.status, "blocked");
+  assert.equal(result.book, undefined);
   assert.match(result.evidenceError!, /결과 기록이 없는/);
   assert.match(
     (await loadStudyState(root)).chapters["ch-01-cache"].test.reason!,

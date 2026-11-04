@@ -196,3 +196,15 @@ test("a registration failure still completes the approval", async (t) => {
   assert.equal(h.curriculum.status, "reviewed");
   assert.match(h.messages.at(-1)!, /자동 등록 실패 — nested root/);
 });
+
+test("a passed test in a registered root also asks the agent to rebuild the textbook, after the review messages", async (t) => {
+  const h = await harness(t, {
+    completeTest: async () => ({ status: "completed", review: { created: ["k-1"], existing: [], completedOn: "2026-11-03" }, book: { message: "# STUDY_BOOK_PENDING\n\nbody" } }),
+  });
+  h.exam.grade = validateTestGrade(testGrade(), h.exam.id, h.exam.questionSet);
+  h.exam.status = "graded";
+  assert.equal((await h.request("/api/study-test/t1/ack", "")).status, 200);
+  const book = h.messages.findIndex((m) => /STUDY_BOOK_PENDING/.test(m));
+  assert.ok(book > h.messages.findIndex((m) => /STUDY_REVIEW_READY/.test(m)));
+  assert.ok(book < h.messages.findIndex((m) => /TEST_RESULTS_REVIEWED/.test(m)));
+});
