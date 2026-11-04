@@ -21,7 +21,7 @@
 
 ## 명령 한눈에
 
-명령은 7개. 인자를 외울 필요 없이 **인자 없이 실행하면 메뉴**, 스페이스를 치면 **자동완성 목록**이 뜬다.
+명령은 8개. 인자를 외울 필요 없이 **인자 없이 실행하면 메뉴**, 스페이스를 치면 **자동완성 목록**이 뜬다.
 
 | 명령 | 언제 | 인자 없이 | 자동완성 |
 |---|---|---|---|
@@ -31,6 +31,7 @@
 | `/study-map` | 현재 프로젝트 학습 로드맵 | 터미널 오른쪽 패널 켜기/끄기 | — |
 | `/study-knowledge-graph` | 여러 프로젝트의 공통 지식(명제) 그래프 | 브라우저로 전체 그래프 | 지식 이름 → 그 주변만 |
 | `/study-init` | 새 학습 프로젝트. 브리프 → 배치 진단(`study_placement`, 상한 8) → 커리큘럼 미리보기 | — | — |
+| `/study-book` | 내 교과서를 HTML로 보기 | 대시보드 | 개념 이름(별칭 포함) → 그 페이지 |
 | `/study-concepts` | 내 교과서(`book/`)의 개념 위계 정리 | 메뉴: 최상위 영역 만들기·이름 바꾸기·옮기기·위계 보기·에이전트 제안 보기 | — |
 
 화면 위젯 마지막 줄에 `메뉴: /study-chapter`가 항상 보인다.
@@ -50,7 +51,7 @@ study/
 ├── index.ts                    # Pi 진입점: lifecycle + 의존성 조립
 ├── src/                        # 프로덕션 구현
 │   ├── assessment/             # 문항·채점 검증, HTML 생성, 시험 완료, 도구 등록
-│   ├── book/                   # 내 교과서: 개념 위계·페이지 관리 영역·원자적 변경·무결성
+│   ├── book/                   # 내 교과서: 개념 위계·페이지·원자적 변경·대시보드·md 렌더러·정적 사이트
 │   ├── bridge/                 # HTTP 서버·라우트, 브라우저 실행, agent 메시지
 │   ├── checkpoint/             # checkpoint 명령·승인·기록·Git publish
 │   ├── curriculum/             # 커리큘럼 산출물·미리보기 도구
@@ -80,7 +81,7 @@ study/
 │   └── support/                # 테스트 전용 공통 fixture
 ├── instructions/               # phase별 짧은 agent 지시
 ├── prompts/                    # /study-init, /study-review
-└── assets/                     # curriculum/assessment browser UI
+└── assets/                     # curriculum/assessment browser UI, book/(교과서 CSS·JS·vendor/mermaid)
 ```
 
 ## 유지보수 기준
@@ -271,7 +272,14 @@ skipped_understood / blocked
 - 정리가 실패하거나 중단돼도 챕터 완료는 그대로. **정리 대기** = 완료됐지만 어떤 개념의 `learnedIn`에도 없는 챕터(따로 저장하지 않고 계산). 세션 시작 때 정보 알림, `/study-chapter` 메뉴 "📘 교과서 정리 대기"로 이어서 처리
 - 최상위 영역과 사용자 소유 개념은 `/study-concepts`(사용자)만 바꿈. agent는 하위 개념을 직접 정리하고 상위는 `propose`
 - `book/README.md` 대시보드는 book 변경마다 다시 생성. 갱신 실패는 경고일 뿐 변경은 유지. 명제 본문·정답은 넣지 않음
-- HTML 보기(`/study-book`)와 차이 링크는 3단계
+- **HTML 교과서**: `.study/local/book-site/`(PC 전용, 지워도 다시 생성)에 정적 사이트로 빌드. book 변경마다 다시 빌드하며 실패는 경고(`siteWarning`)일 뿐 변경은 유지. `/study-book [개념]`은 다시 빌드한 뒤 `file://`로 연다
+  - 렌더러는 직접 구현(`src/book/md-parse.ts`·`md-html.ts`): 제목·문단·목록(중첩·순서·체크박스)·인용·코드 펜스(``` ~~~)·GFM 표·링크·강조. raw HTML은 글자로 escape, `javascript:` 등 위험한 링크는 글자로만
+  - 제목 앵커는 GitHub 방식이라 README 목차 링크가 그대로 동작. java·kotlin·sql·sh·ts·json 간단 문법 강조
+  - book이 링크하는 챕터 README와 그 README가 링크하는 md까지(한 단계)만 `_src/`에 함께 렌더링. `.study/`·`review/` 등 학습 기록은 링크가 있어도 렌더링하지 않음
+  - Mermaid는 `assets/book/vendor/mermaid.min.js`(12.3.0, MIT) 고정 포함, 다이어그램이 있는 페이지만 불러옴. CSP: `script-src 'self'`(inline 스크립트 없음), Mermaid가 넣는 inline style 때문에 `style-src 'unsafe-inline'`
+  - 왼쪽 개념 트리, 오른쪽 "이 페이지" 목차, 상단 검색(개념 이름·소제목, `/`로 포커스). 검색 색인은 `file://`에서도 되도록 스크립트 파일로 둠
+  - 변경마다 `_changes/<changeId>.html` 비교 페이지(머리말·관리 표시 제외, 읽는 글자만 비교). `study_book apply` 결과의 `차이:` 링크와 대시보드 "최근 교과서 변경"에서 연다
+- 링크 공유(배포)는 아직 정하지 않음. 결과물은 상대 경로만 쓰므로 디렉터리를 그대로 정적 호스팅에 올릴 수 있음
 
 ## 통합 복습
 
