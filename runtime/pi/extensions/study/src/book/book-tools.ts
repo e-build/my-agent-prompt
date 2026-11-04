@@ -2,6 +2,7 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 import { requireWorkspace } from "../workspace/workspace-root.ts";
 import { applyBookChange, type BookChangeRequest } from "./book-changes.ts";
+import { bookPendingNotice } from "./book-pending.ts";
 import { bookTree, formatTree, planChapter } from "./book-query.ts";
 
 function parsePayload<T>(payloadJson: string | undefined): T {
@@ -14,6 +15,12 @@ function parsePayload<T>(payloadJson: string | undefined): T {
 }
 
 export function registerBookTools(pi: ExtensionAPI): void {
+  pi.on?.("session_start", async (_event, ctx) => {
+    if (!ctx?.hasUI) return;
+    // Informational only: never blocks the session or counts as an integrity issue.
+    const notice = await bookPendingNotice(ctx.cwd).catch(() => null);
+    if (notice) ctx.ui.notify(notice, "info");
+  });
   pi.registerTool({
     name: "study_book",
     label: "Study Book",

@@ -159,6 +159,10 @@ export type ChapterCommandHooks = {
   /** Interrupted multi-file saves waiting in the study root. */
   pendingSaves?: (projectRoot: string) => Promise<number>;
   recoverSaves?: (projectRoot: string) => Promise<string>;
+  /** Finished chapters not yet rebuilt into the textbook (registered roots). */
+  bookPending?: (projectRoot: string) => Promise<number>;
+  /** Agent message for the next waiting chapter, or null when none is left. */
+  nextBookFollowUp?: (projectRoot: string) => Promise<string | null>;
 };
 
 /**
@@ -180,8 +184,10 @@ export async function runStudyChapter(
   if (!catalog.chapters.length) throw new Error("학습 챕터가 없습니다.");
   const registered = (await hooks.isRegistered?.(projectRoot)) ?? false;
   const pendingSaves = registered ? ((await hooks.pendingSaves?.(projectRoot)) ?? 0) : 0;
+  const bookPending = registered ? ((await hooks.bookPending?.(projectRoot).catch(() => 0)) ?? 0) : 0;
   const menu = buildChapterMenu(catalog, {
     pendingSaves,
+    bookPending,
     registered: registered && !!hooks.startReview,
     staleDiagnosis: (slug) =>
       !!hooks.restartDiagnosis &&
@@ -222,6 +228,12 @@ async function runMenuAction(
     const phase = order[labels.indexOf(choice ?? "")];
     if (!phase) return;
     await openTarget(pi, await resolveStudyChapterTarget(projectRoot, `${chapter.slug} ${phase}`), hooks);
+    return;
+  }
+  if (action.type === "book-pending") {
+    const message = await hooks.nextBookFollowUp!(projectRoot);
+    if (message) pi.sendUserMessage(message);
+    else ctx.ui.notify("교과서 정리가 필요한 챕터가 없습니다.", "info");
     return;
   }
   if (action.type === "recover-saves") {

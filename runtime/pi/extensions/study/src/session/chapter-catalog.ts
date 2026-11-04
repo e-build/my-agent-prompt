@@ -163,18 +163,21 @@ export type MenuAction =
   | { type: "pick-phase"; chapterSlug: string }
   | { type: "start-review"; chapterSlug: string }
   | { type: "restart-diagnosis"; chapterSlug: string }
-  | { type: "recover-saves" };
+  | { type: "recover-saves" }
+  | { type: "book-pending" };
 
 export type MenuItem = { label: string; action: MenuAction };
 
 /** Choices shown by `/study-chapter` without arguments. */
 export function buildChapterMenu(
   catalog: ChapterCatalog,
-  context: { registered: boolean; staleDiagnosis: (chapterSlug: string) => boolean; pendingSaves?: number },
+  context: { registered: boolean; staleDiagnosis: (chapterSlug: string) => boolean; pendingSaves?: number; bookPending?: number },
 ): MenuItem[] {
   const items: MenuItem[] = [];
   if (context.pendingSaves)
     items.push({ label: `⚠ 중단된 저장 정리 (${context.pendingSaves}건)`, action: { type: "recover-saves" } });
+  if (context.bookPending)
+    items.push({ label: `📘 교과서 정리 대기 ${context.bookPending}개 — 이어서 정리`, action: { type: "book-pending" } });
   // Resume only real unfinished work: a core phase, or a review already in progress.
   const unfinished = (c: CatalogChapter) =>
     PHASE_ORDER.slice(0, 4).some((p) => !done(c.phases[p])) || c.phases.review === "in_progress";

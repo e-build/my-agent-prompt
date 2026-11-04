@@ -37,3 +37,12 @@ test("a corrupt project state is skipped, not fatal", async (t) => {
   await writeFile(join(root, "study-alpha", ".study", "state.json"), "{broken");
   assert.deepEqual(await pendingChapters(root), []);
 });
+
+test("session start notice summarises waiting chapters, or stays silent", async (t) => {
+  const { bookPendingNotice } = await import("../../src/book/book-pending.ts");
+  const root = await workspaceFixture(t);
+  assert.equal(await bookPendingNotice(join(root, "study-alpha")), null);
+  await writeFile(join(root, "study-alpha", ".study", "state.json"), state({ "ch-01-intro": "completed" }, { "ch-01-intro": "2026-11-03" }));
+  assert.match((await bookPendingNotice(join(root, "study-alpha")))!, /교과서 정리 대기 1개: study-alpha · ch-01-intro[\s\S]*\/study-chapter/);
+  assert.equal(await bookPendingNotice(await (await import("../support/workspace-fixture.ts")).tempDir(t)), null);
+});

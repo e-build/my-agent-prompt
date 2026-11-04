@@ -113,3 +113,11 @@ test("titles drop a repeated chapter prefix and finished projects get no resume 
   assert.ok(menu.some((m) => m.action.type === "start-review" && m.action.chapterSlug === "ch-01-a"));
   assert.ok(!menu.some((m) => m.action.type === "pick-phase" && m.action.chapterSlug === "ch-02-b"));
 });
+
+test("chapters waiting for the textbook rebuild get one menu item near the top", async () => {
+  const catalog = await readChapterCatalog(await project());
+  const menu = buildChapterMenu(catalog, { registered: true, staleDiagnosis: () => false, pendingSaves: 1, bookPending: 2 });
+  assert.equal(menu[0].action.type, "recover-saves");
+  assert.deepEqual(menu[1], { label: "📘 교과서 정리 대기 2개 — 이어서 정리", action: { type: "book-pending" } });
+  assert.ok(!buildChapterMenu(catalog, { registered: true, staleDiagnosis: () => false, bookPending: 0 }).some((m) => m.action.type === "book-pending"));
+});

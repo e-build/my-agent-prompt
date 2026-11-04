@@ -1,3 +1,5 @@
+import { bookFollowUp } from "../book/book-followup.ts";
+import { pendingChapters } from "../book/book-pending.ts";
 import { executePlan, preparePlan } from "../workspace/change-plan.ts";
 import { findWorkspaceRoot, projectForPath } from "../workspace/workspace-root.ts";
 import { loadStudyState, updatePhaseState } from "../session/study-state.ts";
@@ -64,6 +66,17 @@ export function chapterReviewHooks(now?: () => Date): Omit<ChapterCommandHooks, 
     pendingSaves: async (projectRoot) => {
       const found = await workspaceProject(projectRoot);
       return found ? (await listPendingPlans(found.workspace.root)).length : 0;
+    },
+    bookPending: async (projectRoot) => {
+      const found = await workspaceProject(projectRoot);
+      return found ? (await pendingChapters(found.workspace.root)).length : 0;
+    },
+    nextBookFollowUp: async (projectRoot) => {
+      const found = await workspaceProject(projectRoot);
+      if (!found) return null;
+      const pending = await pendingChapters(found.workspace.root);
+      const next = pending.find((p) => p.projectId === found.project.id) ?? pending[0];
+      return next ? bookFollowUp(next) : null;
     },
     recoverSaves: async (projectRoot) => {
       const found = await workspaceProject(projectRoot);

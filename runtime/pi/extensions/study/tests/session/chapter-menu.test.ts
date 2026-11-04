@@ -135,3 +135,13 @@ test("an interrupted save touched by someone else is reported, not forced", asyn
   assert.match(notices[0], /외부 변경/);
   assert.equal(await (await import("node:fs/promises")).readFile(join(root, "knowledge", "x.md"), "utf8"), "mine");
 });
+
+test("the textbook rebuild item sends the follow-up for the first waiting chapter", async (t) => {
+  const { projectRoot, state } = await setup(t);
+  for (const phase of ["diagnosis", "concept", "lab", "test"] as const) updatePhaseState(state, "ch-01-intro", phase, { status: "completed" });
+  await saveStudyState(projectRoot, state);
+  const sent: string[] = [];
+  const { ctx } = ui(projectRoot, [(o) => o.find((x) => x.includes("교과서 정리"))!]);
+  await runStudyChapter({ sendUserMessage: (m: string) => sent.push(m) } as any, "", ctx, chapterReviewHooks());
+  assert.match(sent[0], /^# STUDY_BOOK_PENDING[\s\S]*study-alpha · ch-01-intro[\s\S]*완료일 기록 없음/);
+});
