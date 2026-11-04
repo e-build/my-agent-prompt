@@ -11,7 +11,9 @@ export type SiteSource = {
   /** Change ids that have a comparison page under `_changes/`. */
   changes?: Set<string>;
 };
-export type Site = { pages: Map<string, string>; searchIndex: string; warnings: string[] };
+/** `files`: root-relative binary files (images) to copy under `_files/`. */
+export type Site = { pages: Map<string, string>; searchIndex: string; warnings: string[]; files: string[] };
+const IMAGE = /\.(png|jpe?g|gif|webp|svg)$/i;
 
 export const CSP =
   "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'none'; base-uri 'none'; form-action 'none'";
@@ -113,6 +115,7 @@ export async function buildSite(source: SiteSource): Promise<Site> {
   const pages = new Map<string, string>();
   const warnings: string[] = [];
   const index: Array<{ url: string; title: string; headings: string[] }> = [];
+  const files = new Set<string>();
   const queue: Array<{ path: string; depth: number }> = source.bookFiles.filter((p) => p.endsWith(".md")).sort().map((path) => ({ path, depth: 0 }));
   const seen = new Set(queue.map((q) => q.path));
 
@@ -150,6 +153,12 @@ export async function buildSite(source: SiteSource): Promise<Site> {
     const output = outputPath(path);
     if (path === "book/README.md" && source.changes?.size) linkChanges(blocks, source.changes);
     const rendered = renderMarkdown(blocks, {
+      rewriteImage: (src) => {
+        const link = resolveLink(path, src);
+        if (!link || FORBIDDEN.test(link.target) || !IMAGE.test(link.target)) return null;
+        files.add(link.target);
+        return relativeUrl(output, `_files/${link.target}`);
+      },
       rewriteLink: (href) => {
         if (href.startsWith("_changes/")) return href;
         const link = resolveLink(path, href);
@@ -167,5 +176,5 @@ export async function buildSite(source: SiteSource): Promise<Site> {
     pages.set(output, layout({ output, title, body: rendered.html, toc: rendered.toc, tree: source.tree, mermaid: rendered.mermaid > 0 }));
     if (path.startsWith("book/")) index.push({ url: output, title, headings: rendered.toc.filter((t) => t.level >= 2).map((t) => t.text) });
   }
-  return { pages, searchIndex: JSON.stringify(index), warnings };
+  return { pages, searchIndex: JSON.stringify(index), warnings, files: [...files].sort() };
 }

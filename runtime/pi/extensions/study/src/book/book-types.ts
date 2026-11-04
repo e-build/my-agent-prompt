@@ -1,6 +1,8 @@
 /** Concept tree contracts for the textbook (book). Page bodies live in book/<path>/README.md. */
 export type ConceptOwner = "user" | "agent";
 export type LearnedIn = { projectId: string; chapterSlug: string; completedOn: string };
+/** Reference material outside study chapters (e.g. a migrated Notion page). `path` is root-relative. */
+export type SourceMaterial = { kind: "notion" | "file" | "url"; title: string; path?: string; url?: string };
 
 export type ConceptNode = {
   schemaVersion: 1;
@@ -18,6 +20,8 @@ export type ConceptNode = {
   /** Knowledge ids that belong to this page. A proposition belongs to one page only. */
   members: string[];
   learnedIn: LearnedIn[];
+  /** Optional for nodes written before reference material existed. */
+  sources?: SourceMaterial[];
   related: string[];
   retired?: { into?: string; at: string };
 };
@@ -29,7 +33,7 @@ const PROJECT_ID = /^[a-z][a-z0-9-]{2,63}$/;
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 const NODE_FIELDS = new Set([
   "schemaVersion", "id", "version", "revisionId", "parentRevisionIds", "name", "parentId",
-  "owner", "order", "aliases", "members", "learnedIn", "related", "retired",
+  "owner", "order", "aliases", "members", "learnedIn", "sources", "related", "retired",
 ]);
 
 export function validateConceptId(id: unknown): string {
@@ -45,6 +49,21 @@ export function normalizeConceptName(name: unknown): string {
   if (FORBIDDEN_NAME.test(value) || value.startsWith(".") || value === "README.md")
     throw new Error(`개념 이름에 쓸 수 없는 문자가 있습니다: ${value}`);
   return value;
+}
+
+const SOURCE_PATH = /^(sources|book)\/[^]*$/;
+
+export function validateSource(value: SourceMaterial): SourceMaterial {
+  if (!value || !["notion", "file", "url"].includes(value.kind)) throw new Error(`자료 종류가 올바르지 않습니다: ${value?.kind}`);
+  if (typeof value.title !== "string" || !value.title.trim() || value.title.length > 200) throw new Error("자료 제목이 필요합니다.");
+  if (value.path !== undefined) {
+    const parts = typeof value.path === "string" ? value.path.split("/") : [];
+    if (!SOURCE_PATH.test(String(value.path)) || parts.some((p) => !p || p === "." || p === ".."))
+      throw new Error(`자료 경로는 sources/ 또는 book/ 아래 상대 경로여야 합니다: ${value.path}`);
+  }
+  if (value.url !== undefined && !/^https?:\/\//.test(String(value.url))) throw new Error(`자료 URL이 올바르지 않습니다: ${value.url}`);
+  if (value.path === undefined && value.url === undefined) throw new Error("자료에는 path나 url이 필요합니다.");
+  return { kind: value.kind, title: value.title.trim(), ...(value.path ? { path: value.path } : {}), ...(value.url ? { url: value.url } : {}) };
 }
 
 export function validateLearnedIn(value: LearnedIn): LearnedIn {
@@ -81,6 +100,10 @@ export function validateConceptNode(value: ConceptNode): ConceptNode {
   ids(value.related, "related", CONCEPT_ID);
   if (!Array.isArray(value.learnedIn)) throw new Error(`${value.id}: learnedIn 목록이 필요합니다.`);
   value.learnedIn.forEach(validateLearnedIn);
+  if (value.sources !== undefined) {
+    if (!Array.isArray(value.sources)) throw new Error(`${value.id}: sources 목록이 올바르지 않습니다.`);
+    value.sources.forEach(validateSource);
+  }
   if (value.retired && value.retired.into !== undefined) validateConceptId(value.retired.into);
   return value;
 }

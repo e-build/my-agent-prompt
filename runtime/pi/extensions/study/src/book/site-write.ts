@@ -1,8 +1,9 @@
-import { copyFile, mkdir, readdir, rename, rm, writeFile } from "node:fs/promises";
-import { dirname, join, posix } from "node:path";
+import { copyFile, mkdir, readdir, realpath, rename, rm, writeFile } from "node:fs/promises";
+import { dirname, join, posix, sep } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { readTextOptional } from "../workspace/atomic-file.ts";
 import { safeWorkspacePath } from "../workspace/safe-path.ts";
+import { isRelativeSafePath } from "../workspace/workspace-types.ts";
 import { bookTree } from "./book-query.ts";
 import { applyBookChange, type Actor, type BookApplyOptions, type BookChangeRequest, type BookChangeResult } from "./book-changes.ts";
 import { renderChangePage } from "./book-diff.ts";
@@ -55,6 +56,26 @@ async function changeRecords(root: string): Promise<Array<{ changeId: string; re
   return records;
 }
 
+/** Resolve a root-relative file for reading, refusing paths that leave the root or pass through symlinks. */
+async function safeWorkspacePathOrProject(root: string, relative: string): Promise<string> {
+  if (!isRelativeSafePath(relative)) throw new Error(`허용되지 않는 경로입니다: ${relative}`);
+  const full = join(root, ...relative.split("/"));
+  const realRoot = await realpath(root);
+  // A missing file has no realpath: check its nearest existing ancestor instead.
+  let probe = full;
+  let real: string | null = null;
+  while (real === null) {
+    real = await realpath(probe).catch(() => null);
+    if (real === null) {
+      const parent = dirname(probe);
+      if (parent === probe) return full;
+      probe = parent;
+    }
+  }
+  if (real !== realRoot && !real.startsWith(`${realRoot}${sep}`)) throw new Error(`루트 밖 파일입니다: ${relative}`);
+  return full;
+}
+
 export type SiteWriteResult = { dir: string; pages: number; warnings: string[] };
 
 /**
@@ -79,6 +100,17 @@ export async function writeBookSite(root: string): Promise<SiteWriteResult> {
     await mkdir(dirname(file), { recursive: true });
     await writeFile(file, html, "utf8");
   }
+  const warnings = [...site.warnings];
+  for (const file of site.files) {
+    const from = await safeWorkspacePathOrProject(root, file);
+    const to = join(temp, "_files", ...file.split("/"));
+    await mkdir(dirname(to), { recursive: true });
+    try {
+      await copyFile(from, to);
+    } catch {
+      warnings.push(`없는 이미지: ${file}`);
+    }
+  }
   await mkdir(join(temp, "_changes"), { recursive: true });
   for (const change of changes) await writeFile(join(temp, "_changes", `${change.changeId}.html`), renderChangePage(change), "utf8");
   await mkdir(join(temp, "_assets"), { recursive: true });
@@ -89,7 +121,7 @@ export async function writeBookSite(root: string): Promise<SiteWriteResult> {
   await rename(target, old).catch(() => {});
   await rename(temp, target);
   await rm(old, { recursive: true, force: true });
-  return { dir: target, pages: site.pages.size, warnings: site.warnings };
+  return { dir: target, pages: site.pages.size, warnings };
 }
 
 /**

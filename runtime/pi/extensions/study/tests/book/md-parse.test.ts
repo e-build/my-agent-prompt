@@ -83,3 +83,13 @@ test("collectLinks finds every link href in reading order, including inside list
   const doc = parseMarkdown("[a](a.md)\n\n- [b](<b c.md>)\n\n> [c](c.md)\n\n| x |\n|---|\n| [d](d_(1).md) |\n\n```\n[no](no.md)\n```");
   assert.deepEqual(collectLinks(doc), ["a.md", "b c.md", "c.md", "d_(1).md"]);
 });
+
+test("images parse as their own inline node with alt text and a target", () => {
+  const [p] = parseMarkdown("앞 ![그림 설명](media/a%20b.png) 뒤 ![](x.png)") as any[];
+  assert.deepEqual(p.text, [
+    { type: "text", value: "앞 " },
+    { type: "image", src: "media/a%20b.png", alt: "그림 설명" },
+    { type: "text", value: " 뒤 " },
+    { type: "image", src: "x.png", alt: "" },
+  ]);
+});

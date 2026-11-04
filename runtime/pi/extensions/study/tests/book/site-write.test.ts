@@ -68,3 +68,16 @@ test("applyAndPublish refreshes the HTML after a change; a site failure is only 
   assert.match(second.siteWarning!, /HTML 교과서 갱신 실패: disk full/);
   assert.ok(existsSync(join(root, "book", "DB", "README.md")), "the change itself is kept");
 });
+
+test("images referenced by book pages are copied into _files; missing ones become warnings", async (t) => {
+  const root = await workspaceFixture(t);
+  await applyBookChange(root, "user", { changeId: "u1", reason: "영역", operations: [{ op: "create", name: "자바", parentId: null }] });
+  await mkdir(join(root, "sources", "notion", "media"), { recursive: true });
+  await writeFile(join(root, "sources", "notion", "media", "a.png"), Buffer.from([0x89, 0x50, 0x4e, 0x47]));
+  const page = join(root, "book", "자바", "README.md");
+  await writeFile(page, (await readFile(page, "utf8")).replace("## 메모\n", "## 메모\n\n![a](../../sources/notion/media/a.png) ![b](../../sources/notion/media/없음.png)\n"));
+  const result = await writeBookSite(root);
+  const site = join(root, ...SITE_DIR.split("/"));
+  assert.deepEqual([...(await readFile(join(site, "_files", "sources", "notion", "media", "a.png")))], [0x89, 0x50, 0x4e, 0x47]);
+  assert.deepEqual(result.warnings, ["없는 이미지: sources/notion/media/없음.png"]);
+});

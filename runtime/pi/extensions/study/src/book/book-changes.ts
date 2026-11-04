@@ -25,6 +25,8 @@ import {
   type ConceptNode,
   type ConceptOwner,
   type LearnedIn,
+  type SourceMaterial,
+  validateSource,
 } from "./book-types.ts";
 
 export type Actor = ConceptOwner;
@@ -44,6 +46,7 @@ export type BookOperation =
   | ({ op: "write_page"; id: NodeRef; body: string } & Expect)
   | ({ op: "adopt_page"; id: NodeRef } & Expect)
   | ({ op: "record_learned"; id: NodeRef; learnedIn: LearnedIn } & Expect)
+  | ({ op: "record_source"; id: NodeRef; source: SourceMaterial } & Expect)
   | { op: "propose"; id: NodeRef; message: string };
 
 export type BookChangeRequest =
@@ -248,6 +251,13 @@ async function runOperation(root: string, batch: Batch, op: BookOperation): Prom
       const entry = validateLearnedIn(op.learnedIn);
       if (!node.learnedIn.some((l) => l.projectId === entry.projectId && l.chapterSlug === entry.chapterSlug))
         node.learnedIn = [...node.learnedIn, entry];
+      return;
+    }
+    case "record_source": {
+      const entry = validateSource(op.source);
+      const node = batch.touch(batch.resolve(op.id), op.expectedRevisionId);
+      const key = (x: SourceMaterial) => x.path ?? x.url;
+      if (!(node.sources ?? []).some((x) => key(x) === key(entry))) node.sources = [...(node.sources ?? []), entry];
       return;
     }
     case "propose": {

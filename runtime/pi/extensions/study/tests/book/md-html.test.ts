@@ -46,3 +46,10 @@ test("highlight covers keywords, strings, comments and numbers per language and 
   assert.equal(highlight("fun f() = /* x */ 2", "kotlin"), '<span class="tok-kw">fun</span> f() = <span class="tok-com">/* x */</span> <span class="tok-num">2</span>');
   assert.equal(highlight("<x>", "unknown"), "&lt;x&gt;");
 });
+
+test("local images render through the caller; remote and unsafe images become plain links", () => {
+  const { html } = renderMarkdown("![지역](media/a.png) ![원격](https://ex.com/b.png) ![나쁨](javascript:x)", {
+    rewriteImage: (src) => (src.startsWith("media/") ? `../_media/${src}` : null),
+  });
+  assert.equal(html, '<p><img src="../_media/media/a.png" alt="지역" loading="lazy"> <a href="https://ex.com/b.png" rel="noopener noreferrer">원격</a> 나쁨</p>');
+});

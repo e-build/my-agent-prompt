@@ -3,7 +3,7 @@ export const WORKSPACE_SCHEMA_VERSION = 1 as const;
 export const WORKSPACE_MARKER = ".study/workspace.json";
 export const DEFAULT_TIMEZONE = "Asia/Seoul";
 export const DEFAULT_REVIEW_INTERVALS = [1, 3, 7, 14] as const;
-export const COMMON_WRITE_ROOTS = [".study", "knowledge", "review", "book"] as const;
+export const COMMON_WRITE_ROOTS = [".study", "knowledge", "review", "book", "sources"] as const;
 
 export type WorkspaceProject = {
   /** Stable ID independent of the directory name. */

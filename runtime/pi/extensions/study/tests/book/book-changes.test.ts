@@ -143,3 +143,21 @@ test("retire carries notes into the target page; undo restores files and nodes",
   assert.notEqual(await treeDigest(root), before); // history and change records grew
   await assert.rejects(applyBookChange(root, "user", { changeId: "u3", reason: "다시", undo: "a2" }), /이후 변경/);
 });
+
+test("record_source lists reference material in the page foot, next to chapters; old nodes without sources still load", async (t) => {
+  const { root, area } = await setup(t);
+  await applyBookChange(root, "agent", { changeId: "s1", reason: "노션 이관", operations: [
+    { op: "record_source", id: area.id, expectedRevisionId: area.revisionId, source: { kind: "notion", title: "스레드 개념", path: "sources/notion/스레드 개념.md", url: "https://app.notion.com/p/9dab7410b9474a79a8f8fb24a6771019" } },
+  ] }, { now });
+  const foot = parsePage(await read(root, "book/동시성/README.md")).regions.foot.body;
+  assert.match(foot, /## 참고한 자료\n\n- \[스레드 개념\]\(\.\.\/\.\.\/sources\/notion\/%EC%8A%A4%EB%A0%88%EB%93%9C%20%EA%B0%9C%EB%85%90\.md\) · 노션 원문/);
+  const node = (await loadConcepts(root)).find((n) => n.id === area.id)!;
+  await applyBookChange(root, "agent", { changeId: "s2", reason: "중복", operations: [
+    { op: "record_source", id: area.id, expectedRevisionId: node.revisionId, source: { kind: "notion", title: "스레드 개념", path: "sources/notion/스레드 개념.md" } },
+  ] }, { now });
+  assert.equal((await loadConcepts(root)).find((n) => n.id === area.id)!.sources!.length, 1, "same path recorded once");
+  await assert.rejects(
+    applyBookChange(root, "agent", { changeId: "s3", reason: "x", operations: [{ op: "record_source", id: area.id, source: { kind: "notion", title: "x", path: "../밖.md" } } as any] }),
+    /자료 경로/,
+  );
+});

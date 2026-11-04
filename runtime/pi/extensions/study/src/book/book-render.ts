@@ -28,7 +28,12 @@ export function renderFoot(
   const relatedBlock = related.length
     ? `## 관련 개념\n\n${related.map((r) => `- [${r.name}](${relativeLink(self, pagePath(byId, r))})`).join("\n")}\n\n`
     : "";
-  if (!node.learnedIn.length) return `${relatedBlock}## 배운 곳\n\n- (아직 없음)`;
+  const sources = node.sources ?? [];
+  const label = { notion: "노션 원문", file: "자료", url: "웹" } as const;
+  const sourceBlock = sources.length
+    ? `\n\n## 참고한 자료\n\n${sources.map((x) => `- [${x.title}](${x.path ? relativeLink(self, x.path) : x.url}) · ${label[x.kind]}`).join("\n")}`
+    : "";
+  if (!node.learnedIn.length) return `${relatedBlock}## 배운 곳\n\n- (아직 없음)${sourceBlock}`;
   const lines = [...node.learnedIn]
     .sort((a, b) => a.completedOn.localeCompare(b.completedOn))
     .map((l) => {
@@ -37,5 +42,5 @@ export function renderFoot(
       const link = relativeLink(self, `${project.path}/${l.chapterSlug}/README.md`);
       return `- [${project.slug} · ${l.chapterSlug}](${link}) · ${l.completedOn}`;
     });
-  return `${relatedBlock}## 배운 곳\n\n${lines.join("\n")}`;
+  return `${relatedBlock}## 배운 곳\n\n${lines.join("\n")}${sourceBlock}`;
 }

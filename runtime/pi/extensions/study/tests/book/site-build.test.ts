@@ -77,3 +77,14 @@ test("a link to a markdown file that does not exist stays a plain label, with a 
   assert.match(site.pages.get("자바/index.html")!, /<p>없는 글<\/p>/);
   assert.deepEqual(site.warnings, ["깨진 링크: book/자바/README.md → book/자바/없음.md"]);
 });
+
+test("local images inside the root are copied into the site; escaping paths and records are refused", async () => {
+  const site = await buildSite(source({
+    "book/자바/README.md": "# 자바\n\n![구조](../../sources/notion/media/a.png) ![밖](../../../etc/x.png) ![기록](../../study-a/.study/x.png) ![원격](https://ex.com/r.png)",
+  }, tree));
+  const page = site.pages.get("자바/index.html")!;
+  assert.match(page, /<img src="\.\.\/_files\/sources\/notion\/media\/a\.png" alt="구조" loading="lazy">/);
+  assert.doesNotMatch(page, /etc\/x\.png|\.study/);
+  assert.match(page, /<a href="https:\/\/ex\.com\/r\.png" rel="noopener noreferrer">원격<\/a>/);
+  assert.deepEqual(site.files, ["sources/notion/media/a.png"]);
+});

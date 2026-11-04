@@ -9,7 +9,8 @@ export type Inline =
   | { type: "text"; value: string }
   | { type: "code"; value: string }
   | { type: "strong" | "em" | "strike"; children: Inline[] }
-  | { type: "link"; href: string; children: Inline[] };
+  | { type: "link"; href: string; children: Inline[] }
+  | { type: "image"; src: string; alt: string };
 
 export type Align = "left" | "right" | "center" | null;
 export type ListItem = { checked?: boolean; children: Block[] };
@@ -306,6 +307,15 @@ export function parseInline(src: string): Inline[] {
         continue;
       }
     }
+    if (c === "!" && src[i + 1] === "[") {
+      const close = findClosing(src, i + 2, "[", "]");
+      const target = close > 0 ? parseLinkTarget(src, close + 1) : null;
+      if (target) {
+        out.push({ type: "image", src: target.href.replace(/\\(.)/g, "$1"), alt: src.slice(i + 2, close).replace(/\\(.)/g, "$1") });
+        i = target.end;
+        continue;
+      }
+    }
     if (c === "[") {
       const close = findClosing(src, i + 1, "[", "]");
       if (close > 0) {
@@ -369,6 +379,7 @@ export function collectLinks(blocks: Block[]): string[] {
   const inline = (nodes: Inline[]) => {
     for (const n of nodes) {
       if (n.type === "link") out.push(n.href);
+      if (n.type === "image") out.push(n.src);
       if ("children" in n) inline(n.children);
     }
   };

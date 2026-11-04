@@ -5,6 +5,8 @@ export type TocEntry = { level: number; id: string; text: string };
 export type RenderOptions = {
   /** Map an allowed href (relative, #anchor, http(s), mailto) to its final form. */
   rewriteLink?: (href: string) => string;
+  /** Map a local image path to its site URL; null renders the image as a link (remote) or its alt (unsafe). */
+  rewriteImage?: (src: string) => string | null;
 };
 export type Rendered = { html: string; toc: TocEntry[]; mermaid: number; title: string | null };
 
@@ -20,7 +22,7 @@ export function headingSlug(text: string): string {
 }
 
 function plain(nodes: Inline[]): string {
-  return nodes.map((n) => ("value" in n ? n.value : plain(n.children))).join("");
+  return nodes.map((n) => (n.type === "image" ? n.alt : "value" in n ? n.value : plain(n.children))).join("");
 }
 
 class Renderer {
@@ -46,6 +48,12 @@ class Renderer {
             return `<em>${this.inline(n.children)}</em>`;
           case "strike":
             return `<del>${this.inline(n.children)}</del>`;
+          case "image": {
+            const local = this.options.rewriteImage?.(n.src) ?? null;
+            if (local) return `<img src="${escapeHtml(local)}" alt="${escapeHtml(n.alt)}" loading="lazy">`;
+            if (/^https?:/i.test(n.src)) return `<a href="${escapeHtml(n.src)}" rel="noopener noreferrer">${escapeHtml(n.alt || n.src)}</a>`;
+            return escapeHtml(n.alt);
+          }
           case "link": {
             const label = this.inline(n.children);
             if (!SAFE.test(n.href) || /^\s*(javascript|data|vbscript):/i.test(n.href)) return label;
