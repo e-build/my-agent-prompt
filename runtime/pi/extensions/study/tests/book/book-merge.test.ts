@@ -55,6 +55,9 @@ test("relate links two concepts both ways and unrelate removes both directions",
   await applyBookChange(root, "agent", { changeId: "r1", reason: "관련", operations: [{ op: "relate", id: p.id, otherId: q.id, expectedRevisionIds: { [p.id]: p.revisionId, [q.id]: q.revisionId } }] });
   assert.deepEqual((await node("P")).related, [q.id]);
   assert.deepEqual((await node("Q")).related, [p.id]);
+  const { readFile } = await import("node:fs/promises");
+  const { join } = await import("node:path");
+  assert.match(await readFile(join(root, "book", "자바", "P", "README.md"), "utf8"), /## 관련 개념\n\n- \[Q\]\(\.\.\/Q\/README\.md\)/);
   const [p2, q2] = [await node("P"), await node("Q")];
   await assert.rejects(applyBookChange(root, "agent", { changeId: "r2", reason: "x", operations: [{ op: "relate", id: p2.id, otherId: p2.id, expectedRevisionIds: { [p2.id]: p2.revisionId } }] }), /자기 자신/);
   await applyBookChange(root, "agent", { changeId: "r3", reason: "해제", operations: [{ op: "unrelate", id: p2.id, otherId: q2.id, expectedRevisionIds: { [p2.id]: p2.revisionId, [q2.id]: q2.revisionId } }] });

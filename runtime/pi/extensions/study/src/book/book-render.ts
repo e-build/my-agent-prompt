@@ -23,8 +23,12 @@ export function renderFoot(
   node: ConceptNode,
   projects: WorkspaceProject[],
 ): string {
-  if (!node.learnedIn.length) return "## 배운 곳\n\n- (아직 없음)";
   const self = pagePath(byId, node);
+  const related = node.related.map((id) => byId.get(id)).filter((n): n is ConceptNode => !!n);
+  const relatedBlock = related.length
+    ? `## 관련 개념\n\n${related.map((r) => `- [${r.name}](${relativeLink(self, pagePath(byId, r))})`).join("\n")}\n\n`
+    : "";
+  if (!node.learnedIn.length) return `${relatedBlock}## 배운 곳\n\n- (아직 없음)`;
   const lines = [...node.learnedIn]
     .sort((a, b) => a.completedOn.localeCompare(b.completedOn))
     .map((l) => {
@@ -33,5 +37,5 @@ export function renderFoot(
       const link = relativeLink(self, `${project.path}/${l.chapterSlug}/README.md`);
       return `- [${project.slug} · ${l.chapterSlug}](${link}) · ${l.completedOn}`;
     });
-  return `## 배운 곳\n\n${lines.join("\n")}`;
+  return `${relatedBlock}## 배운 곳\n\n${lines.join("\n")}`;
 }
