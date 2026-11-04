@@ -1,7 +1,8 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 import { requireWorkspace } from "../workspace/workspace-root.ts";
-import { applyBookChange, type BookChangeRequest } from "./book-changes.ts";
+import type { BookChangeRequest } from "./book-changes.ts";
+import { applyAndPublish } from "./site-write.ts";
 import { bookPendingNotice } from "./book-pending.ts";
 import { bookTree, formatTree, planChapter } from "./book-query.ts";
 
@@ -61,8 +62,8 @@ export function registerBookTools(pi: ExtensionAPI): void {
         ];
         return { content: [{ type: "text", text: lines.join("\n") }], details: plan };
       }
-      const result = await applyBookChange(workspace.root, "agent", parsePayload<BookChangeRequest>(params.payloadJson));
-      return { content: [{ type: "text", text: `${result.status}: ${result.summary}${result.dashboardWarning ? `\n경고: ${result.dashboardWarning}` : ""}\nundo: {changeId:<새 id>, reason, undo:"${result.changeId}"}` }], details: result };
+      const result = await applyAndPublish(workspace.root, "agent", parsePayload<BookChangeRequest>(params.payloadJson));
+      return { content: [{ type: "text", text: `${result.status}: ${result.summary}${[result.dashboardWarning, result.siteWarning].filter(Boolean).map((w) => `\n경고: ${w}`).join("")}${result.diffUrl ? `\n차이: ${result.diffUrl}` : ""}\nundo: {changeId:<새 id>, reason, undo:"${result.changeId}"}` }], details: result };
     },
   });
 }

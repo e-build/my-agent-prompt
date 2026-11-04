@@ -1,9 +1,10 @@
 import { copyFile, mkdir, readdir, rename, rm, writeFile } from "node:fs/promises";
 import { dirname, join, posix } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { readTextOptional } from "../workspace/atomic-file.ts";
 import { safeWorkspacePath } from "../workspace/safe-path.ts";
 import { bookTree } from "./book-query.ts";
+import { applyBookChange, type Actor, type BookApplyOptions, type BookChangeRequest, type BookChangeResult } from "./book-changes.ts";
 import { renderChangePage } from "./book-diff.ts";
 import { abs, CONCEPT_CHANGES_DIR } from "./book-store.ts";
 import { BOOK_DIR } from "./book-tree.ts";
@@ -89,4 +90,25 @@ export async function writeBookSite(root: string): Promise<SiteWriteResult> {
   await rename(temp, target);
   await rm(old, { recursive: true, force: true });
   return { dir: target, pages: site.pages.size, warnings: site.warnings };
+}
+
+/**
+ * Apply a book change, then refresh the PC-local HTML. The change is the
+ * fact; the site is derived, so a site failure is reported, never thrown.
+ */
+export async function applyAndPublish(
+  root: string,
+  actor: Actor,
+  request: BookChangeRequest,
+  options: BookApplyOptions & { publish?: (root: string) => Promise<unknown> } = {},
+): Promise<BookChangeResult & { siteWarning?: string; diffUrl?: string }> {
+  const result = await applyBookChange(root, actor, request, options);
+  if (result.status !== "committed") return result;
+  try {
+    await (options.publish ?? writeBookSite)(root);
+    const diffUrl = pathToFileURL(join(root, ...SITE_DIR.split("/"), "_changes", `${result.changeId}.html`)).href;
+    return { ...result, diffUrl };
+  } catch (error) {
+    return { ...result, siteWarning: `HTML 교과서 갱신 실패: ${error instanceof Error ? error.message : String(error)}` };
+  }
 }

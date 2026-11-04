@@ -2,7 +2,8 @@ import { randomUUID } from "node:crypto";
 import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import { readTextOptional } from "../workspace/atomic-file.ts";
 import { requireWorkspace } from "../workspace/workspace-root.ts";
-import { applyBookChange, PROPOSALS_FILE } from "./book-changes.ts";
+import { PROPOSALS_FILE } from "./book-changes.ts";
+import { applyAndPublish } from "./site-write.ts";
 import { bookTree, formatTree, type TreeLine } from "./book-query.ts";
 import { abs } from "./book-store.ts";
 
@@ -41,7 +42,7 @@ export async function runConceptsCommand(root: string, ui: ConceptsUi): Promise<
   if (action === "최상위 영역 만들기") {
     const name = await ui.input("새 최상위 영역 이름", "예: 동시성");
     if (!name?.trim()) return;
-    const result = await applyBookChange(root, "user", { changeId: changeId(), reason: "사용자가 최상위 영역을 만듦", operations: [{ op: "create", name, parentId: null }] });
+    const result = await applyAndPublish(root, "user", { changeId: changeId(), reason: "사용자가 최상위 영역을 만듦", operations: [{ op: "create", name, parentId: null }] });
     return ui.notify(result.summary, "info");
   }
   if (!lines.length) return ui.notify("개념이 없습니다. 먼저 최상위 영역을 만드세요.", "warning");
@@ -50,14 +51,14 @@ export async function runConceptsCommand(root: string, ui: ConceptsUi): Promise<
   if (action === "개념 이름 바꾸기") {
     const name = await ui.input(`${target.name}의 새 이름`, target.name);
     if (!name?.trim() || name.trim() === target.name) return;
-    const result = await applyBookChange(root, "user", { changeId: changeId(), reason: "사용자가 이름을 바꿈", operations: [{ op: "rename", id: target.id, name, expectedRevisionId: target.revisionId }] });
+    const result = await applyAndPublish(root, "user", { changeId: changeId(), reason: "사용자가 이름을 바꿈", operations: [{ op: "rename", id: target.id, name, expectedRevisionId: target.revisionId }] });
     return ui.notify(result.summary, "info");
   }
   const TOP = "(최상위로)";
   const parent = await pick(ui, lines.filter((l) => l.id !== target.id && !l.path.startsWith(target.path.replace(/README\.md$/, ""))), `${target.name}을(를) 어디 아래로 옮길까요?`, [TOP]);
   if (!parent) return;
   const parentId = parent === TOP ? null : (parent as TreeLine).id;
-  const result = await applyBookChange(root, "user", { changeId: changeId(), reason: "사용자가 개념을 옮김", operations: [{ op: "move", id: target.id, parentId, expectedRevisionId: target.revisionId }] });
+  const result = await applyAndPublish(root, "user", { changeId: changeId(), reason: "사용자가 개념을 옮김", operations: [{ op: "move", id: target.id, parentId, expectedRevisionId: target.revisionId }] });
   ui.notify(result.summary, "info");
 }
 

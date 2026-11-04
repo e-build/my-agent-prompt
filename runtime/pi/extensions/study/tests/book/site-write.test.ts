@@ -49,3 +49,22 @@ test("each book change gets a comparison page, and the dashboard links to it", a
   assert.match(await readFile(join(site, "index.html"), "utf8"), /<a href="_changes\/a1\.html">a1<\/a>/);
   assert.match(await readFile(join(root, "book", "README.md"), "utf8"), /- \d{4}-\d\d-\d\d · a1 · 본문/, "the md dashboard stays plain for GitHub");
 });
+
+test("applyAndPublish refreshes the HTML after a change; a site failure is only a warning", async (t) => {
+  const { applyAndPublish } = await import("../../src/book/site-write.ts");
+  const root = await workspaceFixture(t);
+  const result = await applyAndPublish(root, "user", { changeId: "u1", reason: "영역", operations: [{ op: "create", name: "자바", parentId: null }] });
+  assert.equal(result.status, "committed");
+  assert.equal(result.siteWarning, undefined);
+  assert.match(result.diffUrl!, /^file:\/\/.*\/\.study\/local\/book-site\/_changes\/u1\.html$/);
+  assert.ok(existsSync(new URL(result.diffUrl!)));
+  assert.ok(existsSync(join(root, ...SITE_DIR.split("/"), "자바", "index.html")));
+  const second = await applyAndPublish(root, "user", { changeId: "u2", reason: "영역", operations: [{ op: "create", name: "DB", parentId: null }] }, {
+    publish: async () => {
+      throw new Error("disk full");
+    },
+  });
+  assert.equal(second.status, "committed");
+  assert.match(second.siteWarning!, /HTML 교과서 갱신 실패: disk full/);
+  assert.ok(existsSync(join(root, "book", "DB", "README.md")), "the change itself is kept");
+});
