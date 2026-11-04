@@ -8,6 +8,8 @@ export type SiteSource = {
   read: (path: string) => Promise<string | null>;
   bookFiles: string[];
   tree: Array<{ id: string; name: string; depth: number; path: string }>;
+  /** Change ids that have a comparison page under `_changes/`. */
+  changes?: Set<string>;
 };
 export type Site = { pages: Map<string, string>; searchIndex: string; warnings: string[] };
 
@@ -88,6 +90,24 @@ ${onThisPage}
 `;
 }
 
+/** Dashboard "최근 교과서 변경" lines `- <date> · <changeId> · <reason>`: make the id a link. */
+function linkChanges(blocks: ReturnType<typeof parseMarkdown>, changes: Set<string>): void {
+  for (const block of blocks) {
+    if (block.type !== "list") continue;
+    for (const item of block.items) {
+      const para = item.children[0];
+      if (para?.type !== "paragraph" || para.text.length !== 1 || para.text[0].type !== "text") continue;
+      const m = /^(\d{4}-\d\d-\d\d · )([A-Za-z0-9_.-]+)( · [\s\S]*)$/.exec(para.text[0].value);
+      if (!m || !changes.has(m[2])) continue;
+      para.text = [
+        { type: "text", value: m[1] },
+        { type: "link", href: `_changes/${m[2]}.html`, children: [{ type: "text", value: m[2] }] },
+        { type: "text", value: m[3] },
+      ];
+    }
+  }
+}
+
 /** Book pages plus the out-of-book markdown they link to (one level deep). */
 export async function buildSite(source: SiteSource): Promise<Site> {
   const pages = new Map<string, string>();
@@ -128,8 +148,10 @@ export async function buildSite(source: SiteSource): Promise<Site> {
       }
     }
     const output = outputPath(path);
+    if (path === "book/README.md" && source.changes?.size) linkChanges(blocks, source.changes);
     const rendered = renderMarkdown(blocks, {
       rewriteLink: (href) => {
+        if (href.startsWith("_changes/")) return href;
         const link = resolveLink(path, href);
         if (!link) return href;
         // Study records are never published, whatever their extension.

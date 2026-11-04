@@ -4,7 +4,8 @@ import { fileURLToPath } from "node:url";
 import { readTextOptional } from "../workspace/atomic-file.ts";
 import { safeWorkspacePath } from "../workspace/safe-path.ts";
 import { bookTree } from "./book-query.ts";
-import { abs } from "./book-store.ts";
+import { renderChangePage } from "./book-diff.ts";
+import { abs, CONCEPT_CHANGES_DIR } from "./book-store.ts";
 import { BOOK_DIR } from "./book-tree.ts";
 import { buildSite } from "./site-build.ts";
 
@@ -34,6 +35,25 @@ async function markdownFiles(root: string, dir: string): Promise<string[]> {
   return files;
 }
 
+async function changeRecords(root: string): Promise<Array<{ changeId: string; reason: string; at: string; files: Array<{ path: string; before: string | null; after: string | null }> }>> {
+  let names: string[];
+  try {
+    names = (await readdir(abs(root, CONCEPT_CHANGES_DIR))).filter((n) => n.endsWith(".json"));
+  } catch {
+    return [];
+  }
+  const records = [];
+  for (const name of names) {
+    try {
+      const r = JSON.parse((await readTextOptional(join(abs(root, CONCEPT_CHANGES_DIR), name)))!);
+      if (typeof r.changeId === "string" && /^[A-Za-z0-9_.-]{1,80}$/.test(r.changeId) && Array.isArray(r.files)) records.push(r);
+    } catch {
+      /* unreadable record: no comparison page */
+    }
+  }
+  return records;
+}
+
 export type SiteWriteResult = { dir: string; pages: number; warnings: string[] };
 
 /**
@@ -41,11 +61,13 @@ export type SiteWriteResult = { dir: string; pages: number; warnings: string[] }
  * never leaves a half-written site and stale pages disappear.
  */
 export async function writeBookSite(root: string): Promise<SiteWriteResult> {
+  const changes = await changeRecords(root);
   const tree = (await bookTree(root)).map((l) => ({ id: l.id, name: l.name, depth: l.depth, path: l.path }));
   const site = await buildSite({
     read: (path) => readTextOptional(abs(root, path)),
     bookFiles: await markdownFiles(root, BOOK_DIR),
     tree,
+    changes: new Set(changes.map((c) => c.changeId)),
   });
   const target = await safeWorkspacePath(root, SITE_DIR);
   const temp = `${target}.tmp-${process.pid}-${Date.now()}`;
@@ -56,6 +78,8 @@ export async function writeBookSite(root: string): Promise<SiteWriteResult> {
     await mkdir(dirname(file), { recursive: true });
     await writeFile(file, html, "utf8");
   }
+  await mkdir(join(temp, "_changes"), { recursive: true });
+  for (const change of changes) await writeFile(join(temp, "_changes", `${change.changeId}.html`), renderChangePage(change), "utf8");
   await mkdir(join(temp, "_assets"), { recursive: true });
   for (const [from, to] of ASSET_FILES) await copyFile(join(ASSETS, ...from.split("/")), join(temp, "_assets", to));
   await writeFile(join(temp, "_assets", "search-index.js"), `window.__BOOK_INDEX__ = ${site.searchIndex};\n`, "utf8");

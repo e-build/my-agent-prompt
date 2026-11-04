@@ -37,3 +37,15 @@ test("the site never contains study records, even when a page links to them", as
   assert.doesNotMatch(await readFile(join(site, "자바", "index.html"), "utf8"), /project\.json/);
   assert.deepEqual(result.warnings, []);
 });
+
+test("each book change gets a comparison page, and the dashboard links to it", async (t) => {
+  const root = await workspaceFixture(t);
+  const area = (await applyBookChange(root, "user", { changeId: "u1", reason: "영역", operations: [{ op: "create", name: "자바", parentId: null }] })).nodes[0];
+  await applyBookChange(root, "agent", { changeId: "a1", reason: "본문", operations: [{ op: "write_page", id: area.id, body: "새 본문", expectedRevisionId: area.revisionId }] });
+  await writeBookSite(root);
+  const site = join(root, ...SITE_DIR.split("/"));
+  const change = await readFile(join(site, "_changes", "a1.html"), "utf8");
+  assert.match(change, /<div class="del">- \(아직 본문이 없습니다\)<\/div>\n<div class="add">\+ 새 본문<\/div>/);
+  assert.match(await readFile(join(site, "index.html"), "utf8"), /<a href="_changes\/a1\.html">a1<\/a>/);
+  assert.match(await readFile(join(root, "book", "README.md"), "utf8"), /- \d{4}-\d\d-\d\d · a1 · 본문/, "the md dashboard stays plain for GitHub");
+});
