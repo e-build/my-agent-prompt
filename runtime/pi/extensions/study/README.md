@@ -14,6 +14,7 @@
 - [상태 파일](#상태-파일)
 - [Assessment](#assessment)
 - [챕터 노트와 Lab 기록](#챕터-노트와-lab-기록)
+- [내 교과서 (book)](#내-교과서-book)
 - [통합 복습](#통합-복습)
 - [고정 회차형 복습](#고정-회차형-복습)
 - [테스트](#테스트)
@@ -120,6 +121,7 @@ study/
 ├── knowledge/items/k-*.md     # 명제 하나당 파일: JSON 메타 + 설명 본문
 ├── knowledge/concepts/cn-*.json # 교과서 개념 노드: 위계·소유자·소속 명제·배운 곳
 ├── knowledge/concepts/history/, changes/, proposals.jsonl # 버전·변경 기록(undo)·에이전트 제안
+├── book/README.md             # 교과서 대시보드(생성물): 영역 수치·목차·학습 현황·할 일·최근 변경 + 메모
 ├── book/<영역>/…/README.md    # 개념별 교과서 페이지: head·main·foot 관리 영역 + 메모
 ├── knowledge/history/k-*.jsonl# 버전별 전체 스냅숏·이유 (추가만)
 ├── knowledge/changes/*.json   # 변경 기록 (멱등 재시도·undo)
@@ -138,7 +140,7 @@ study/
 
 - `study_workspace`: (agent용) 등록 상태 확인(inspect)·검사(check), 읽기 전용
 - `study_knowledge`: 공통 지식 조회(query, 기본은 이름·상태만)·변경(apply: create/add_expression/revise/set_status/merge/unmerge/undo/add_chain/retire_chain). changeId·reason·기대 revision 필수
-- `study_book`: 내 교과서 위계 조회(query)·챕터 배치 계획(plan: 챕터 명제가 이미 속한 페이지와 미배치 명제)·원자적 변경(apply: create/rename/move/retire/place/unplace/move_member/write_page/adopt_page/record_learned/propose 묶음, undo). agent 권한이라 최상위 영역 생성·사용자 소유 개념의 이름·위치 변경·직접 고친 본문 덮어쓰기는 거부. 명제는 한 페이지에만 속함. 설계는 `docs/plans/2026-11-03-study-my-textbook-design.md`
+- `study_book`: 내 교과서 위계 조회(query)·챕터 배치 계획(plan: 챕터 명제가 이미 속한 페이지와 미배치 명제)·원자적 변경(apply: create/rename/move/retire/place/unplace/move_member/relate/unrelate/write_page/adopt_page/record_learned/propose 묶음, undo). plan은 재료(챕터 README·lab·문제·통과한 시험)를 경로로만 알려 주고 정답은 담지 않음. agent 권한이라 최상위 영역 생성·사용자 소유 개념의 이름·위치 변경·직접 고친 본문 덮어쓰기는 거부. 명제는 한 페이지에만 속하며, 명제 merge/unmerge 때 소속도 같은 변경 안에서 옮김. 설계는 `docs/plans/2026-11-03-study-my-textbook-design.md`
 - `study_textbook_refresh`: 챕터-지식 연결(bindingJson) 저장 후 README의 `<!-- study:knowledge ... -->` 관리 영역만 갱신. 직접 고친 영역은 보류·차이 보고
 - `study_question_prepare`: 비공개 채점 기준을 먼저 저장하고 공개 질문만 반환
 - `study_answer_record`: 원 응답·도움 정도·지식별 판정 추가 기록, kind=link로 기존 lab·시험 기록을 복사 없이 연결
@@ -260,6 +262,16 @@ skipped_understood / blocked
 - `study_pack_refresh`: deprecated 호환 alias. 시작 페이지만 생성하며 새 pack 생성 없음.
 
 `skipped_understood`는 reason/evidence가 필수이며 README 내용은 삭제하지 않는다.
+
+## 내 교과서 (book)
+
+챕터마다 쓰는 교재(README)와 별개로, 여러 프로젝트에서 배운 것을 **개념 위계로 재구성한 교과서**를 루트 `book/`에 쌓는다.
+
+- 시험 통과+확인으로 챕터가 끝나면(등록된 루트) agent에게 `# STUDY_BOOK_PENDING` follow-up이 간다. agent는 `instructions/book.md`(정본)에 따라 `study_book plan` → 재료 읽기 → `apply` 한 묶음 → 보고(페이지별 변경과 undo용 changeId)
+- 정리가 실패하거나 중단돼도 챕터 완료는 그대로. **정리 대기** = 완료됐지만 어떤 개념의 `learnedIn`에도 없는 챕터(따로 저장하지 않고 계산). 세션 시작 때 정보 알림, `/study-chapter` 메뉴 "📘 교과서 정리 대기"로 이어서 처리
+- 최상위 영역과 사용자 소유 개념은 `/study-concepts`(사용자)만 바꿈. agent는 하위 개념을 직접 정리하고 상위는 `propose`
+- `book/README.md` 대시보드는 book 변경마다 다시 생성. 갱신 실패는 경고일 뿐 변경은 유지. 명제 본문·정답은 넣지 않음
+- HTML 보기(`/study-book`)와 차이 링크는 3단계
 
 ## 통합 복습
 

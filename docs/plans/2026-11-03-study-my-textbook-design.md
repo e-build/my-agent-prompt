@@ -1,6 +1,6 @@
 # study 내 교과서 설계 (초안)
 
-> 상태: 확정 v4 · 2026-11-03 · 대상: `runtime/pi/extensions/study` · 1단계(개념 모델과 book 저장) 구현 완료 — `feat/study-my-textbook`
+> 상태: 확정 v4 · 2026-11-03 · 대상: `runtime/pi/extensions/study` · 1·2단계(개념 모델·book 저장, 완료 연결) 구현 완료 — `feat/study-my-textbook`
 > v4 변경: 챕터 README를 그대로 쓰지 않음. 챕터가 끝날 때 에이전트가 README·문제·실습에서 내용을 뽑아 **개념 위계에 맞게 재구성**해 book 페이지를 만들거나 기존 페이지에 합침. 보기는 `/study-book`. 시험 문제도 예시로 씀.
 
 ## 목차
