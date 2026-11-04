@@ -87,6 +87,7 @@ test(
       ].sort(),
     );
     assert.deepEqual([...h.commands.keys()].sort(), [
+      "study-book",
       "study-chapter",
       "study-checkpoint",
       "study-concepts",

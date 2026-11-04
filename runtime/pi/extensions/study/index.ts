@@ -38,6 +38,7 @@ import { registerBookTools } from "./src/book/book-tools.ts";
 import { registerConceptsCommand } from "./src/book/concepts-command.ts";
 import { checkBookIntegrity } from "./src/book/book-integrity.ts";
 import { bookMergeChanges } from "./src/book/book-merge.ts";
+import { registerBookCommand } from "./src/book/book-command.ts";
 import { createStudyWidget } from "./src/session/study-widget.ts";
 import { checkKnowledgeIntegrity } from "./src/knowledge/knowledge-integrity.ts";
 import { chapterReviewHooks } from "./src/review/chapter-review-start.ts";
@@ -130,6 +131,7 @@ export default function (pi: ExtensionAPI) {
   registerTextbookTools(pi);
   registerBookTools(pi);
   registerConceptsCommand(pi);
+  registerBookCommand(pi, { openBrowser });
   registerQuestionTools(pi, { prepareOptions: diagnosisPrepareOptions, answerOptions: reviewAnswerOptions });
   registerLearningRouteTools(pi);
   registerPlacementTools(pi);
