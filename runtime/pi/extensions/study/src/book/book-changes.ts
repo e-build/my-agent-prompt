@@ -40,6 +40,7 @@ export type BookOperation =
   | ({ op: "place"; id: NodeRef; knowledgeIds: string[] } & Expect)
   | ({ op: "unplace"; id: NodeRef; knowledgeIds: string[] } & Expect)
   | ({ op: "move_member"; from: NodeRef; to: NodeRef; knowledgeIds: string[] } & { expectedRevisionIds?: Record<string, string> })
+  | { op: "relate" | "unrelate"; id: NodeRef; otherId: NodeRef; expectedRevisionIds?: Record<string, string> }
   | ({ op: "write_page"; id: NodeRef; body: string } & Expect)
   | ({ op: "adopt_page"; id: NodeRef } & Expect)
   | ({ op: "record_learned"; id: NodeRef; learnedIn: LearnedIn } & Expect)
@@ -219,6 +220,17 @@ async function runOperation(root: string, batch: Batch, op: BookOperation): Prom
         if (!from.members.includes(id)) throw new Error(`${from.name}에 없는 지식입니다: ${id}`);
       from.members = from.members.filter((m) => !op.knowledgeIds.includes(m));
       to.members = [...new Set([...to.members, ...op.knowledgeIds])];
+      return;
+    }
+    case "relate":
+    case "unrelate": {
+      const a = batch.resolve(op.id);
+      const b = batch.resolve(op.otherId);
+      if (a.id === b.id) throw new Error("자기 자신과 관련 지을 수 없습니다.");
+      batch.touch(a, op.expectedRevisionIds?.[a.id]);
+      batch.touch(b, op.expectedRevisionIds?.[b.id]);
+      for (const [x, y] of [[a, b], [b, a]])
+        x.related = op.op === "relate" ? [...new Set([...x.related, y.id])] : x.related.filter((r) => r !== y.id);
       return;
     }
     case "write_page": {

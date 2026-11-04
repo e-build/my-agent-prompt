@@ -37,7 +37,7 @@ export function registerBookTools(pi: ExtensionAPI): void {
       payloadJson: Type.Optional(
         Type.String({
           description:
-            "query: 없음. plan: {projectSlug,chapterSlug}. apply: {changeId,reason,operations:[{op:create|rename|move|retire|place|unplace|move_member|write_page|adopt_page|record_learned|propose,...}]} 또는 {changeId,reason,undo:<changeId>}. 같은 묶음에서 만든 개념은 create의 key로 이름 붙여 'key:<key>'로 가리킴. 기존 개념을 처음 바꿀 때 expectedRevisionId 필수.",
+            "query: 없음. plan: {projectSlug,chapterSlug}. apply: {changeId,reason,operations:[{op:create|rename|move|retire|place|unplace|move_member|relate|unrelate|write_page|adopt_page|record_learned|propose,...}]} 또는 {changeId,reason,undo:<changeId>}. 같은 묶음에서 만든 개념은 create의 key로 이름 붙여 'key:<key>'로 가리킴. 기존 개념을 처음 바꿀 때 expectedRevisionId 필수.",
         }),
       ),
       workspaceRoot: Type.Optional(Type.String()),
