@@ -50,6 +50,7 @@ class Renderer {
             const label = this.inline(n.children);
             if (!SAFE.test(n.href) || /^\s*(javascript|data|vbscript):/i.test(n.href)) return label;
             const href = this.options.rewriteLink ? this.options.rewriteLink(n.href) : n.href;
+            if (!href) return label; // the caller withheld this target
             const external = /^https?:/i.test(href) ? ' rel="noopener noreferrer"' : "";
             return `<a href="${escapeHtml(href)}"${external}>${label}</a>`;
           }
@@ -107,9 +108,10 @@ class Renderer {
   }
 }
 
-export function renderMarkdown(source: string, options: RenderOptions = {}): Rendered {
+export function renderMarkdown(source: string | Block[], options: RenderOptions = {}): Rendered {
   const renderer = new Renderer(options);
-  const html = parseMarkdown(source).map((b) => renderer.block(b)).join("\n");
+  const blocks = typeof source === "string" ? parseMarkdown(source) : source;
+  const html = blocks.map((b) => renderer.block(b)).join("\n");
   const title = renderer.toc.find((t) => t.level === 1)?.text ?? null;
   return { html, toc: renderer.toc, mermaid: renderer.mermaid, title };
 }

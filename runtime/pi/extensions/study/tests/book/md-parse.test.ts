@@ -77,3 +77,9 @@ test("unclosed markers and unmatched brackets stay as text", () => {
   const [p] = parseMarkdown("2 * 3 = 6, a_b_c, [미완성 링크 그리고 `열린 코드") as any[];
   assert.equal(p.text.map((n: any) => n.value).join(""), "2 * 3 = 6, a_b_c, [미완성 링크 그리고 `열린 코드");
 });
+
+test("collectLinks finds every link href in reading order, including inside lists, quotes and tables", async () => {
+  const { collectLinks } = await import("../../src/book/md-parse.ts");
+  const doc = parseMarkdown("[a](a.md)\n\n- [b](<b c.md>)\n\n> [c](c.md)\n\n| x |\n|---|\n| [d](d_(1).md) |\n\n```\n[no](no.md)\n```");
+  assert.deepEqual(collectLinks(doc), ["a.md", "b c.md", "c.md", "d_(1).md"]);
+});

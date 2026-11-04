@@ -362,3 +362,24 @@ export function parseInline(src: string): Inline[] {
   }
   return out;
 }
+
+/** Every link href in reading order (code is never scanned). */
+export function collectLinks(blocks: Block[]): string[] {
+  const out: string[] = [];
+  const inline = (nodes: Inline[]) => {
+    for (const n of nodes) {
+      if (n.type === "link") out.push(n.href);
+      if ("children" in n) inline(n.children);
+    }
+  };
+  const walk = (list: Block[]) => {
+    for (const b of list) {
+      if (b.type === "heading" || b.type === "paragraph") inline(b.text);
+      else if (b.type === "quote") walk(b.children);
+      else if (b.type === "list") b.items.forEach((i) => walk(i.children));
+      else if (b.type === "table") [b.head, ...b.rows].forEach((row) => row.forEach(inline));
+    }
+  };
+  walk(blocks);
+  return out;
+}
