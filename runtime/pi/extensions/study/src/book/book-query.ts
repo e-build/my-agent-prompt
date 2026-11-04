@@ -1,5 +1,8 @@
+import { readdir } from "node:fs/promises";
+import { join } from "node:path";
+import { readTextOptional } from "../workspace/atomic-file.ts";
 import { loadAllItems } from "../knowledge/knowledge-store.ts";
-import { loadBinding } from "../knowledge/chapter-bindings.ts";
+import { loadBinding, projectBySlug } from "../knowledge/chapter-bindings.ts";
 import { loadConcepts } from "./book-store.ts";
 import { activeById, childrenOf, pagePath } from "./book-tree.ts";
 import type { ConceptNode } from "./book-types.ts";
@@ -24,7 +27,16 @@ export function formatTree(lines: TreeLine[]): string {
   return lines.map((l) => `${"  ".repeat(l.depth)}- ${l.name}${l.owner === "user" ? " [사용자]" : ""} · 지식 ${l.members} · 챕터 ${l.chapters} (${l.id}@${l.revisionId})`).join("\n");
 }
 
+export type BookMaterials = {
+  readme: string;
+  lab: string[];
+  questions: Array<{ id: string; purpose: string; path: string }>;
+  tests: string[];
+};
+
 export type BookPlan = {
+  projectId: string;
+  materials: BookMaterials;
   pages: Array<{ conceptId: string; name: string; path: string; revisionId: string; knowledge: Array<{ id: string; name: string }> }>;
   unplaced: Array<{ id: string; name: string }>;
   tree: string;
@@ -50,5 +62,47 @@ export async function planChapter(root: string, projectSlug: string, chapterSlug
     if (!pages.has(node.id)) pages.set(node.id, { conceptId: node.id, name: node.name, path: pagePath(byId, node), revisionId: node.revisionId, knowledge: [] });
     pages.get(node.id)!.knowledge.push(entry);
   }
-  return { pages: [...pages.values()], unplaced, tree: formatTree(await bookTree(root)) };
+  const project = await projectBySlug(root, projectSlug);
+  return {
+    projectId: project.id,
+    materials: await chapterMaterials(root, project.path, chapterSlug),
+    pages: [...pages.values()],
+    unplaced,
+    tree: formatTree(await bookTree(root)),
+  };
+}
+
+async function jsonFiles(root: string, dir: string): Promise<Array<{ path: string; value: any }>> {
+  let names: string[];
+  try {
+    names = (await readdir(join(root, ...dir.split("/")))).filter((n) => n.endsWith(".json")).sort();
+  } catch {
+    return [];
+  }
+  const files: Array<{ path: string; value: any }> = [];
+  for (const name of names) {
+    try {
+      files.push({ path: `${dir}/${name}`, value: JSON.parse((await readTextOptional(join(root, ...dir.split("/"), name)))!) });
+    } catch {
+      /* unreadable records are not materials */
+    }
+  }
+  return files;
+}
+
+/** Paths and ids only: the agent reads what it needs; answers never leave their files. */
+async function chapterMaterials(root: string, projectPath: string, chapterSlug: string): Promise<BookMaterials> {
+  const chapter = `${projectPath}/${chapterSlug}`;
+  const lab = [];
+  for (const name of ["README.md", "results.md"]) {
+    const path = `${chapter}/lab/${name}`;
+    if ((await readTextOptional(join(root, ...path.split("/")))) !== null) lab.push(path);
+  }
+  const questions = (await jsonFiles(root, `${projectPath}/.study/dialogue/questions`))
+    .filter((f) => f.value?.context?.chapterSlug === chapterSlug)
+    .map((f) => ({ id: String(f.value.id), purpose: String(f.value.purpose), path: f.path }));
+  const tests = (await jsonFiles(root, `${projectPath}/.study/assessments`))
+    .filter((f) => f.value?.kind === "test" && f.value?.questionSet?.chapterSlug === chapterSlug && f.value?.grade?.passed === true)
+    .map((f) => f.path);
+  return { readme: `${chapter}/README.md`, lab, questions, tests };
 }
