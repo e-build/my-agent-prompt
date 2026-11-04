@@ -62,7 +62,7 @@ export function registerBookTools(pi: ExtensionAPI): void {
         return { content: [{ type: "text", text: lines.join("\n") }], details: plan };
       }
       const result = await applyBookChange(workspace.root, "agent", parsePayload<BookChangeRequest>(params.payloadJson));
-      return { content: [{ type: "text", text: `${result.status}: ${result.summary}\nundo: {changeId:<새 id>, reason, undo:"${result.changeId}"}` }], details: result };
+      return { content: [{ type: "text", text: `${result.status}: ${result.summary}${result.dashboardWarning ? `\n경고: ${result.dashboardWarning}` : ""}\nundo: {changeId:<새 id>, reason, undo:"${result.changeId}"}` }], details: result };
     },
   });
 }

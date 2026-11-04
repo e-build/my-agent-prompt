@@ -6,6 +6,7 @@ import { executePlan, preparePlan, type PlannedChange } from "../workspace/chang
 import { readWorkspace } from "../workspace/workspace-root.ts";
 import { loadItem } from "../knowledge/knowledge-store.ts";
 import { assertBodySafe, DEFAULT_NOTES, parsePage, renderPage, type ParsedPage, type RegionId } from "./book-page.ts";
+import { refreshDashboard } from "./book-dashboard.ts";
 import { renderFoot, renderHead } from "./book-render.ts";
 import {
   abs,
@@ -69,6 +70,8 @@ export type BookChangeResult = {
   pages: PageResult[];
   nodes: ConceptNode[];
   summary: string;
+  /** The dashboard is derived; failing to refresh it never fails the change. */
+  dashboardWarning?: string;
 };
 
 export type BookApplyOptions = { now?: () => string };
@@ -433,6 +436,12 @@ export async function applyBookChange(root: string, actor: Actor, request: BookC
   const plan = await preparePlan(root, `book-${request.changeId}`, [...computed.changes, { path: conceptChangePath(request.changeId), after: `${JSON.stringify(record, null, 2)}\n` }]);
   await executePlan(root, plan);
   await pruneEmptyPageDirs(root, computed.changes.filter((c) => c.after === null).map((c) => c.path));
-  return { status: "committed", changeId: request.changeId, pages: computed.pages, nodes: computed.nodes, summary };
+  let dashboardWarning: string | undefined;
+  try {
+    await refreshDashboard(root);
+  } catch (error) {
+    dashboardWarning = `대시보드 갱신 실패: ${error instanceof Error ? error.message : String(error)}`;
+  }
+  return { status: "committed", changeId: request.changeId, pages: computed.pages, nodes: computed.nodes, summary, ...(dashboardWarning ? { dashboardWarning } : {}) };
 }
 
