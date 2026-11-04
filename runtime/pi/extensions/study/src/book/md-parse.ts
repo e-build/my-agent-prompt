@@ -335,6 +335,14 @@ export function parseInline(src: string): Inline[] {
         continue;
       }
     }
+    if ((c === "*" || c === "_") && src[i + 1] === c && src[i + 2] === c) {
+      const end = src.indexOf(c.repeat(3), i + 3);
+      if (end > i + 3 && src[i + 3] !== " " && src[end - 1] !== " ") {
+        out.push({ type: "strong", children: [{ type: "em", children: parseInline(src.slice(i + 3, end)) }] });
+        i = end + 3;
+        continue;
+      }
+    }
     if (c === "*" || c === "_") {
       const double = src[i + 1] === c;
       const marker = double ? c + c : c;

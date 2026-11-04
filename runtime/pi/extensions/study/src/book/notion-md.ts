@@ -107,6 +107,9 @@ class Converter {
   /** One block-level pass over a non-code run. */
   blocks(text: string): string {
     let s = text;
+    // The table-of-contents block and its "목차" label (bare or inside a toggle) carry no content.
+    s = s.replace(/<toggle\b[^>]*>\s*\n[^\n]*목차[^\n]*\n\s*<table-of-contents\b[^>]*\/>\s*\n<\/toggle>/g, "");
+    s = s.replace(/^[^\n]*목차[^\n]*\n\s*\n?\s*<table-of-contents\b[^>]*\/>/gm, "");
     // Notion-only markers.
     s = s.replace(/^\s*<table-of-contents\b[^>]*\/>\s*$/gm, "");
     s = s.replace(/^\s*<p\s*\/>\s*$/gm, "");

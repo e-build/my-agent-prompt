@@ -81,3 +81,8 @@ test("everything inside a callout stays quoted, including nested lists", () => {
   const r = md('<callout icon="💡" color="gray_bg">\n제목\n\n- a\n  - b\n</callout>\n밖');
   assert.equal(r.markdown, "> 💡 제목\n>\n> - a\n>   - b\n\n밖");
 });
+
+test("the Notion table-of-contents block and its '목차' label (often inside a toggle) are dropped", () => {
+  assert.equal(md("<toggle>\n<i><b><u>목차</u></b></i>\n\n<table-of-contents color=\"gray_bg\" />\n</toggle>\n\n# 소개").markdown, "# 소개");
+  assert.equal(md("<i><b><u>목차</u></b></i>\n\n<table-of-contents color=\"gray_bg\" />\n\n본문").markdown, "본문");
+});

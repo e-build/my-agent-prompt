@@ -93,3 +93,8 @@ test("images parse as their own inline node with alt text and a target", () => {
     { type: "image", src: "x.png", alt: "" },
   ]);
 });
+
+test("triple markers nest strong and em", () => {
+  const [p] = parseMarkdown("***둘 다*** 끝") as any[];
+  assert.deepEqual(p.text, [{ type: "strong", children: [{ type: "em", children: [{ type: "text", value: "둘 다" }] }] }, { type: "text", value: " 끝" }]);
+});
