@@ -27,15 +27,10 @@ test("detects merge conflicts, corrupt files, broken links and diverged versions
   await writeFile(bItem, content.replace(`"version": 1`, `"version": 7`));
   await mkdir(join(root, "review", "items"), { recursive: true });
   await writeFile(join(root, "review", "items", "k-missing0.json"), JSON.stringify({ knowledgeId: "k-missing0", status: "active" }));
-  await writeFile(
-    join(root, "knowledge", "chains.jsonl"),
-    `${JSON.stringify({ id: "c-1", premiseRefs: [{ id: "k-gone0000", version: 1, revisionId: "r" }], conclusionRef: { id: b.id, version: 1, revisionId: b.revisionId }, sourceRefs: [{ materialId: "m", kind: "url", locator: "u", observedAt: "t", basis: "explicit" }], revisionId: "r" })}\n`,
-  );
   const issues = (await checkKnowledgeIntegrity(root)).join("\n");
   assert.match(issues, /충돌 표시/);
   assert.match(issues, new RegExp(`${b.id}.*이력`));
   assert.match(issues, /k-missing0/);
-  assert.match(issues, /k-gone0000/);
   const workspaceIssues = (await checkWorkspace(root, [checkKnowledgeIntegrity])).issues.join("\n");
   assert.match(workspaceIssues, /충돌 표시/);
 });

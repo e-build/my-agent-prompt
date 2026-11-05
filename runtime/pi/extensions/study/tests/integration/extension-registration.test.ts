@@ -91,7 +91,6 @@ test(
       "study-chapter",
       "study-checkpoint",
       "study-concepts",
-      "study-knowledge-graph",
       "study-map",
     ]);
     const resources = await h.events.get("resources_discover")![0]();

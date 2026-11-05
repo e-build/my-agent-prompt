@@ -1,5 +1,5 @@
 import { join } from "node:path";
-import { loadChains, loadHistory, loadItem } from "../knowledge/knowledge-store.ts";
+import { loadHistory, loadItem } from "../knowledge/knowledge-store.ts";
 import { validateRef } from "../knowledge/knowledge-validation.ts";
 import type { KnowledgeItem, KnowledgeRef } from "../knowledge/knowledge-types.ts";
 import { readTextOptional, sha256 } from "../workspace/atomic-file.ts";
@@ -22,7 +22,6 @@ export type QuestionInput = {
   prompt: string;
   options?: Array<{ id: string; text: string }>;
   refs: KnowledgeRef[];
-  chainRefs?: Array<{ chainId: string; revisionId: string }>;
   criteria?: Criteria;
   context?: QuestionContext;
 };
@@ -144,14 +143,6 @@ export async function prepareQuestion(
       throw new Error(`확정되지 않은 지식은 채점 기준으로 쓸 수 없습니다: ${ref.id} (${item.status})`);
   }
   if (input.scored && !refs.length) throw new Error("채점 질문은 확인할 지식을 하나 이상 지정해야 합니다.");
-  const chains = await loadChains(root);
-  const chainRefs = (input.chainRefs ?? []).map((c) => {
-    const chain = chains.find((x) => x.id === c.chainId && x.revisionId === c.revisionId && !x.retired);
-    if (!chain) throw new Error(`추론 사슬을 찾지 못했습니다: ${c.chainId}`);
-    for (const r of [...chain.premiseRefs, chain.conclusionRef])
-      if (!refs.some((ref) => ref.id === r.id)) throw new Error(`추론 사슬의 지식이 질문 refs에 없습니다: ${r.id}`);
-    return { chainId: c.chainId, revisionId: c.revisionId };
-  });
   const criteria = input.scored ? validateCriteria(input.criteria) : null;
   const optionList = input.options?.map((o) => ({ id: String(o.id).slice(0, 20), text: String(o.text).slice(0, 2000) }));
   const { location, context, projectPaths } = await resolveLocation(root, input.purpose, input.context);
@@ -166,7 +157,6 @@ export async function prepareQuestion(
     prompt: input.prompt,
     ...(optionList ? { options: optionList } : {}),
     refs,
-    chainRefs,
     criteria,
     criteriaRevisions: criteria ? [{ criteria, reason: "출제 전 확정", at }] : [],
     context,

@@ -5,7 +5,6 @@ import { join } from "node:path";
 import { applyKnowledgeChange } from "../../src/knowledge/knowledge-changes.ts";
 import {
   itemAtRevision,
-  loadChains,
   loadHistory,
   loadItem,
   resolveCanonical,
@@ -141,29 +140,6 @@ test("undo reverts only when nothing changed afterwards", async (t) => {
   );
   const created = await applyKnowledgeChange(root, { changeId: "c5", operation: "undo", targetChangeId: "c1", reason: "x" }, { now }).catch((e) => e);
   assert.match(String(created), /이후 변경/);
-});
-
-test("chains keep joint premises and refuse missing items", async (t) => {
-  const root = await workspaceFixture(t);
-  const a = await create(root, "c1", "A");
-  const b = await create(root, "c2", "B");
-  const c = await create(root, "c3", "C");
-  const ref = (x: typeof a) => ({ id: x.id, version: x.version, revisionId: x.revisionId });
-  await applyKnowledgeChange(root, { changeId: "c4", operation: "add_chain", reason: "공식 문서", chain: { premiseRefs: [ref(a), ref(b)], conclusionRef: ref(c), sourceRefs: [source()] } }, { now });
-  await applyKnowledgeChange(root, { changeId: "c5", operation: "add_chain", reason: "단독 근거", chain: { premiseRefs: [ref(a)], conclusionRef: ref(c), sourceRefs: [source()] } }, { now });
-  await assert.rejects(
-    applyKnowledgeChange(root, { changeId: "c6", operation: "add_chain", reason: "중복", chain: { premiseRefs: [ref(b), ref(a)], conclusionRef: ref(c), sourceRefs: [source()] } }, { now }),
-    /같은 전제 묶음/,
-  );
-  await assert.rejects(
-    applyKnowledgeChange(root, { changeId: "c7", operation: "add_chain", reason: "x", chain: { premiseRefs: [{ ...ref(a), id: "k-missing0" }], conclusionRef: ref(c), sourceRefs: [source()] } }, { now }),
-    /찾지 못했습니다/,
-  );
-  const chains = await loadChains(root);
-  assert.equal(chains.length, 2);
-  assert.equal(chains[0].premiseRefs.length, 2);
-  await applyKnowledgeChange(root, { changeId: "c8", operation: "retire_chain", chainId: chains[1].id, reason: "근거 철회" }, { now });
-  assert.equal((await loadChains(root)).filter((x) => !x.retired).length, 1);
 });
 
 test("a corrupt item file is reported instead of being overwritten", async (t) => {

@@ -94,16 +94,3 @@ test("unscored questions accept only unverified findings and an optional note", 
   const e = await recordAnswer(root, answer(q.id, [refA], { findings: [], note: "직관은 맞음" }));
   assert.equal(e.note, "직관은 맞음");
 });
-
-test("chain findings are recorded separately from premise findings", async (t) => {
-  const { root, refA, refB, a } = await knowledgeWorkspace(t);
-  const c = (await applyKnowledgeChange(root, { changeId: "kc", operation: "create", reason: "r", item: { name: "C", statement: "C", conditions: [], scope: "", status: "confirmed", explanation: "", aliases: [], sources: [(await import("../support/knowledge-fixture.ts")).source()] } })).items[0];
-  const refC = { id: c.id, version: c.version, revisionId: c.revisionId };
-  const chainResult = await applyKnowledgeChange(root, { changeId: "ch", operation: "add_chain", reason: "r", chain: { premiseRefs: [refA, refB], conclusionRef: refC, sourceRefs: [(await import("../support/knowledge-fixture.ts")).source()] } });
-  const chain = chainResult.chains![0];
-  const q = await prepareQuestion(root, scoredQuestion([refA, refB, refC], { requestId: "cq", chainRefs: [{ chainId: chain.id, revisionId: chain.revisionId }] }));
-  const e = await recordAnswer(root, answer(q.id, [refA, refB, refC], { chainFindings: [{ chainId: chain.id, revisionId: chain.revisionId, result: "partial" }] }));
-  assert.equal(e.chainFindings[0].result, "partial");
-  assert.ok(e.findings.every((f) => f.result === "demonstrated"));
-  void a;
-});

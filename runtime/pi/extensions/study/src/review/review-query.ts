@@ -1,4 +1,4 @@
-import { loadChains, loadItem } from "../knowledge/knowledge-store.ts";
+import { loadItem } from "../knowledge/knowledge-store.ts";
 import { readWorkspace } from "../workspace/workspace-root.ts";
 import { assertDate, localDate } from "./review-date.ts";
 import { listSchedules } from "./review-store.ts";
@@ -47,25 +47,14 @@ export async function dueReviews(
     });
   }
   items.sort((a, b) => a.dueDate.localeCompare(b.dueDate) || a.knowledgeId.localeCompare(b.knowledgeId));
-  return { today, items, groups: await groupCandidates(root, items) };
+  return { today, items, groups: groupCandidates(items) };
 }
 
 /** Suggestions for asking related items together; judgement stays per proposition. */
-async function groupCandidates(root: string, items: DueItem[]): Promise<DueGroup[]> {
-  const ids = new Set(items.map((i) => i.knowledgeId));
+function groupCandidates(items: DueItem[]): DueGroup[] {
   const groups: DueGroup[] = [];
-  const used = new Set<string>();
-  for (const chain of await loadChains(root)) {
-    if (chain.retired) continue;
-    const members = [...chain.premiseRefs, chain.conclusionRef].map((r) => r.id).filter((id) => ids.has(id) && !used.has(id));
-    if (members.length >= 2) {
-      members.forEach((id) => used.add(id));
-      groups.push({ reason: `추론 사슬 ${chain.id}`, knowledgeIds: members });
-    }
-  }
   const byChapter = new Map<string, string[]>();
   for (const item of items) {
-    if (used.has(item.knowledgeId)) continue;
     const key = `${item.projectId}/${item.chapterSlug}`;
     byChapter.set(key, [...(byChapter.get(key) ?? []), item.knowledgeId]);
   }

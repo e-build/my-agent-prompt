@@ -1,4 +1,4 @@
-import { loadAllItems, loadChains } from "./knowledge-store.ts";
+import { loadAllItems } from "./knowledge-store.ts";
 import type { KnowledgeItem, KnowledgeStatus } from "./knowledge-types.ts";
 
 /** Learner-safe view: no statement/explanation, so review answers are not revealed. */
@@ -48,13 +48,8 @@ export async function queryKnowledge(root: string, query: KnowledgeQuery = {}) {
       (!query.text || matches(item, query.text)),
   );
   const limited = items.slice(0, Math.max(1, Math.min(query.limit ?? 50, 500)));
-  const ids = new Set(limited.map((item) => item.id));
-  const chains = (await loadChains(root)).filter(
-    (chain) => !chain.retired && (ids.has(chain.conclusionRef.id) || chain.premiseRefs.some((ref) => ids.has(ref.id))),
-  );
   return {
     total: items.length,
     items: query.detail === "full" ? limited : limited.map(summarizeItem),
-    chains,
   };
 }

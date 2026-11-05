@@ -2,9 +2,9 @@ import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { readWorkspace } from "../workspace/workspace-root.ts";
 import { decodeKnowledgeItem } from "./knowledge-codec.ts";
-import { CHAINS_FILE, HISTORY_DIR, ITEMS_DIR } from "./knowledge-store.ts";
+import { HISTORY_DIR, ITEMS_DIR } from "./knowledge-store.ts";
 import type { KnowledgeItem } from "./knowledge-types.ts";
-import { validateChains, validateRedirects } from "./knowledge-validation.ts";
+import { validateRedirects } from "./knowledge-validation.ts";
 
 const CONFLICT = /^(<{7}|={7}|>{7})( |$)/m;
 
@@ -29,7 +29,7 @@ async function read(path: string): Promise<string | null> {
 /**
  * Read-only consistency check after syncing between PCs: Git conflict
  * markers, corrupt files, version/history divergence, merge cycles and links
- * (chains, schedules, chapter bindings) to missing knowledge. Never repairs.
+ * (schedules, chapter bindings) to missing knowledge. Never repairs.
  */
 export async function checkKnowledgeIntegrity(root: string): Promise<string[]> {
   const issues: string[] = [];
@@ -75,21 +75,6 @@ export async function checkKnowledgeIntegrity(root: string): Promise<string[]> {
     validateRedirects(new Map([...items.values()].filter((i) => i.mergedInto).map((i) => [i.id, i.mergedInto!])));
   } catch (error) {
     issues.push(error instanceof Error ? error.message : String(error));
-  }
-
-  const chains = await read(join(root, ...CHAINS_FILE.split("/")));
-  if (chains !== null) {
-    if (CONFLICT.test(chains)) issues.push(`Git 충돌 표시가 남아 있습니다: ${CHAINS_FILE}`);
-    else {
-      try {
-        const parsed = validateChains(chains.split("\n").filter((l) => l.trim()).map((l) => JSON.parse(l)));
-        for (const chain of parsed)
-          for (const ref of [...chain.premiseRefs, chain.conclusionRef])
-            if (!items.has(ref.id)) issues.push(`추론 사슬 ${chain.id}가 없는 지식을 가리킵니다: ${ref.id}`);
-      } catch (error) {
-        issues.push(`추론 사슬 파일 오류: ${error instanceof Error ? error.message : error}`);
-      }
-    }
   }
 
   const scheduleDir = join(root, "review", "items");

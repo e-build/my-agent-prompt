@@ -2,13 +2,12 @@ import { readdir } from "node:fs/promises";
 import { join } from "node:path";
 import { readTextOptional } from "../workspace/atomic-file.ts";
 import { decodeKnowledgeItem } from "./knowledge-codec.ts";
-import type { KnowledgeChain, KnowledgeHistoryEntry, KnowledgeItem } from "./knowledge-types.ts";
-import { validateChains, validateKnowledgeId } from "./knowledge-validation.ts";
+import type { KnowledgeHistoryEntry, KnowledgeItem } from "./knowledge-types.ts";
+import { validateKnowledgeId } from "./knowledge-validation.ts";
 
 export const ITEMS_DIR = "knowledge/items";
 export const HISTORY_DIR = "knowledge/history";
 export const CHANGES_DIR = "knowledge/changes";
-export const CHAINS_FILE = "knowledge/chains.jsonl";
 
 export const itemPath = (id: string) => `${ITEMS_DIR}/${validateKnowledgeId(id)}.md`;
 export const historyPath = (id: string) => `${HISTORY_DIR}/${validateKnowledgeId(id)}.jsonl`;
@@ -72,10 +71,6 @@ export async function itemAtRevision(
   revisionId: string,
 ): Promise<KnowledgeItem | null> {
   return (await loadHistory(root, id)).find((entry) => entry.revisionId === revisionId)?.snapshot ?? null;
-}
-
-export async function loadChains(root: string): Promise<KnowledgeChain[]> {
-  return validateChains(parseJsonl(await readTextOptional(abs(root, CHAINS_FILE)), CHAINS_FILE));
 }
 
 export function encodeJsonl(values: unknown[]): string {

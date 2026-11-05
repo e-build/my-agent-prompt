@@ -34,7 +34,7 @@ export function registerQuestionTools(pi: ExtensionAPI, hooks: QuestionToolHooks
     parameters: Type.Object({
       payloadJson: Type.String({
         description:
-          "{requestId,purpose:'diagnosis'|'concept-check'|'prediction'|'review'|'lab'|'test',scored,prompt,options?,refs:[{id,version,revisionId}],chainRefs?,criteria?:{answer,acceptable,rubric,conditions},context?:{projectSlug,chapterSlug}}",
+          "{requestId,purpose:'diagnosis'|'concept-check'|'prediction'|'review'|'lab'|'test',scored,prompt,options?,refs:[{id,version,revisionId}],criteria?:{answer,acceptable,rubric,conditions},context?:{projectSlug,chapterSlug}}",
       }),
       workspaceRoot: Type.Optional(Type.String()),
     }),
@@ -62,7 +62,7 @@ export function registerQuestionTools(pi: ExtensionAPI, hooks: QuestionToolHooks
     parameters: Type.Object({
       payloadJson: Type.String({
         description:
-          "answer: {submissionId,questionId,response,responseAnchor,assistance,submittedAt,confidence?(0~1, 학습자 0~10 답÷10),findings:[{ref,result,reason}],chainFindings?,correctionOf?,note?}. link: {linkId,projectSlug,chapterSlug,kind:'lab'|'test'|'legacy-diagnosis'|'placement',recordPath,anchor,assistance,refs,agentAuthored?}",
+          "answer: {submissionId,questionId,response,responseAnchor,assistance,submittedAt,confidence?(0~1, 학습자 0~10 답÷10),findings:[{ref,result,reason}],correctionOf?,note?}. link: {linkId,projectSlug,chapterSlug,kind:'lab'|'test'|'legacy-diagnosis'|'placement',recordPath,anchor,assistance,refs,agentAuthored?}",
       }),
       kind: Type.Optional(Type.Union([Type.Literal("answer"), Type.Literal("link")], { description: "link: 기존 lab·시험 기록을 복사하지 않고 지식에 연결" })),
       workspaceRoot: Type.Optional(Type.String()),

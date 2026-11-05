@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { applyKnowledgeChange } from "../../src/knowledge/knowledge-changes.ts";
 import { queryKnowledge } from "../../src/knowledge/knowledge-query.ts";
-import { listItemIds, loadAllItems, loadChains } from "../../src/knowledge/knowledge-store.ts";
+import { listItemIds, loadAllItems } from "../../src/knowledge/knowledge-store.ts";
 import { source } from "../support/knowledge-fixture.ts";
 import { treeDigest, workspaceFixture } from "../support/workspace-fixture.ts";
 
@@ -21,7 +21,6 @@ test("empty stores read as empty without creating directories", async (t) => {
   const root = await workspaceFixture(t);
   const before = await treeDigest(root);
   assert.deepEqual(await listItemIds(root), []);
-  assert.deepEqual(await loadChains(root), []);
   assert.deepEqual((await queryKnowledge(root)).items, []);
   assert.equal(await treeDigest(root), before);
 });

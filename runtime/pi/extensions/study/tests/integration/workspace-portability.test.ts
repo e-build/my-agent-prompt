@@ -5,7 +5,6 @@ import { join } from "node:path";
 import { listEvidence, recordAnswer } from "../../src/evidence/evidence-store.ts";
 import { prepareQuestion } from "../../src/evidence/question-store.ts";
 import { loadBinding, updateBinding } from "../../src/knowledge/chapter-bindings.ts";
-import { buildKnowledgeView } from "../../src/knowledge/knowledge-view.ts";
 import { registerSchedules, loadSchedule } from "../../src/review/review-store.ts";
 import { findWorkspaceRoot, projectForPath } from "../../src/workspace/workspace-root.ts";
 import { knowledgeWorkspace, scoredQuestion } from "../support/evidence-fixture.ts";
@@ -29,5 +28,4 @@ test("a copied root at another absolute path keeps every link working", async (t
   assert.equal((await loadBinding(other, "study-alpha", "ch-01-intro"))?.regions[0].refs[0].id, a.id);
   assert.equal((await loadSchedule(other, a.id))?.dueDate, "2026-10-02");
   assert.equal((await listEvidence(other)).length, 1);
-  assert.ok((await buildKnowledgeView(other, { today: "2026-10-05" })).nodes.length >= 3);
 });

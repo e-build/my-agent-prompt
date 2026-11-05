@@ -2,7 +2,6 @@ import {
   KNOWLEDGE_STATUSES,
   SOURCE_BASES,
   SOURCE_KINDS,
-  type KnowledgeChain,
   type KnowledgeItem,
   type KnowledgeRef,
   type SourceRef,
@@ -112,48 +111,6 @@ export function validateRef(value: unknown, field = "ref"): KnowledgeRef {
   if (typeof ref.revisionId !== "string" || !REVISION_ID.test(ref.revisionId))
     throw new Error(`${field}.revisionId가 올바르지 않습니다.`);
   return { id: ref.id, version: ref.version, revisionId: ref.revisionId };
-}
-
-export function chainPremiseKey(chain: Pick<KnowledgeChain, "premiseRefs" | "conclusionRef">): string {
-  return `${[...new Set(chain.premiseRefs.map((r) => r.id))].sort().join("+")}=>${chain.conclusionRef.id}`;
-}
-
-export function validateChain(value: KnowledgeChain): KnowledgeChain {
-  if (!value || typeof value.id !== "string" || !/^c-[a-z0-9-]{1,64}$/.test(value.id))
-    throw new Error(`추론 사슬 ID가 올바르지 않습니다: ${value?.id}`);
-  if (!Array.isArray(value.premiseRefs) || !value.premiseRefs.length)
-    throw new Error("추론 사슬에는 전제가 하나 이상 필요합니다.");
-  const premises = value.premiseRefs.map((r, i) => validateRef(r, `premiseRefs[${i}]`));
-  if (new Set(premises.map((p) => p.id)).size !== premises.length) throw new Error("전제가 중복됐습니다.");
-  const conclusion = validateRef(value.conclusionRef, "conclusionRef");
-  if (premises.some((p) => p.id === conclusion.id)) throw new Error("결론이 자기 자신을 전제로 삼을 수 없습니다.");
-  if (!Array.isArray(value.sourceRefs) || !value.sourceRefs.length)
-    throw new Error("근거 없는 추론 사슬은 만들 수 없습니다.");
-  return {
-    id: value.id,
-    premiseRefs: premises,
-    conclusionRef: conclusion,
-    sourceRefs: value.sourceRefs.map(validateSource),
-    revisionId: text(value.revisionId, "revisionId", 80),
-    ...(value.retired ? { retired: true } : {}),
-  };
-}
-
-/** Each active premise set → conclusion is unique; IDs are unique. */
-export function validateChains(chains: KnowledgeChain[]): KnowledgeChain[] {
-  const ids = new Set<string>();
-  const keys = new Set<string>();
-  return chains.map((chain) => {
-    const valid = validateChain(chain);
-    if (ids.has(valid.id)) throw new Error(`중복 추론 사슬 ID입니다: ${valid.id}`);
-    ids.add(valid.id);
-    if (!valid.retired) {
-      const key = chainPremiseKey(valid);
-      if (keys.has(key)) throw new Error(`같은 전제 묶음과 결론의 추론 사슬이 이미 있습니다: ${key}`);
-      keys.add(key);
-    }
-    return valid;
-  });
 }
 
 export function validateRedirects(redirects: Map<string, string>): void {

@@ -27,7 +27,8 @@ export type StoredQuestion = {
   prompt: string;
   options?: Array<{ id: string; text: string }>;
   refs: KnowledgeRef[];
-  chainRefs: Array<{ chainId: string; revisionId: string }>;
+  /** Legacy field from removed inference chains; always empty, kept so old records load. */
+  chainRefs?: unknown[];
   /** Current criteria; null for unscored questions. */
   criteria: Criteria | null;
   /** Append-only: the first entry is the criteria fixed before asking. */
@@ -49,7 +50,6 @@ export type PublicQuestion = {
 };
 
 export type Finding = { ref: KnowledgeRef; result: Demonstration; reason: string };
-export type ChainFinding = { chainId: string; revisionId: string; result: Demonstration };
 
 export type Evidence = {
   schemaVersion: 1;
@@ -67,7 +67,8 @@ export type Evidence = {
   /** Index into the question's criteriaRevisions used for this judgement. */
   criteriaRevision: number | null;
   findings: Finding[];
-  chainFindings: ChainFinding[];
+  /** Legacy field from removed inference chains; old records only. */
+  chainFindings?: unknown[];
   correctionOf?: string;
   note?: string;
 };

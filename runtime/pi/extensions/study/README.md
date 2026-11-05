@@ -29,7 +29,6 @@
 | `/study-review` | 복습 | 오늘 할 복습 목록 후 선택 | (prompt라 없음) 번호나 제목 일부 |
 | `/study-checkpoint` | 진도 갈무리·커밋 | 현재 챕터 | 챕터 번호 |
 | `/study-map` | 현재 프로젝트 학습 로드맵 | 터미널 오른쪽 패널 켜기/끄기 | — |
-| `/study-knowledge-graph` | 여러 프로젝트의 공통 지식(명제) 그래프 | 브라우저로 전체 그래프 | 지식 이름 → 그 주변만 |
 | `/study-init` | 새 학습 프로젝트. 브리프 → 배치 진단(`study_placement`, 상한 8) → 커리큘럼 미리보기 | — | — |
 | `/study-book` | 내 교과서를 HTML로 보기 | 대시보드 | 개념 이름(별칭 포함) → 그 페이지 |
 | `/study-concepts` | 내 교과서(`book/`)의 개념 위계 정리 | 메뉴: 최상위 영역 만들기·이름 바꾸기·옮기기·위계 보기·에이전트 제안 보기 | — |
@@ -56,7 +55,7 @@ study/
 │   ├── checkpoint/             # checkpoint 명령·승인·기록·Git publish
 │   ├── curriculum/             # 커리큘럼 산출물·미리보기 도구
 │   ├── evidence/               # 출제 전 기준 저장·원 응답·지식별 판정·기존 기록 연결
-│   ├── knowledge/              # 명제·추론 사슬·버전·병합, 교재 관리 영역, 지도
+│   ├── knowledge/              # 명제·버전·병합, 교재 관리 영역
 │   ├── lab/                    # 실습 검증·환경 검사·명령 실행 adapter
 │   ├── placement/              # 커리큘럼 확정 전 배치 진단(등록 전 프로젝트에 저장)
 │   ├── project/                # 프로젝트 경로·manifest
@@ -126,7 +125,6 @@ study/
 ├── book/<영역>/…/README.md    # 개념별 교과서 페이지: head·main·foot 관리 영역 + 메모
 ├── knowledge/history/k-*.jsonl# 버전별 전체 스냅숏·이유 (추가만)
 ├── knowledge/changes/*.json   # 변경 기록 (멱등 재시도·undo)
-├── knowledge/chains.jsonl     # 공동 전제 묶음 → 결론
 ├── review/items/k-*.json      # 지식별 복습 일정 하나
 ├── review/questions/, sessions/ # 복습 질문(비공개 기준)·원 응답
 └── study-*/.study/            # project.json(projectId), bindings/, dialogue/, links/
@@ -140,18 +138,13 @@ study/
 도구:
 
 - `study_workspace`: (agent용) 등록 상태 확인(inspect)·검사(check), 읽기 전용
-- `study_knowledge`: 공통 지식 조회(query, 기본은 이름·상태만)·변경(apply: create/add_expression/revise/set_status/merge/unmerge/undo/add_chain/retire_chain). changeId·reason·기대 revision 필수
+- `study_knowledge`: 공통 지식 조회(query, 기본은 이름·상태만)·변경(apply: create/add_expression/revise/set_status/merge/unmerge/undo). changeId·reason·기대 revision 필수
 - `study_book`: 내 교과서 위계 조회(query)·챕터 배치 계획(plan: 챕터 명제가 이미 속한 페이지와 미배치 명제)·원자적 변경(apply: create/rename/move/retire/place/unplace/move_member/relate/unrelate/write_page/adopt_page/record_learned/propose 묶음, undo). plan은 재료(챕터 README·lab·문제·통과한 시험)를 경로로만 알려 주고 정답은 담지 않음. agent 권한이라 최상위 영역 생성·사용자 소유 개념의 이름·위치 변경·직접 고친 본문 덮어쓰기는 거부. 명제는 한 페이지에만 속하며, 명제 merge/unmerge 때 소속도 같은 변경 안에서 옮김. 설계는 `docs/plans/2026-11-03-study-my-textbook-design.md`
 - `study_textbook_refresh`: 챕터-지식 연결(bindingJson) 저장 후 README의 `<!-- study:knowledge ... -->` 관리 영역만 갱신. 직접 고친 영역은 보류·차이 보고
 - `study_question_prepare`: 비공개 채점 기준을 먼저 저장하고 공개 질문만 반환
 - `study_answer_record`: 원 응답·도움 정도·지식별 판정 추가 기록, kind=link로 기존 lab·시험 기록을 복사 없이 연결
 - `study_learning_route`: 대화형 진단 조회·종료(경로 기록)·새 시도, 개념 학습 완료
 - `study_review_next`: 오늘 할 통합 복습과 묶음 후보(정답 없음)
-- `/study-knowledge-graph [지식 이름]`: 읽기 전용 공통 지식 그래프를 loopback 브라우저로 열기. LearnHarness의 렌더링 규칙을 참고해 새로 구현(코드 복사 없음, LearnHarness는 AGPL-3.0)
-  - 배치: 결정적 force layout(연결 = 스프링, 노드끼리 반발, 약한 중심 인력). 공동 전제는 보이지 않는 합류점으로 모이고 화살표 하나가 결론으로 감(합류점 링크는 절반 길이)
-  - 관계가 없는 지식은 바깥 테두리에 배치 = 아직 연결 안 된 지식. 위치는 `.study/local/cache/knowledge-positions.json`(PC 전용, 삭제 가능)에 저장해 그래프가 다시 섞이지 않고 자라남
-  - 화면: 어두운 캔버스, 작은 점 + 이름(멀리서는 이름 흐려짐, 무리 이름 표시), 연결된 무리마다 색 번짐, 상태 색(확정·미확정·충돌), 오늘 복습 링, 마우스 올리면 빛남, 클릭 시 정보 카드, 드래그 이동·휠 확대, 검색(Enter로 이동), 표 보기
-  - 명제 본문·정답은 넣지 않음. 스크립트는 CSP 해시로 고정, 외부 요청·쓰기 API 없음. 지식이 없으면 쌓이는 방법 안내
 - 상태 위젯(`study-status`): 현재 프로젝트·챕터·단계, 지식 수, 오늘 복습 수. 표시 실패는 학습 진행에 영향 없음
 
 ## /study-chapter 동작

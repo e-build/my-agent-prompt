@@ -7,7 +7,6 @@ import {
   ASSISTANCE,
   DEMONSTRATIONS,
   type Assistance,
-  type ChainFinding,
   type Evidence,
   type Finding,
   type StoredQuestion,
@@ -23,7 +22,6 @@ export type AnswerInput = {
   submittedAt: string;
   confidence?: number;
   findings: Finding[];
-  chainFindings?: ChainFinding[];
   correctionOf?: string;
   note?: string;
 };
@@ -104,12 +102,6 @@ export async function recordAnswer(
   if (input.confidence !== undefined && !(input.confidence >= 0 && input.confidence <= 1))
     throw new Error("confidence는 0~1 사이여야 합니다.");
   const findings = validateFindings(question, input);
-  const chainFindings = (input.chainFindings ?? []).map((c) => {
-    if (!question.chainRefs.some((x) => x.chainId === c.chainId && x.revisionId === c.revisionId))
-      throw new Error(`질문에 없는 추론 사슬입니다: ${c.chainId}`);
-    if (!DEMONSTRATIONS.includes(c.result)) throw new Error(`chain result가 올바르지 않습니다: ${c.result}`);
-    return { chainId: c.chainId, revisionId: c.revisionId, result: c.result };
-  });
   const evidence: Evidence = {
     schemaVersion: 1,
     id: `e-${sha256(`${question.id}:${input.submissionId}`).slice(0, 20)}`,
@@ -124,7 +116,6 @@ export async function recordAnswer(
     context: { projectId: question.context.projectId, chapterSlug: question.context.chapterSlug, kind: question.purpose },
     criteriaRevision: question.scored ? question.criteriaRevisions.length - 1 : null,
     findings,
-    chainFindings,
     ...(input.correctionOf ? { correctionOf: input.correctionOf } : {}),
     ...(input.note ? { note: String(input.note).slice(0, 5000) } : {}),
   };

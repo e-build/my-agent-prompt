@@ -9,7 +9,7 @@ import { validateKnowledgeId, validateRef } from "./knowledge-validation.ts";
 /**
  * `<project>/.study/bindings/<chapter>.json`: which shared propositions this
  * chapter teaches (regions), local application context, and the learner's
- * prerequisite route. Kept apart from inference chains on purpose.
+ * prerequisite route.
  */
 export type ChapterBinding = {
   schemaVersion: 1;

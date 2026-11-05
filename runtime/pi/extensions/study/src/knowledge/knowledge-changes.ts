@@ -4,25 +4,19 @@ import { executePlan, preparePlan, type PlannedChange } from "../workspace/chang
 import { encodeKnowledgeItem } from "./knowledge-codec.ts";
 import {
   abs,
-  CHAINS_FILE,
   changePath,
-  encodeJsonl,
   historyPath,
   itemPath,
-  loadChains,
   loadHistory,
-  loadItem,
   requireItem,
 } from "./knowledge-store.ts";
 import type {
-  KnowledgeChain,
   KnowledgeItem,
   KnowledgeOperation,
-  KnowledgeRef,
   KnowledgeStatus,
   SourceRef,
 } from "./knowledge-types.ts";
-import { validateChains, validateKnowledgeItem } from "./knowledge-validation.ts";
+import { validateKnowledgeItem } from "./knowledge-validation.ts";
 
 type Draft = Omit<KnowledgeItem, "schemaVersion" | "id" | "version" | "revisionId" | "parentRevisionIds" | "mergedInto">;
 type Patch = Partial<Pick<KnowledgeItem, "name" | "statement" | "conditions" | "scope" | "explanation">>;
@@ -35,8 +29,6 @@ export type KnowledgeChangeRequest = { changeId: string; reason: string } & (
   | { operation: "merge"; sourceId: string; targetId: string; expectedRevisionIds: Record<string, string> }
   | { operation: "unmerge"; sourceId: string; expectedRevisionIds: Record<string, string> }
   | { operation: "undo"; targetChangeId: string }
-  | { operation: "add_chain"; chain: Pick<KnowledgeChain, "premiseRefs" | "conclusionRef" | "sourceRefs"> }
-  | { operation: "retire_chain"; chainId: string }
 );
 
 export type ChangeRecord = {
@@ -49,16 +41,12 @@ export type ChangeRecord = {
   after: Record<string, KnowledgeItem>;
   /** Values the merge added to the target, removed again on unmerge. */
   mergeAdded?: { targetId: string; aliases: string[]; sources: SourceRef[] };
-  chainsBefore?: string;
-  chainsAfter?: string;
-  chainId?: string;
 };
 
 export type KnowledgeChangeResult = {
   status: "committed" | "already_applied";
   changeId: string;
   items: KnowledgeItem[];
-  chains?: KnowledgeChain[];
   summary: string;
 };
 
@@ -177,12 +165,6 @@ async function computeRecord(root: string, request: KnowledgeChangeRequest, at: 
     case "undo": {
       const target = await loadRecord(root, request.targetChangeId);
       if (!target) throw new Error(`되돌릴 변경을 찾지 못했습니다: ${request.targetChangeId}`);
-      if (target.chainsAfter !== undefined) {
-        const current = (await readTextOptional(abs(root, CHAINS_FILE))) ?? "";
-        if (current !== target.chainsAfter) throw new Error("이후 변경이 있어 되돌릴 수 없습니다. 추론 사슬을 직접 정리하세요.");
-        record.chainsBefore = current;
-        record.chainsAfter = target.chainsBefore ?? "";
-      }
       for (const [id, after] of Object.entries(target.after)) {
         const current = await requireItem(root, id);
         if (current.revisionId !== after.revisionId)
@@ -196,37 +178,10 @@ async function computeRecord(root: string, request: KnowledgeChangeRequest, at: 
       }
       break;
     }
-    case "add_chain": {
-      for (const ref of [...request.chain.premiseRefs, request.chain.conclusionRef]) await requireKnownRevision(root, ref);
-      const chains = await loadChains(root);
-      const chain: KnowledgeChain = { id: `c-${randomUUID()}`, ...request.chain, revisionId: newRevision() };
-      const next = validateChains([...chains, chain]);
-      record.chainsBefore = (await readTextOptional(abs(root, CHAINS_FILE))) ?? "";
-      record.chainsAfter = encodeJsonl(next);
-      record.chainId = chain.id;
-      break;
-    }
-    case "retire_chain": {
-      const chains = await loadChains(root);
-      const chain = chains.find((c) => c.id === request.chainId);
-      if (!chain) throw new Error(`추론 사슬을 찾지 못했습니다: ${request.chainId}`);
-      record.chainsBefore = (await readTextOptional(abs(root, CHAINS_FILE))) ?? "";
-      record.chainsAfter = encodeJsonl(chains.map((c) => (c.id === chain.id ? { ...c, retired: true } : c)));
-      record.chainId = chain.id;
-      break;
-    }
     default:
       throw new Error(`지원하지 않는 작업입니다: ${(request as { operation: string }).operation}`);
   }
   return record;
-}
-
-async function requireKnownRevision(root: string, ref: KnowledgeRef): Promise<void> {
-  const item = await loadItem(root, ref.id);
-  if (!item) throw new Error(`지식을 찾지 못했습니다: ${ref.id}`);
-  if (item.revisionId === ref.revisionId) return;
-  if (!(await loadHistory(root, ref.id)).some((entry) => entry.revisionId === ref.revisionId))
-    throw new Error(`지식 버전을 찾지 못했습니다: ${ref.id}@${ref.revisionId}`);
 }
 
 export async function loadRecord(root: string, changeId: string): Promise<ChangeRecord | null> {
@@ -247,13 +202,12 @@ async function findMergeRecord(root: string, sourceId: string, targetId: string)
 
 function operationOf(request: KnowledgeChangeRequest): KnowledgeOperation {
   if (request.operation === "undo") return "revise";
-  if (request.operation === "add_chain" || request.operation === "retire_chain") return "revise";
   return request.operation;
 }
 
 /**
  * Validate and apply one knowledge change atomically: item files, append-only
- * history, change record (for idempotent retry and undo) and chains together.
+ * history, and change record (for idempotent retry and undo) together.
  */
 export async function applyKnowledgeChange(
   root: string,
@@ -280,7 +234,6 @@ export async function applyKnowledgeChange(
       after: `${history}${JSON.stringify({ changeId: record.changeId, revisionId: item.revisionId, parentRevisionIds: item.parentRevisionIds, operation: operationOf(request), reason: record.reason, at, snapshot: item })}\n`,
     });
   }
-  if (record.chainsAfter !== undefined) changes.push({ path: CHAINS_FILE, after: record.chainsAfter });
   changes.push({ path: changePath(record.changeId), after: `${JSON.stringify(record, null, 2)}\n` });
   if (options.extraChanges) changes.push(...(await options.extraChanges(record)));
   const plan = await preparePlan(root, `knowledge-${record.changeId}`, changes);
@@ -291,12 +244,11 @@ export async function applyKnowledgeChange(
     status: "committed",
     changeId: record.changeId,
     items: Object.values(record.after),
-    ...(record.chainsAfter !== undefined ? { chains: await loadChains(root) } : {}),
     summary: summarize(record),
   };
 }
 
 export function summarize(record: ChangeRecord): string {
   const items = Object.values(record.after).map((item) => `${item.name}(${item.id.slice(0, 10)}@v${item.version})`);
-  return `${record.operation}: ${items.join(", ") || record.chainId || "-"} — ${record.reason}`;
+  return `${record.operation}: ${items.join(", ") || "-"} — ${record.reason}`;
 }

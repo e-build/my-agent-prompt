@@ -32,16 +32,6 @@ export type KnowledgeItem = {
   mergedInto?: string;
 };
 
-/** Joint premises → conclusion. The premise set is order-independent. */
-export type KnowledgeChain = {
-  id: string;
-  premiseRefs: KnowledgeRef[];
-  conclusionRef: KnowledgeRef;
-  sourceRefs: SourceRef[];
-  revisionId: string;
-  retired?: boolean;
-};
-
 export type KnowledgeHistoryEntry = {
   changeId: string;
   revisionId: string;

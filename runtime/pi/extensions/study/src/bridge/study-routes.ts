@@ -16,14 +16,12 @@ import { deliverToAgent } from "./agent-delivery.ts";
 import { corsHeaders, sendJson, readBody } from "./browser-server.ts";
 import type { StudySessions } from "../session/study-sessions.ts";
 import type { UpdateProjectPhase } from "../session/phase-state.ts";
-import { handleKnowledgeRoute, type KnowledgeMapStore } from "./knowledge-routes.ts";
 import type { AutoRegistration } from "../workspace/auto-registration.ts";
 
 type RouteDependencies = StudySessions & {
   pi: Pick<ExtensionAPI, "sendUserMessage">;
   updateProjectPhase: UpdateProjectPhase;
   getPort: () => number | null;
-  knowledgeMaps?: KnowledgeMapStore;
   /** Approving a curriculum registers the project in its study root. */
   registerApprovedProject?: (projectRoot: string) => Promise<AutoRegistration>;
   /** Test seam; defaults to the real completion processing. */
@@ -37,7 +35,6 @@ export function createStudyRoutes({
   curriculumSessions,
   updateProjectPhase,
   getPort,
-  knowledgeMaps,
   registerApprovedProject,
   completeTest = completeAcknowledgedTest,
 }: RouteDependencies) {
@@ -51,7 +48,6 @@ export function createStudyRoutes({
 
     const url = new URL(req.url ?? "/", "http://127.0.0.1");
     const method = (req.method ?? "GET").toUpperCase();
-    if (knowledgeMaps && handleKnowledgeRoute(knowledgeMaps, req, res)) return;
 
     // GET /diagnosis/:id → serve HTML with injected bridge endpoints
     const diagnosisMatch = url.pathname.match(/^\/diagnosis\/([^/]+)$/);

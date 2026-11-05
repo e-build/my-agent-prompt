@@ -31,7 +31,7 @@ test("lists overdue first, then today, with no daily limit and no answers", asyn
   assert.equal((await dueReviews(root, { today: "2026-10-01" })).items.length, 0);
 });
 
-test("groups due items that share a chapter or an inference chain as candidates only", async (t) => {
+test("groups due items that share a chapter as candidates only", async (t) => {
   const { root } = await setup(t);
   const due = await dueReviews(root, { today: "2026-10-05" });
   assert.ok(due.groups.length >= 1);
