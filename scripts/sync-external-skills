@@ -46,8 +46,13 @@ def load_sources(path):
     return sources
 
 
+def is_link(path):
+    # Windows without Developer Mode gets junctions instead of symlinks.
+    return path.is_symlink() or getattr(path, 'is_junction', lambda: False)()
+
+
 def check_link(destination, target):
-    if destination.is_symlink():
+    if is_link(destination):
         if destination.resolve() == target.resolve():
             return
     elif not destination.exists():
@@ -56,9 +61,15 @@ def check_link(destination, target):
 
 
 def install_link(destination, target):
-    if not destination.is_symlink():
+    if not is_link(destination):
         destination.parent.mkdir(parents=True, exist_ok=True)
-        destination.symlink_to(target, target_is_directory=True)
+        try:
+            destination.symlink_to(target, target_is_directory=True)
+        except OSError:
+            if os.name != 'nt':
+                raise
+            import _winapi
+            _winapi.CreateJunction(str(target.resolve()), str(destination))
 
 
 def sync_source(source, sources_dir, update):

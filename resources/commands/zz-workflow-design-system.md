@@ -25,7 +25,7 @@
 
 리소스 경로:
 ```
-/Users/jimmylee/IdeaProjects/e-build/my-agent-prompt/resources/templates/feature-workflow/design/
+~/.agents/templates/feature-workflow/design/
 ```
 
 ```

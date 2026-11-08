@@ -142,7 +142,8 @@ bash scripts/check-resources --quiet
 
 **스킬 발견·심링크 설치와 실행 호환성은 별개.** 공유 위치에 설치해도 모든 에이전트에서 동일하게 동작한다는 보장 없음.
 
-- Pi·OpenCode: `~/.agents/skills/`에서 발견 가능. 원본의 Claude 전용 도구·환경변수·에이전트 호출은 별도 실행 검증 필요.
+- Pi·OpenCode·Codex: `~/.agents/skills/`에서 발견 가능. 원본의 Claude 전용 도구·환경변수·에이전트 호출은 별도 실행 검증 필요.
 - Claude Code: 스킬 브릿지만 제공. upstream 플러그인 등록이나 루트 `agents/`의 에이전트 등록까지 수행하지 않음.
-- Codex: 이번 명령은 `~/.codex/skills/`를 변경하지 않음. upstream의 Codex 전용 패키지 설치 안내 참고.
+- Codex: upstream의 Codex 전용 패키지(`agents/openai.yaml`, 플러그인 등)는 설치하지 않음. upstream 설치 안내 참고.
+- Windows(Developer Mode 꺼짐): 심링크 대신 디렉터리 junction으로 연결.
 - 원본이 `${CLAUDE_SKILL_DIR}`, 플러그인 루트 경로 추론, 다중 에이전트 호출에 의존하면 심링크 환경에서 추가 검증 필요. 설치 완료를 실제 기능 동작 검증으로 보고하지 않음.

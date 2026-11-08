@@ -86,9 +86,9 @@
 
 ### Phase 2: 파일 생성
 
-리소스 디렉토리 경로:
+리소스 디렉토리 경로 (`install-*` 스크립트가 이 저장소의 `resources/templates/`를 링크한 고정 경로):
 ```
-/Users/jimmylee/IdeaProjects/e-build/my-agent-prompt/resources/templates/feature-workflow/
+~/.agents/templates/feature-workflow/
 ```
 
 아래 순서대로 각 파일을 생성한다. 각 템플릿 파일을 Read로 읽고, 플레이스홀더(`{Project Name}`, `{project-name}`)를 치환한 뒤 대상 경로에 Write한다.
