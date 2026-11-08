@@ -37,8 +37,8 @@ adapters/           # 도구별 adapter — frontmatter·호출 문법·경로 �
   opencode/
     commands/       #   OpenCode slash command wrapper
     agents/         #   OpenCode subagent 정의 (frontmatter 포함)
-  claude/commands/  #   Claude Code adapter (현재 비어 있음)
-  codex/commands/   #   Codex adapter (현재 비어 있음)
+  claude/commands/  #   Claude Code slash command wrapper (→ ~/.claude/commands/my-agent-prompt/)
+  codex/skills/     #   Codex 명시 호출 전용 command skill (→ ~/.agents/skills/)
 
 runtime/            # 도구별 실행 코드 — extension, plugin, theme, launcher
   pi/
@@ -57,8 +57,9 @@ scripts/            # 설치 및 검증 스크립트
   sync-external-skills # 외부 스킬 클론·연결 및 명시적 업데이트
   install-pi        #   Pi 자원 배포 (스킬 제외)
   install-opencode  #   OpenCode 자원 배포 (스킬 제외)
-  install-claude    #   Claude Code 안내 (미구현)
-  install-codex     #   Codex 안내 (미구현)
+  install-claude    #   Claude Code 명령 배포 (스킬 제외)
+  install-codex     #   Codex command skill 배포 (스킬 제외)
+  lib/link.sh       #   설치 스크립트 공용 링크 함수 (Windows junction 대체 포함)
   check-resources   #   구조 무결성 검증
 ```
 
@@ -73,6 +74,8 @@ scripts/            # 설치 및 검증 스크립트
 | `/` 명령어의 실행 본문 | `resources/commands/<name>.md` | `commands/me-ladder-explain.md` |
 | Pi 전용 명령 wrapper | `adapters/pi/commands/<name>.md` | thin wrapper, `Read resources/commands/<name>.md` |
 | OpenCode 전용 명령 wrapper | `adapters/opencode/commands/<name>.md` | thin wrapper, `` !`cat resources/commands/<name>.md` `` |
+| Claude Code 명령 wrapper | `adapters/claude/commands/<name>.md` | thin wrapper, `Read ~/.agents/commands/<name>.md` |
+| Codex 명령 wrapper | `adapters/codex/skills/<name>/` | `SKILL.md` + `agents/openai.yaml` (암묵 호출 끔) |
 | Pi extension / theme | `runtime/pi/extensions/` 또는 `runtime/pi/themes/` | TypeScript 실행 코드 |
 | OpenCode plugin | `runtime/opencode/plugins/<name>/` | |
 | 외부 서비스 연동 구성 | `integrations/<service>/` | CLI Proxy API |
@@ -84,8 +87,9 @@ scripts/            # 설치 및 검증 스크립트
 1. **정본은 하나.** 직접 관리하는 실행 지침은 `resources/`에만 작성한다. adapter에 본문을 복사하지 않는다. 외부 스킬의 실행 지침은 upstream이 정본이다.
 2. **adapter는 필요할 때만.** 특정 명령을 Pi만 지원한다면 Pi adapter만 만든다.
 3. **실행 코드와 프롬프트를 섞지 않는다.** TypeScript extension, theme, plugin은 `runtime/`에 둔다.
-4. **AGENTS.md는 인벤토리가 아니다.** 파일 수나 상세 목록은 적지 않는다. `scripts/check-resources`로 검증한다.
-5. **외부 스킬 원본은 upstream에 둔다.** 이 저장소에는 사용 목록만 기록하며 원본 복사·수정 없이 저장소 밖의 클론에 연결한다.
+4. **저장소 절대 경로를 쓰지 않는다.** 명령 본문·스킬은 설치 스크립트가 만드는 고정 경로(`~/.agents/commands/`, `~/.agents/templates/`, `~/.agents/skills/<name>/`)로 파일을 가리킨다. `check-resources`가 검사한다.
+5. **AGENTS.md는 인벤토리가 아니다.** 파일 수나 상세 목록은 적지 않는다. `scripts/check-resources`로 검증한다.
+6. **외부 스킬 원본은 upstream에 둔다.** 이 저장소에는 사용 목록만 기록하며 원본 복사·수정 없이 저장소 밖의 클론에 연결한다.
 
 ---
 
@@ -105,9 +109,9 @@ bash scripts/install-pi --restore --copy-config
 # OpenCode 전체 설치
 bash scripts/install-opencode
 
-# Claude Code / Codex는 현재 adapter가 없음
-bash scripts/install-claude   # 안내만 출력
-bash scripts/install-codex    # 안내만 출력
+# Claude Code / Codex 명령 설치
+bash scripts/install-claude
+bash scripts/install-codex
 
 # 구조 무결성 검증
 bash scripts/check-resources
@@ -119,7 +123,8 @@ bash scripts/check-resources
 
 - **Pi, OpenCode**: 표준 위치를 네이티브로 읽는다. 별도 링크 불필요.
 - **Claude Code**: `~/.claude/skills/`만 읽으므로 `install-skills`가 브릿지 심링크를 만든다.
-- **Codex**: `~/.codex/skills/`를 읽는다. 아직 자동화되지 않았다.
+- **Codex**: 표준 위치를 네이티브로 읽는다. 공유 명령은 custom prompt가 폐기되어 명시 호출 전용 스킬(`$<name>`)로 배포한다.
+- **Windows**: Developer Mode가 꺼져 있으면 Git Bash `ln -s`가 복사본을 만든다. 설치 스크립트는 `scripts/lib/link.sh`의 `link_dir`로 디렉터리 junction을 대신 만든다. 새 설치 스크립트도 파일이 아닌 디렉터리 단위로 링크한다.
 - 사용자가 직접 관리하는 실제 디렉터리는 절대 덮어쓰지 않는다.
 - 외부 스킬은 별도 명령으로 설치하며, 관리 계약·경로·호환성은 [외부 스킬 관리](resources/external-skills.md) 참고.
 

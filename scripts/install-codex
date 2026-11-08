@@ -3,26 +3,68 @@ set -euo pipefail
 
 # Install Codex resources from this repo.
 #
-# Codex support is not yet fully implemented.
-# Codex uses AGENTS.md at the project root as its primary instruction source.
-# The integrations/cliproxyapi/ directory contains Codex connection guides.
-# External skill references and runtime limits: resources/external-skills.md.
-# sync-external-skills does not install ~/.codex/skills/ or Codex-specific packages.
+# Resources:
+#   resources/commands/          → ~/.agents/commands/      (shared command bodies)
+#   resources/templates/         → ~/.agents/templates/     (templates used by bodies)
+#   adapters/codex/skills/<name> → ~/.agents/skills/<name>  (command wrappers)
 #
-# Planned paths:
-#   adapters/codex/commands/  → Codex-specific command adapters
-#   AGENTS.md                 → Project root instruction file
+# Codex reads ~/.agents/skills/ natively and has deprecated custom prompts, so
+# shared commands ship as explicit-only skills: invoke them with $<name>.
+# agents/openai.yaml turns off implicit invocation for Codex, and
+# disable-model-invocation does the same for other tools that read the folder.
+#
+# Locally maintained skills are installed by scripts/install-skills.
+# External skills: python3 scripts/sync-external-skills.
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# shellcheck source=lib/link.sh
+source "$ROOT/scripts/lib/link.sh"
+AGENTS_HOME="${AGENTS_HOME:-$HOME/.agents}"
 
-echo "Codex adapter support is not yet implemented."
+usage() {
+  cat <<'EOF'
+Usage:
+  bash scripts/install-codex    # install Codex command skills + shared bodies
+  bash scripts/install-codex -h # show this help
+
+Skills (separate):
+  bash scripts/install-skills         # locally maintained skills
+  python3 scripts/sync-external-skills # registered external skills
+EOF
+}
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    -h|--help) usage; exit 0 ;;
+    *) echo "error: unknown argument: $1" >&2; usage; exit 1 ;;
+  esac
+done
+
+echo "Installing Codex resources → $AGENTS_HOME"
+mkdir -p "$AGENTS_HOME/skills"
+
+# 1. Shared command bodies and templates (read by the command skills)
+link_shared "$AGENTS_HOME" "$ROOT"
+
+# 2. Command skills
+installed=0
+skipped=0
+for d in "$ROOT/adapters/codex/skills/"*/; do
+  [[ -f "$d/SKILL.md" ]] || continue
+  name="$(basename "$d")"
+  dst="$AGENTS_HOME/skills/$name"
+
+  # Guard: never touch a real (non-symlink) directory the user manages.
+  if [[ -e "$dst" && ! -L "$dst" ]]; then
+    echo "  ⚠ skipped $name: real directory exists at $dst (user-managed)"
+    skipped=$((skipped + 1))
+    continue
+  fi
+
+  link_dir "${d%/}" "$dst"
+  installed=$((installed + 1))
+done
+echo "  ✓ $installed command skill(s) installed, $skipped skipped"
+
 echo ""
-echo "Codex integration points:"
-echo "  AGENTS.md                    — Project root instruction (already present)"
-echo "  integrations/cliproxyapi/    — CLI Proxy API setup guides for Codex"
-echo "  resources/external-skills.md — External skill management and compatibility"
-echo "  sync-external-skills does not install ~/.codex/skills/."
-echo "  Use the upstream Codex package guidance; do not copy external sources into this repo."
-echo ""
-echo "To add proper adapter support, create adapters/codex/commands/"
-echo "with Codex-compatible wrapper files."
+echo "✅ Codex install complete. Restart Codex, then run /skills or type \$<command>."
