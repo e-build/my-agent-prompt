@@ -4,6 +4,7 @@ import { mkdir, mkdtemp, readFile, writeFile, readdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import * as evidence from "../../src/session/chapter-evidence.ts";
+import { bookPage } from "../support/book-page-fixture.ts";
 
 async function fixture() {
   const root = await mkdtemp(join(tmpdir(), "chapter-evidence-"));
@@ -47,6 +48,16 @@ test("rejects missing or placeholder canonical concept", async () => {
     await writeFile(join(chapter, "README.md"), content);
     await assert.rejects(() => validate(root), /README|개념 학습 노트/);
   }
+});
+
+test("a README that links a book page with a body counts as the concept textbook", async () => {
+  const { root, chapter } = await fixture();
+  await mkdir(join(root, "book", "캐시"), { recursive: true });
+  await writeFile(join(root, "book", "캐시", "README.md"), bookPage("캐시 본문"));
+  await writeFile(join(chapter, "README.md"), "# Cache\n\n## 교과서 페이지\n\n- [캐시](../book/캐시/README.md)\n");
+  await validate(root);
+  await writeFile(join(chapter, "README.md"), "# Cache\n\n## 교과서 페이지\n\n- [없음](../book/없음/README.md)\n");
+  await assert.rejects(() => validate(root), /교과서 페이지/);
 });
 
 test("validates the latest test attempt rather than an earlier pass", async () => {

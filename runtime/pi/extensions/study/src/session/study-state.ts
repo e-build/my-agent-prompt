@@ -1,6 +1,7 @@
 import { mkdir, readFile, readdir, rename, writeFile } from "node:fs/promises";
 import { basename, join } from "node:path";
 import { recordedScheduleProgress } from "../review/review-page.ts";
+import { linkedTextbookPages } from "./chapter-textbook.ts";
 
 export const STUDY_STATE_VERSION = 1 as const;
 
@@ -71,10 +72,13 @@ function hasRealDiagnosis(content: string): boolean {
   return /상태:\s*채점 완료|총점:\s*\d+\s*\/\s*\d+|diagnosisId:/i.test(content);
 }
 
-function hasRealConcept(
+async function hasRealConcept(
+  readmePath: string,
   chapterReadme: string,
   legacyConcept: string,
-): { completed: boolean; evidence?: string } {
+): Promise<{ completed: boolean; evidence?: string }> {
+  const pages = await linkedTextbookPages(readmePath, chapterReadme);
+  if (pages.length) return pages.every((p) => p.hasBody) ? { completed: true, evidence: "README.md" } : { completed: false };
   const readmeConcept =
     chapterReadme.match(/##\s*개념 학습 노트\s*\n([\s\S]*?)(?=\n##\s|$)/)?.[1]?.trim() ?? "";
   if (readmeConcept && !/아직\s*개념\s*학습\s*전/.test(readmeConcept)) {
@@ -142,7 +146,7 @@ export async function migrateChapterState(
   state.diagnosis = hasRealDiagnosis(diagnosis)
     ? phase("completed", [join(chapterSlug, "diagnosis.md")])
     : phase("not_started");
-  const conceptRecord = hasRealConcept(chapterReadme, concept);
+  const conceptRecord = await hasRealConcept(join(dir, "README.md"), chapterReadme, concept);
   state.concept = conceptRecord.completed
     ? phase("completed", [join(chapterSlug, conceptRecord.evidence!)])
     : phase("not_started");

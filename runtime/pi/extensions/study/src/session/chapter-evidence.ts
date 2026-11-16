@@ -1,6 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { projectPath } from "../project/project-path.ts";
+import { linkedTextbookPages } from "./chapter-textbook.ts";
 
 async function readOptional(path: string): Promise<string> {
   try {
@@ -76,9 +77,18 @@ export async function validateChapterEvidence(
   const readmePath = join(chapterDir, "README.md");
   const readme = await readOptional(readmePath);
   if (!readme.trim()) throw new Error(`챕터 README.md가 없거나 비어 있습니다: ${chapterSlug}`);
-  const conceptBody = conceptBodyFrom(readme);
-  if (!conceptBody || /아직\s*개념\s*학습\s*전/.test(conceptBody))
-    throw new Error("챕터 README.md에 실제 학습 내용이 있는 개념 학습 노트가 있어야 합니다.");
+  const pages = await linkedTextbookPages(readmePath, readme);
+  if (pages.length) {
+    const empty = pages.filter((p) => !p.hasBody).map((p) => p.path);
+    if (empty.length) throw new Error(`교과서 페이지가 없거나 본문이 비어 있습니다: ${empty.join(", ")}`);
+  } else {
+    // Legacy chapters keep their concept body in README.
+    const conceptBody = conceptBodyFrom(readme);
+    if (!conceptBody || /아직\s*개념\s*학습\s*전/.test(conceptBody))
+      throw new Error(
+        "챕터 README.md의 '교과서 페이지'에 본문이 있는 book 페이지 링크가 있어야 합니다(예전 방식: 개념 학습 노트).",
+      );
+  }
 
   const test = await readOptional(join(chapterDir, "test.md"));
   if (!hasPassedTest(test)) throw new Error("챕터 완료 검증에는 통과한 test.md가 필요합니다.");

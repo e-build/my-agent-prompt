@@ -4,9 +4,8 @@ import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { linkedTextbookPages, textbookWarnings } from "../../src/session/chapter-textbook.ts";
+import { bookPage } from "../support/book-page-fixture.ts";
 
-export const bookPage = (body: string) =>
-  `---\nconcept: cn-aaaa1111\n---\n<!-- study:book region=head hash=000000000000 -->\nh\n<!-- /study:book -->\n\n<!-- study:book region=main hash=000000000000 -->\n${body}\n<!-- /study:book -->\n\n<!-- study:book region=foot hash=000000000000 -->\nf\n<!-- /study:book -->\n\n## 메모\n`;
 
 async function fixture() {
   const root = await mkdtemp(join(tmpdir(), "chapter-textbook-"));

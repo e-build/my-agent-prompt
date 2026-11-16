@@ -15,6 +15,7 @@ import {
 } from "../../src/session/study-state.ts";
 
 import * as studyState from "../../src/session/study-state.ts";
+import { bookPage } from "../support/book-page-fixture.ts";
 
 async function project(): Promise<string> {
   return mkdtemp(join(tmpdir(), "study-state-"));
@@ -59,6 +60,19 @@ test("uses the chapter README as canonical concept and supports legacy concept.m
   const legacy = await migrateChapterState(root, "ch-01-cache");
   assert.equal(legacy.concept.status, "completed");
   assert.deepEqual(legacy.concept.evidence, [join("ch-01-cache", "concept.md")]);
+});
+
+test("a README linking book pages with bodies counts as a completed concept", async () => {
+  const root = await project();
+  const dir = await chapter(root, "ch-01-cache");
+  await mkdir(join(root, "book", "캐시"), { recursive: true });
+  await writeFile(join(root, "book", "캐시", "README.md"), bookPage("캐시 본문"));
+  await writeFile(join(dir, "README.md"), "# Chapter\n\n## 교과서 페이지\n\n- [캐시](../book/캐시/README.md)\n");
+  const migrated = await migrateChapterState(root, "ch-01-cache");
+  assert.equal(migrated.concept.status, "completed");
+  assert.deepEqual(migrated.concept.evidence, [join("ch-01-cache", "README.md")]);
+  await writeFile(join(root, "book", "캐시", "README.md"), bookPage("(아직 본문이 없습니다)"));
+  assert.equal((await migrateChapterState(root, "ch-01-cache")).concept.status, "not_started");
 });
 
 test("real chapter records migrate to completed and relearn states", async () => {
