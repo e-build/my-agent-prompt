@@ -1,12 +1,13 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { writeFile } from "node:fs/promises";
+import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { updateBinding } from "../../src/knowledge/chapter-bindings.ts";
 import { refreshTextbook } from "../../src/knowledge/textbook-refresh.ts";
 import { finishConcept } from "../../src/session/concept-completion.ts";
 import { loadStudyState } from "../../src/session/study-state.ts";
 import { knowledgeWorkspace } from "../support/evidence-fixture.ts";
+import { bookPage } from "../support/book-page-fixture.ts";
 
 async function setup(t: any) {
   const ctx = await knowledgeWorkspace(t);
@@ -32,6 +33,21 @@ test("finishing concept saves state, records uncertainty and suggests the lab", 
   const state = await loadStudyState(join(root, "study-alpha"));
   assert.equal(state.chapters["ch-01-intro"].concept.status, "completed");
   assert.match(state.chapters["ch-01-intro"].concept.reason!, /이벤트 지연/);
+});
+
+test("with linked book pages, concept finishes against the pages and returns non-blocking structure warnings", async (t) => {
+  const { root, refA, readme } = await setup(t);
+  await updateBinding(root, "study-alpha", "ch-01-intro", { expectedRevision: null, regions: [{ regionId: "r-ttl", refs: [refA] }] });
+  await writeFile(readme, "# Ch 01\n\n## 교과서 페이지\n\n- [TTL](../../book/캐시/TTL/README.md)\n");
+  await assert.rejects(finishConcept(root, "study-alpha", "ch-01-intro", { summary: "s" }), /교과서 페이지/);
+  await mkdir(join(root, "book", "캐시", "TTL"), { recursive: true });
+  await writeFile(join(root, "book", "캐시", "TTL", "README.md"), bookPage("## 왜 필요한가\n\n만료"));
+  const result = await finishConcept(root, "study-alpha", "ch-01-intro", { summary: "TTL 완료" });
+  assert.equal(result.warnings.length, 3);
+  assert.match(result.message, /구조 경고 3건/);
+  const state = await loadStudyState(join(root, "study-alpha"));
+  assert.equal(state.chapters["ch-01-intro"].concept.status, "completed");
+  assert.ok(state.chapters["ch-01-intro"].concept.evidence!.includes("book/캐시/TTL/README.md"));
 });
 
 test("deferred textbook edits block completion until resolved", async (t) => {
