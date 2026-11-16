@@ -3,6 +3,7 @@ import type { DiagnosisEndReason, LearningRoute } from "../session/dialogue-stat
 import type { PlacementAnswerInput, PlacementQuestionInput, PlacementStrand } from "./placement-state.ts";
 import { publicPlacement } from "./placement-state.ts";
 import { CONFIDENCE_RECORD_GUIDELINE, publicQuestionHint } from "../evidence/question-hints.ts";
+import { formatAnswerReview } from "../evidence/answer-review.ts";
 import {
   finishPlacementRun,
   loadPlacement,
@@ -61,8 +62,24 @@ export async function runPlacementAction(
   }
   const payload = parse<{ reason: DiagnosisEndReason; route?: LearningRoute; unverified?: string[] }>(payloadJson);
   const run = await finishPlacementRun(projectRoot, payload);
+  // The run is finished: criteria may now be shown next to the learner's own answers.
+  const stored = (await loadPlacement(projectRoot))!;
+  const review = formatAnswerReview(
+    stored.questions.map((q) => {
+      const a = stored.answers.find((x) => x.questionId === q.id);
+      return {
+        prompt: q.prompt,
+        scored: q.scored,
+        ...(q.options ? { options: q.options } : {}),
+        response: a?.response ?? null,
+        ...(a?.confidence !== undefined ? { confidence: a.confidence } : {}),
+        result: a?.result ?? null,
+        answer: q.criteria?.answer ?? null,
+      };
+    }),
+  );
   return {
-    text: `배치 진단 종료(${run.endReason}). 질문 ${run.questions.length}개, 미확인 ${run.unverified.length}건. 다음: 진단 요약을 학습자에게 확인받고 커리큘럼을 설계`,
+    text: `배치 진단 종료(${run.endReason}). 질문 ${run.questions.length}개, 미확인 ${run.unverified.length}건. 다음: 해설과 진단 요약을 학습자에게 확인받고 커리큘럼을 설계\n\n${review}`,
     details: run,
   };
 }

@@ -103,3 +103,11 @@ test("diagnosis asks a 0-10 confidence with every question and never guesses it"
     assert.match(text, /추측하지 않는다/, name);
   }
 });
+
+test("explanations after a diagnosis show the learner's own answer first", async () => {
+  for (const name of ["instructions/diagnosis.md", "prompts/study-init.md"]) {
+    const text = await read(name);
+    assert.match(text, /내 답\(학습자 원문 그대로\) → 확신도 → 판정 → 정답·해설/, name);
+    assert.match(text, /## 답 대조/, name);
+  }
+});

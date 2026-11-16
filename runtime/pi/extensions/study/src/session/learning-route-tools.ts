@@ -4,6 +4,7 @@ import { projectForPath, requireWorkspace } from "../workspace/workspace-root.ts
 import { finishConcept, type ConceptCompletion } from "./concept-completion.ts";
 import { currentRun, finishDiagnosisRun, loadDialogue, startDiagnosisAttempt } from "./dialogue-store.ts";
 import type { DiagnosisEndReason, LearningRoute } from "./dialogue-state.ts";
+import { diagnosisAnswerReview } from "./diagnosis-answers.ts";
 
 function parse<T>(json: string | undefined): T {
   if (!json) throw new Error("payloadJson이 필요합니다.");
@@ -60,8 +61,9 @@ export function registerLearningRouteTools(pi: ExtensionAPI) {
           route: payload.route,
           unverified: payload.unverified ?? [],
         });
+        const review = await diagnosisAnswerReview(workspace.root, run);
         return {
-          content: [{ type: "text", text: `진단 종료(${run.endReason}). 질문 ${run.questionIds.length}개. 다음: 개념 학습` }],
+          content: [{ type: "text", text: `진단 종료(${run.endReason}). 질문 ${run.questionIds.length}개. 다음: 해설 후 개념 학습\n\n${review}` }],
           details: run,
         };
       }

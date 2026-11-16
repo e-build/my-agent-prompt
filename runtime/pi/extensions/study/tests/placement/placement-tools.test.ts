@@ -49,6 +49,7 @@ test("the tool runs start → prepare → get → record → finish without expo
   });
   assert.match(done.text, /route_decided/);
   assert.match(done.text, /미확인 1건/);
+  assert.match(done.text, /## 답 대조[\s\S]*- 질문: count\+\+ 두 스레드 결과는\?\n- 내 답: 모름\n- 판정: 미확인\n- 정답: ANSWER-KEY/);
 });
 
 test("the tool rejects bad input before touching the file", async (t) => {
