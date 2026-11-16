@@ -56,7 +56,7 @@ export function registerBookTools(pi: ExtensionAPI): void {
           ...plan.pages.map((p) => `- 보강: ${p.path} (${p.conceptId}@${p.revisionId}) ← ${p.knowledge.map((k) => k.name).join(", ")}`),
           ...plan.unplaced.map((k) => `- 미배치: ${k.name} (${k.id})`),
           `- projectId: ${plan.projectId}`,
-          `- 재료: ${plan.materials.readme}; lab ${plan.materials.lab.join(", ") || "없음"}; 문제 ${plan.materials.questions.length}개; 통과한 시험 ${plan.materials.tests.join(", ") || "없음"}`,
+          `- 재료: ${plan.materials.readme}; 교과서 페이지 ${plan.materials.textbook.join(", ") || "없음"}; lab ${plan.materials.lab.join(", ") || "없음"}; 문제 ${plan.materials.questions.length}개; 통과한 시험 ${plan.materials.tests.join(", ") || "없음"}`,
           "",
           plan.tree,
         ];

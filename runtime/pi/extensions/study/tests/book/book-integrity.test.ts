@@ -49,7 +49,9 @@ test("plan maps a chapter's propositions to existing pages and lists unplaced on
   assert.deepEqual(plan.unplaced.map((k) => k.name), ["InterruptedException"]);
   assert.match(plan.tree, /- 동시성 \[사용자\][\s\S]*  - 인터럽트 · 지식 1/);
   assert.equal(plan.projectId, "p-alpha");
-  assert.deepEqual(plan.materials, { readme: "study-alpha/ch-01-intro/README.md", lab: [], questions: [], tests: [] });
+  assert.deepEqual(plan.materials, { readme: "study-alpha/ch-01-intro/README.md", textbook: [], lab: [], questions: [], tests: [] });
+  await writeFile(join(root, "study-alpha", "ch-01-intro", "README.md"), "# ch\n\n## 교과서 페이지\n\n- [인터럽트](../../book/동시성/인터럽트/README.md)\n- [없음](../../book/없음/README.md)\n");
+  assert.deepEqual((await planChapter(root, "study-alpha", "ch-01-intro")).materials.textbook, ["book/동시성/인터럽트/README.md"]);
 });
 
 test("plan lists materials by path only: chapter questions, lab notes and passed tests", async (t) => {
@@ -71,6 +73,7 @@ test("plan lists materials by path only: chapter questions, lab notes and passed
   const plan = await planChapter(root, "study-alpha", "ch-01-intro");
   assert.deepEqual(plan.materials, {
     readme: "study-alpha/ch-01-intro/README.md",
+    textbook: [],
     lab: ["study-alpha/ch-01-intro/lab/results.md"],
     questions: [
       { id: "q-aaaaaaaaaaaaaaaaaaaa", purpose: "diagnosis", path: "study-alpha/.study/dialogue/questions/q-aaaaaaaaaaaaaaaaaaaa.json" },

@@ -1,5 +1,6 @@
 import { readdir } from "node:fs/promises";
-import { join } from "node:path";
+import { join, relative, sep } from "node:path";
+import { linkedTextbookPages } from "../session/chapter-textbook.ts";
 import { readTextOptional } from "../workspace/atomic-file.ts";
 import { loadAllItems } from "../knowledge/knowledge-store.ts";
 import { loadBinding, projectBySlug } from "../knowledge/chapter-bindings.ts";
@@ -29,6 +30,8 @@ export function formatTree(lines: TreeLine[]): string {
 
 export type BookMaterials = {
   readme: string;
+  /** Book pages the chapter README links under `## 교과서 페이지` (written during concept learning). */
+  textbook: string[];
   lab: string[];
   questions: Array<{ id: string; purpose: string; path: string }>;
   tests: string[];
@@ -104,5 +107,9 @@ async function chapterMaterials(root: string, projectPath: string, chapterSlug: 
   const tests = (await jsonFiles(root, `${projectPath}/.study/assessments`))
     .filter((f) => f.value?.kind === "test" && f.value?.questionSet?.chapterSlug === chapterSlug && f.value?.grade?.passed === true)
     .map((f) => f.path);
-  return { readme: `${chapter}/README.md`, lab, questions, tests };
+  const readmePath = join(root, ...chapter.split("/"), "README.md");
+  const textbook = (await linkedTextbookPages(readmePath, (await readTextOptional(readmePath)) ?? ""))
+    .filter((p) => p.exists)
+    .map((p) => relative(root, p.path).split(sep).join("/"));
+  return { readme: `${chapter}/README.md`, textbook, lab, questions, tests };
 }
