@@ -1,6 +1,6 @@
 # study 개념 학습 교재 품질 고도화 설계 (초안)
 
-> 상태: 확정 v2 · 2026-11-16 · 대상: `runtime/pi/extensions/study` · 구현 계획: `2026-11-16-study-concept-textbook-quality.md`
+> 상태: 구현 완료 · 2026-11-16 · 대상: `runtime/pi/extensions/study` · 구현 계획: `2026-11-16-study-concept-textbook-quality.md`
 > v2 변경: 개념 학습 중 book 페이지에 바로 쓴다. 챕터 README에는 학습 지도와 페이지 링크만 둔다. 시범 적용 챕터는 정하지 않는다.
 
 ## 목차
@@ -161,6 +161,7 @@ study 전용 프로필 `~/.diagram-design/profiles/study-plain.md`를 만들고,
 | `paper` | `#ffffff` | 흰 배경 |
 | `paper-2` | `#f5f5f5` | 영역 배경 |
 | `ink` | `#111111` | 글자·주요 선 |
+| `ink-strong` | `#ffffff` | 검정 강조 면 위의 글자(대비 검사 결과 흰색) |
 | `muted` | `#555555` | 보조 글자·기본 화살표 |
 | `soft` | `#666666` | 부가 라벨 |
 | `rule` / `rule-solid` | `rgba(0,0,0,0.12)` / `#cccccc` | 얇은 선 |

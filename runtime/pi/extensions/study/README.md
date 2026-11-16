@@ -163,7 +163,7 @@ study/
 
 test phase에서 `study_test_open` 호출 없이 turn이 끝나면 extension이 1회 교정 follow-up을 전송한다. diagnosis는 대화형이며 HTML을 강제하지 않는다. 등록된 루트에서는 diagnosis 지침에 재개 상태(시도 ID, 준비한 질문 수/상한, 경로)가 붙는다. 이미 열려 있는 과거 HTML 진단(awaiting_*)은 그 상태 안내가 우선한다.
 
-명령으로 concept를 시작할 때와 진단 결과 확인 후 자동으로 concept로 전환할 때 모두 같은 phase 지침 로더를 사용한다. `instructions/concept.md`가 두 진입 경로의 정본이며, README 본문 작성·새 concept.md 생성 금지 규칙을 별도로 복사하지 않는다.
+명령으로 concept를 시작할 때와 진단 결과 확인 후 자동으로 concept로 전환할 때 모두 같은 phase 지침 로더를 사용한다. `instructions/concept.md`가 두 진입 경로의 정본이며, book 페이지 작성·README `교과서 페이지` 링크 규칙을 별도로 복사하지 않는다.
 
 ## 프로젝트 경로 정책
 
@@ -194,7 +194,7 @@ test phase에서 `study_test_open` 호출 없이 turn이 끝나면 extension이 
 - 확인 수준: `answer_verified`(직접 답변 확인), `self_reported`(이해 자기보고), `explained`(설명 제공), `skipped`(요청으로 건너뜀), `unverified`(미확인). 의미 판단은 agent가 실제 대화 근거로 수행하며 구조 검증이 학습 내용의 진실성을 자동 인증하지 않음
 - 기존 checkpoint와 개인 메모는 보존하고 시간순 snapshot 누적. 같은 request의 재시도는 snapshot·커밋 중복 생성 없음
 - 공식 phase·실습·시험 완료 상태는 변경하지 않음. 시험 기록·복습 pack이 아니라 **이어서 공부하기 위한 진도 기록**
-- README는 교과서 본문으로 유지. checkpoint에 본문 복사나 새 concept.md 생성 금지. 새 퀴즈를 시작하지 않음
+- 교과서 본문은 book 페이지. checkpoint에 본문 복사나 새 concept.md 생성 금지. 새 퀴즈를 시작하지 않음
 
 ### Git 안전 조건과 실패 처리
 
@@ -239,13 +239,15 @@ skipped_understood / blocked
 
 ## 챕터 노트와 Lab 기록
 
-- 챕터 `README.md`가 학습 개요와 concept 단계의 교과서형 본문을 함께 담는 canonical 문서다. 새 챕터에 `concept.md`를 만들지 않는다. state migration은 기존 프로젝트의 `concept.md`를 호환 입력으로 읽는다.
-- 설명·교재 품질 원칙(맥락 먼저 제시, 핵심 한 문장 → 예시·그림 → 보충, 보충은 재구성, 챕터 범위 통제, 용어 통일, 시퀀스 다이어그램 기준)은 `instructions/*.md`가 정본이다. 여러 프롬프트에 같은 문구를 복사하지 않고 phase 지침 로더로 전달한다.
+- **교재는 개념 학습 중 book 페이지에 먼저 쓰고 그것으로 수업한다.** 챕터 `README.md`는 학습 지도와 `## 교과서 페이지`(이번에 쓴 book 페이지 링크)만 갖는다. 예전 방식(README `개념 학습 노트`, 레거시 `concept.md`)은 호환 입력으로 계속 인정한다.
+- `finish_concept`: 챕터-지식 연결(binding, 복습 일정 근거) 필수. `교과서 페이지` 링크가 있으면 링크된 페이지가 모두 있고 본문이 있어야 하며, 내부 동작 섹션·SVG 그림·출처 웹 링크가 없으면 **구조 경고만** 돌려준다(막지 않음). 링크가 없으면 예전 README 관리 영역 검사.
+- 교재 품질 원칙(페이지 구성: 왜 필요한가 → 핵심 한 문장 → 최소 예시 → 내부 동작 → 왜 이렇게 설계됐나 → 성립 조건 → 흔한 오해 → 비교 → 스스로 확인/풀이 → 출처, 깊이 자가 점검, 재구성, 챕터 범위, 용어 통일, 공식 문서·실행 확인)은 `instructions/*.md`가 정본이다.
+- 그림은 diagram-design SVG(원본 HTML과 함께 `book/_media/<개념 ID>/`). study 루트의 `.diagram-design`이 `~/.diagram-design/profiles/study-plain.md`(흰 배경·검정·회색, 강조는 굵기, 시스템 폰트)를 고른다. 설계: `docs/plans/2026-11-16-study-concept-textbook-quality-design.md` 여러 프롬프트에 같은 문구를 복사하지 않고 phase 지침 로더로 전달한다.
 - 프로젝트별 선호(언어·버전·문법 수준·예제 제공 방식·용어)는 각 프로젝트의 AGENTS.md와 루트 README에 기록한다. extension 지침은 도메인 무반 규칙만 담는다.
 - `lab/README.md`는 실습 계획, `lab/results.md`는 검증을 통과한 step의 측정 증거와 학습자 관찰/배운 점을 쌓는 결과 노트다.
 - `study_lab_verify`는 manifest 파일/산출물/명령/실제 JUnit test 수를 검증하고, 성공 시 observation/takeaway와 검증 결과를 `lab/results.md`에 추가한다. 실패하면 결과를 기록하거나 step을 완료하지 않는다.
-- 시험 통과+확인 시 `chapter-evidence.ts`가 README 개념·최종 시험·lab 기록 검증. 누락 증거는 blocked 사유지만 `review/README.md` 생성 실패는 경고이며 시험 완료 유지.
-- README는 오프라인 단권화 교재. 중복 study-pack 신규 생성 폐지. 기존 pack 원본 유지, 고유 회상 구역은 legacy-recall.md로 멱등 보존.
+- 시험 통과+확인 시 `chapter-evidence.ts`가 교과서 페이지(또는 예전 개념 학습 노트)·최종 시험·lab 기록 검증. 누락 증거는 blocked 사유지만 `review/README.md` 생성 실패는 경고이며 시험 완료 유지.
+- 중복 study-pack 신규 생성 폐지. 기존 pack 원본 유지, 고유 회상 구역은 legacy-recall.md로 멱등 보존.
 - 테스트 수·출력은 extension이 기록하고, 관찰·배운 점은 학습자가 제공한다. 확인하지 않은 로그나 결론을 만들지 않는다.
 
 도구:
@@ -260,9 +262,9 @@ skipped_understood / blocked
 
 ## 내 교과서 (book)
 
-챕터마다 쓰는 교재(README)와 별개로, 여러 프로젝트에서 배운 것을 **개념 위계로 재구성한 교과서**를 루트 `book/`에 쌓는다.
+여러 프로젝트에서 배운 것을 **개념 위계로 정리한 교과서**를 루트 `book/`에 쌓는다. 개념 학습 중 교재를 여기에 바로 쓴다.
 
-- 시험 통과+확인으로 챕터가 끝나면(등록된 루트) agent에게 `# STUDY_BOOK_PENDING` follow-up이 간다. agent는 `instructions/book.md`(정본)에 따라 `study_book plan` → 재료 읽기 → `apply` 한 묶음 → 보고(페이지별 변경과 undo용 changeId)
+- 시험 통과+확인으로 챕터가 끝나면(등록된 루트) agent에게 `# STUDY_BOOK_PENDING` follow-up이 간다. agent는 `instructions/book.md`(정본)에 따라 `study_book plan`(재료에 `교과서 페이지` 포함) → 개념 학습 때 쓴 페이지를 실습 출력·시험 문제로 **보강** → `apply` 한 묶음 → 보고(페이지별 변경과 undo용 changeId)
 - 정리가 실패하거나 중단돼도 챕터 완료는 그대로. **정리 대기** = 완료됐지만 어떤 개념의 `learnedIn`에도 없는 챕터(따로 저장하지 않고 계산). 세션 시작 때 정보 알림, `/study-chapter` 메뉴 "📘 교과서 정리 대기"로 이어서 처리
 - 최상위 영역과 사용자 소유 개념은 `/study-concepts`(사용자)만 바꿈. agent는 하위 개념을 직접 정리하고 상위는 `propose`
 - **교과서는 book/ 안에서 완결**: 본문(main)의 로컬 링크·이미지는 book/ 안만 가리킨다. `write_page`가 밖을 가리키면 거부하고, `checkBookIntegrity`가 기존 위반을 보고한다. 그림은 `book/_media/<개념 ID>/`에 둔다(`_`로 시작하는 개념 이름은 예약). `record_source`의 path도 book/ 아래만 허용하며, 밖의 자료는 url(웹 링크)로 남긴다. 예전 `sources/` 경로가 남은 자료는 링크 없이 제목만 보인다
