@@ -1,7 +1,11 @@
 /** Concept tree contracts for the textbook (book). Page bodies live in book/<path>/README.md. */
 export type ConceptOwner = "user" | "agent";
 export type LearnedIn = { projectId: string; chapterSlug: string; completedOn: string };
-/** Reference material outside study chapters (e.g. a migrated Notion page). `path` is root-relative. */
+/**
+ * Reference material outside study chapters (e.g. a migrated Notion page). `url` is a web link;
+ * `path` is root-relative and must stay inside book/ so the textbook never depends on files outside it.
+ * Legacy nodes may still carry a `sources/` path; it loads but is never rendered as a link.
+ */
 export type SourceMaterial = { kind: "notion" | "file" | "url"; title: string; path?: string; url?: string };
 
 export type ConceptNode = {
@@ -46,20 +50,24 @@ export function normalizeConceptName(name: unknown): string {
   if (typeof name !== "string") throw new Error("개념 이름이 필요합니다.");
   const value = name.normalize("NFC").trim();
   if (!value || value.length > 60) throw new Error("개념 이름은 1~60자여야 합니다.");
-  if (FORBIDDEN_NAME.test(value) || value.startsWith(".") || value === "README.md")
+  // `_` prefixes are reserved for book-level folders such as book/_media.
+  if (FORBIDDEN_NAME.test(value) || value.startsWith(".") || value.startsWith("_") || value === "README.md")
     throw new Error(`개념 이름에 쓸 수 없는 문자가 있습니다: ${value}`);
   return value;
 }
 
-const SOURCE_PATH = /^(sources|book)\/[^]*$/;
+const SOURCE_PATH = /^book\/[^]*$/;
+const LEGACY_SOURCE_PATH = /^(sources|book)\/[^]*$/;
 
-export function validateSource(value: SourceMaterial): SourceMaterial {
+/** `legacy` accepts stored `sources/` paths when loading; new writes allow book/ only. */
+export function validateSource(value: SourceMaterial, options: { legacy?: boolean } = {}): SourceMaterial {
   if (!value || !["notion", "file", "url"].includes(value.kind)) throw new Error(`자료 종류가 올바르지 않습니다: ${value?.kind}`);
   if (typeof value.title !== "string" || !value.title.trim() || value.title.length > 200) throw new Error("자료 제목이 필요합니다.");
   if (value.path !== undefined) {
     const parts = typeof value.path === "string" ? value.path.split("/") : [];
-    if (!SOURCE_PATH.test(String(value.path)) || parts.some((p) => !p || p === "." || p === ".."))
-      throw new Error(`자료 경로는 sources/ 또는 book/ 아래 상대 경로여야 합니다: ${value.path}`);
+    const allowed = options.legacy ? LEGACY_SOURCE_PATH : SOURCE_PATH;
+    if (!allowed.test(String(value.path)) || parts.some((p) => !p || p === "." || p === ".."))
+      throw new Error(`자료 경로는 book/ 아래 상대 경로여야 합니다. 교과서 밖 자료는 url로 남기세요: ${value.path}`);
   }
   if (value.url !== undefined && !/^https?:\/\//.test(String(value.url))) throw new Error(`자료 URL이 올바르지 않습니다: ${value.url}`);
   if (value.path === undefined && value.url === undefined) throw new Error("자료에는 path나 url이 필요합니다.");
@@ -102,7 +110,7 @@ export function validateConceptNode(value: ConceptNode): ConceptNode {
   value.learnedIn.forEach(validateLearnedIn);
   if (value.sources !== undefined) {
     if (!Array.isArray(value.sources)) throw new Error(`${value.id}: sources 목록이 올바르지 않습니다.`);
-    value.sources.forEach(validateSource);
+    value.sources.forEach((s) => validateSource(s, { legacy: true }));
   }
   if (value.retired && value.retired.into !== undefined) validateConceptId(value.retired.into);
   return value;

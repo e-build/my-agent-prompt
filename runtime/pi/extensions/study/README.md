@@ -123,6 +123,7 @@ study/
 ├── knowledge/concepts/history/, changes/, proposals.jsonl # 버전·변경 기록(undo)·에이전트 제안
 ├── book/README.md             # 교과서 대시보드(생성물): 영역 수치·목차·학습 현황·할 일·최근 변경 + 메모
 ├── book/<영역>/…/README.md    # 개념별 교과서 페이지: head·main·foot 관리 영역 + 메모
+├── book/_media/<개념 ID>/     # 교과서 그림. 본문은 book/ 안의 파일만 가리킴(웹 링크는 허용)
 ├── knowledge/history/k-*.jsonl# 버전별 전체 스냅숏·이유 (추가만)
 ├── knowledge/changes/*.json   # 변경 기록 (멱등 재시도·undo)
 ├── review/items/k-*.json      # 지식별 복습 일정 하나
@@ -264,6 +265,7 @@ skipped_understood / blocked
 - 시험 통과+확인으로 챕터가 끝나면(등록된 루트) agent에게 `# STUDY_BOOK_PENDING` follow-up이 간다. agent는 `instructions/book.md`(정본)에 따라 `study_book plan` → 재료 읽기 → `apply` 한 묶음 → 보고(페이지별 변경과 undo용 changeId)
 - 정리가 실패하거나 중단돼도 챕터 완료는 그대로. **정리 대기** = 완료됐지만 어떤 개념의 `learnedIn`에도 없는 챕터(따로 저장하지 않고 계산). 세션 시작 때 정보 알림, `/study-chapter` 메뉴 "📘 교과서 정리 대기"로 이어서 처리
 - 최상위 영역과 사용자 소유 개념은 `/study-concepts`(사용자)만 바꿈. agent는 하위 개념을 직접 정리하고 상위는 `propose`
+- **교과서는 book/ 안에서 완결**: 본문(main)의 로컬 링크·이미지는 book/ 안만 가리킨다. `write_page`가 밖을 가리키면 거부하고, `checkBookIntegrity`가 기존 위반을 보고한다. 그림은 `book/_media/<개념 ID>/`에 둔다(`_`로 시작하는 개념 이름은 예약). `record_source`의 path도 book/ 아래만 허용하며, 밖의 자료는 url(웹 링크)로 남긴다. 예전 `sources/` 경로가 남은 자료는 링크 없이 제목만 보인다
 - `book/README.md` 대시보드는 book 변경마다 다시 생성. 갱신 실패는 경고일 뿐 변경은 유지. 명제 본문·정답은 넣지 않음
 - **HTML 교과서**: `.study/local/book-site/`(PC 전용, 지워도 다시 생성)에 정적 사이트로 빌드. book 변경마다 다시 빌드하며 실패는 경고(`siteWarning`)일 뿐 변경은 유지. `/study-book [개념]`은 다시 빌드한 뒤 `file://`로 연다
   - 렌더러는 직접 구현(`src/book/md-parse.ts`·`md-html.ts`): 제목·문단·목록(중첩·순서·체크박스)·인용·코드 펜스(``` ~~~)·GFM 표·링크·강조. raw HTML은 글자로 escape, `javascript:` 등 위험한 링크는 글자로만

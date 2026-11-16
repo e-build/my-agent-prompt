@@ -7,6 +7,7 @@ import { readWorkspace } from "../workspace/workspace-root.ts";
 import { loadItem } from "../knowledge/knowledge-store.ts";
 import { assertBodySafe, DEFAULT_NOTES, parsePage, renderPage, type ParsedPage, type RegionId } from "./book-page.ts";
 import { refreshDashboard } from "./book-dashboard.ts";
+import { outsideBookTargets } from "./book-links.ts";
 import { renderFoot, renderHead } from "./book-render.ts";
 import {
   abs,
@@ -256,8 +257,11 @@ async function runOperation(root: string, batch: Batch, op: BookOperation): Prom
     case "record_source": {
       const entry = validateSource(op.source);
       const node = batch.touch(batch.resolve(op.id), op.expectedRevisionId);
-      const key = (x: SourceMaterial) => x.path ?? x.url;
-      if (!(node.sources ?? []).some((x) => key(x) === key(entry))) node.sources = [...(node.sources ?? []), entry];
+      // Same url or same path = the same material: recording it again replaces the entry (e.g. drops a legacy path).
+      const same = (x: SourceMaterial) => (!!entry.url && x.url === entry.url) || (!!entry.path && x.path === entry.path);
+      const sources = node.sources ?? [];
+      const at = sources.findIndex(same);
+      node.sources = at < 0 ? [...sources, entry] : sources.map((x, i) => (i === at ? entry : x)).filter((x, i) => i === at || !same(x));
       return;
     }
     case "propose": {
@@ -327,6 +331,9 @@ async function planPages(root: string, batch: Batch, before: ConceptNode[]): Pro
     const existingMain = current?.page.regions.main;
     const written = batch.writes.get(node.id);
     if (written !== undefined) {
+      const outside = outsideBookTargets(path, written);
+      if (outside.length)
+        throw new Error(`교과서 본문은 book/ 안의 파일만 가리킬 수 있습니다: ${path} → ${outside.join(", ")}. 그림은 book/_media/에 두고, 바깥 자료는 웹 링크로 쓰세요.`);
       if (existingMain?.edited && !batch.adopts.has(node.id))
         throw new Error(`사용자가 직접 고친 본문입니다: ${path}. 덮어쓰지 않습니다. 수정본을 받아들일지(adopt_page) 사용자에게 물으세요.`);
       regions.main = { body: written };

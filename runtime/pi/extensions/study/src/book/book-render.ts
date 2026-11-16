@@ -1,6 +1,6 @@
 import type { WorkspaceProject } from "../workspace/workspace-types.ts";
 import { ancestorsOf, BOOK_DIR, childrenOf, pagePath, relativeLink } from "./book-tree.ts";
-import type { ConceptNode } from "./book-types.ts";
+import type { ConceptNode, SourceMaterial } from "./book-types.ts";
 
 /** Generated breadcrumb, title and child list. Pure. */
 export function renderHead(byId: Map<string, ConceptNode>, node: ConceptNode): string {
@@ -17,6 +17,13 @@ export function renderHead(byId: Map<string, ConceptNode>, node: ConceptNode): s
   return `${crumbs.join(" › ")}\n\n# ${node.name}${list}`;
 }
 
+/** Web links and book-internal paths are linked; anything else (legacy sources/ paths) is plain text. */
+function sourceTitle(self: string, x: SourceMaterial): string {
+  if (x.url) return `[${x.title}](${x.url})`;
+  if (x.path?.startsWith(`${BOOK_DIR}/`)) return `[${x.title}](${relativeLink(self, x.path)})`;
+  return x.title;
+}
+
 /** Generated "배운 곳" list. Pure. */
 export function renderFoot(
   byId: Map<string, ConceptNode>,
@@ -31,7 +38,7 @@ export function renderFoot(
   const sources = node.sources ?? [];
   const label = { notion: "노션 원문", file: "자료", url: "웹" } as const;
   const sourceBlock = sources.length
-    ? `\n\n## 참고한 자료\n\n${sources.map((x) => `- [${x.title}](${x.path ? relativeLink(self, x.path) : x.url}) · ${label[x.kind]}`).join("\n")}`
+    ? `\n\n## 참고한 자료\n\n${sources.map((x) => `- ${sourceTitle(self, x)} · ${label[x.kind]}`).join("\n")}`
     : "";
   if (!node.learnedIn.length) return `${relatedBlock}## 배운 곳\n\n- (아직 없음)${sourceBlock}`;
   const lines = [...node.learnedIn]

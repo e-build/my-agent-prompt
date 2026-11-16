@@ -1,6 +1,7 @@
 import { readdir } from "node:fs/promises";
 import { readTextOptional } from "../workspace/atomic-file.ts";
 import { loadItem } from "../knowledge/knowledge-store.ts";
+import { outsideBookTargets } from "./book-links.ts";
 import { parsePage } from "./book-page.ts";
 import { abs, CONCEPTS_DIR, decodeConcept } from "./book-store.ts";
 import { assertTree, pagePaths } from "./book-tree.ts";
@@ -62,7 +63,10 @@ export async function checkBookIntegrity(root: string): Promise<string[]> {
       continue;
     }
     try {
-      if (parsePage(content).conceptId !== id) issues.push(`교과서 페이지의 개념 ID가 다릅니다: ${path}`);
+      const page = parsePage(content);
+      if (page.conceptId !== id) issues.push(`교과서 페이지의 개념 ID가 다릅니다: ${path}`);
+      const outside = outsideBookTargets(path, page.regions.main.body);
+      if (outside.length) issues.push(`교과서 본문이 book/ 밖 파일을 가리킵니다: ${path} → ${outside.join(", ")}`);
     } catch (error) {
       issues.push(`교과서 페이지 손상: ${path} (${error instanceof Error ? error.message : error})`);
     }

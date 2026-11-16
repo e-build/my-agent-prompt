@@ -144,20 +144,69 @@ test("retire carries notes into the target page; undo restores files and nodes",
   await assert.rejects(applyBookChange(root, "user", { changeId: "u3", reason: "다시", undo: "a2" }), /이후 변경/);
 });
 
-test("record_source lists reference material in the page foot, next to chapters; old nodes without sources still load", async (t) => {
+test("record_source lists web reference material in the page foot; paths outside book/ are refused", async (t) => {
   const { root, area } = await setup(t);
+  const url = "https://app.notion.com/p/9dab7410b9474a79a8f8fb24a6771019";
   await applyBookChange(root, "agent", { changeId: "s1", reason: "노션 이관", operations: [
-    { op: "record_source", id: area.id, expectedRevisionId: area.revisionId, source: { kind: "notion", title: "스레드 개념", path: "sources/notion/스레드 개념.md", url: "https://app.notion.com/p/9dab7410b9474a79a8f8fb24a6771019" } },
+    { op: "record_source", id: area.id, expectedRevisionId: area.revisionId, source: { kind: "notion", title: "스레드 개념", url } },
   ] }, { now });
   const foot = parsePage(await read(root, "book/동시성/README.md")).regions.foot.body;
-  assert.match(foot, /## 참고한 자료\n\n- \[스레드 개념\]\(\.\.\/\.\.\/sources\/notion\/%EC%8A%A4%EB%A0%88%EB%93%9C%20%EA%B0%9C%EB%85%90\.md\) · 노션 원문/);
+  assert.match(foot, /## 참고한 자료\n\n- \[스레드 개념\]\(https:\/\/app\.notion\.com\/p\/9dab7410b9474a79a8f8fb24a6771019\) · 노션 원문/);
   const node = (await loadConcepts(root)).find((n) => n.id === area.id)!;
   await applyBookChange(root, "agent", { changeId: "s2", reason: "중복", operations: [
-    { op: "record_source", id: area.id, expectedRevisionId: node.revisionId, source: { kind: "notion", title: "스레드 개념", path: "sources/notion/스레드 개념.md" } },
+    { op: "record_source", id: area.id, expectedRevisionId: node.revisionId, source: { kind: "notion", title: "스레드 개념", url } },
   ] }, { now });
-  assert.equal((await loadConcepts(root)).find((n) => n.id === area.id)!.sources!.length, 1, "same path recorded once");
+  assert.equal((await loadConcepts(root)).find((n) => n.id === area.id)!.sources!.length, 1, "same url recorded once");
+  for (const path of ["../밖.md", "sources/notion/스레드 개념.md"])
+    await assert.rejects(
+      applyBookChange(root, "agent", { changeId: "s3", reason: "x", operations: [{ op: "record_source", id: area.id, source: { kind: "notion", title: "x", path } } as any] }),
+      /자료 경로는 book\//,
+    );
+});
+
+test("legacy sources/ paths still load but render as plain text, not links", async (t) => {
+  const { root, area } = await setup(t);
+  const file = join(root, "knowledge", "concepts", `${area.id}.json`);
+  const node = JSON.parse(await readFile(file, "utf8"));
+  node.sources = [{ kind: "notion", title: "옛 원문", path: "sources/notion/옛.md" }];
+  await writeFile(file, `${JSON.stringify(node, null, 2)}\n`);
+  const loaded = (await loadConcepts(root)).find((n) => n.id === area.id)!;
+  await applyBookChange(root, "user", { changeId: "s4", reason: "다시 생성", operations: [{ op: "write_page", id: area.id, body: "본문", expectedRevisionId: loaded.revisionId }] }, { now });
+  const foot = parsePage(await read(root, "book/동시성/README.md")).regions.foot.body;
+  assert.match(foot, /- 옛 원문 · 노션 원문/);
+  assert.doesNotMatch(foot, /sources/);
+});
+
+test("recording the same url again replaces the entry, dropping a legacy path", async (t) => {
+  const { root, area } = await setup(t);
+  const file = join(root, "knowledge", "concepts", `${area.id}.json`);
+  const node = JSON.parse(await readFile(file, "utf8"));
+  const url = "https://app.notion.com/p/1";
+  node.sources = [{ kind: "notion", title: "옛 원문", path: "sources/notion/옛.md", url }];
+  await writeFile(file, `${JSON.stringify(node, null, 2)}\n`);
+  const loaded = (await loadConcepts(root)).find((n) => n.id === area.id)!;
+  await applyBookChange(root, "user", { changeId: "s5", reason: "이관 마무리", operations: [
+    { op: "record_source", id: area.id, expectedRevisionId: loaded.revisionId, source: { kind: "notion", title: "원문", url } },
+  ] }, { now });
+  assert.deepEqual((await loadConcepts(root)).find((n) => n.id === area.id)!.sources, [{ kind: "notion", title: "원문", url }]);
+});
+
+test("page bodies may only point at files inside book/; web links and book/_media images are fine", async (t) => {
+  const { root, area } = await setup(t);
   await assert.rejects(
-    applyBookChange(root, "agent", { changeId: "s3", reason: "x", operations: [{ op: "record_source", id: area.id, source: { kind: "notion", title: "x", path: "../밖.md" } } as any] }),
-    /자료 경로/,
+    applyBookChange(root, "agent", { changeId: "b1", reason: "x", operations: [
+      { op: "write_page", id: area.id, expectedRevisionId: area.revisionId, body: "![그림](../../sources/notion/media/a.png)" },
+    ] }),
+    /book\/ 안의 파일만.*sources\/notion\/media\/a\.png/,
   );
+  await assert.rejects(
+    applyBookChange(root, "agent", { changeId: "b2", reason: "x", operations: [
+      { op: "write_page", id: area.id, expectedRevisionId: area.revisionId, body: "[챕터](../../study-alpha/ch-01-intro/README.md)" },
+    ] }),
+    /book\/ 안의 파일만/,
+  );
+  await applyBookChange(root, "agent", { changeId: "b3", reason: "x", operations: [
+    { op: "write_page", id: area.id, expectedRevisionId: area.revisionId, body: "![그림](../_media/cn-x/a.svg) [웹](https://ex.com) [위](#제목) `../../sources/x.md`" },
+  ] }, { now });
+  assert.match(await read(root, "book/동시성/README.md"), /_media\/cn-x\/a\.svg/);
 });

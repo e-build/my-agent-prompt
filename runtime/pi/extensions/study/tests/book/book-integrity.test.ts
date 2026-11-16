@@ -24,6 +24,9 @@ test("integrity reports missing pages, corrupt pages and conflict markers withou
   await applyBookChange(root, "user", { changeId: "u1", reason: "영역", operations: [{ op: "create", name: "동시성", parentId: null }] });
   assert.deepEqual(await checkBookIntegrity(root), []);
   const page = join(root, "book", "동시성", "README.md");
+  const original = await readFile(page, "utf8");
+  await writeFile(page, original.replace("(아직 본문이 없습니다)", "![그림](../../sources/notion/a.png) [웹](https://ex.com)"));
+  assert.match((await checkBookIntegrity(root)).join("\n"), /book\/ 밖 파일을 가리킵니다: book\/동시성\/README\.md → sources\/notion\/a\.png$/);
   await writeFile(page, "# 손으로 덮어씀\n");
   assert.match((await checkBookIntegrity(root)).join("\n"), /교과서 페이지 손상: book\/동시성\/README\.md/);
   await rm(page);
