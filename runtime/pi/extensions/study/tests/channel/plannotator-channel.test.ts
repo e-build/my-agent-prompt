@@ -85,11 +85,13 @@ test("a reply without message_id is a failure", async () => {
   await assert.rejects(channel.deliver(card), /message_id/);
 });
 
-test("placement cards use the placement thread", async () => {
+test("placement questions and their explanations share one project thread", async () => {
   const fake = ok();
   const channel = createPlannotatorChannel({ exec: fake.exec, sessionId: () => "s", cwd: "/p" });
   await channel.deliver({ ...card, chapterSlug: undefined, purpose: "placement" });
-  assert.equal(JSON.parse(fake.calls[0].input!).thread, "study · study-ansi-sql · placement");
+  await channel.deliver({ kind: "notice", id: "c-n", projectSlug: "study-ansi-sql", title: "1번 해설", body: "b" });
+  const threads = fake.calls.map((call) => JSON.parse(call.input!).thread);
+  assert.deepEqual(threads, ["study · study-ansi-sql · init", "study · study-ansi-sql · init"]);
 });
 
 test("available reflects the inbox status command", async () => {
