@@ -54,7 +54,7 @@ test("production code never imports tests and all test cases live under tests", 
   const files = await typescriptFiles(root);
   for (const path of files) {
     const local = relative(root, path).split(sep).join("/");
-    // next/ is the staging tree for the replacement core and carries its own layout test.
+    // next/ follows its own layout test.
     if (local.startsWith("next/")) continue;
     if (local.endsWith(".test.ts")) assert.ok(local.startsWith("tests/"), local);
     if (local !== "index.ts" && !local.startsWith("src/")) continue;

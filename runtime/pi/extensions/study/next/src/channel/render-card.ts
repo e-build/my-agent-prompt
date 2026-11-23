@@ -2,7 +2,6 @@ import { itemMarker, type LearningCard } from "./channel.ts";
 
 export const CONFIDENCE_LINE = "답과 함께 확신도(0~10)도 적어 주세요.";
 
-/** Plain markdown used by the chat adapter and for non-question cards elsewhere. */
 export function renderPlain(card: LearningCard): string {
   if (card.kind === "notice") return `### ${card.title}\n\n${card.body}`;
   if (card.kind === "lesson")

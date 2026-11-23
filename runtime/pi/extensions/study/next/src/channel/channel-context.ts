@@ -25,7 +25,6 @@ export function defaultChannelFactory(deps: {
       : createChatChannel();
 }
 
-/** Resolves the project, its study root and the configured channel from a working directory. */
 export async function resolveStudyContext(
   cwd: string,
   projectRoot?: string,

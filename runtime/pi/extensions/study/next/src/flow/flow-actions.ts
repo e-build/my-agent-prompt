@@ -44,7 +44,6 @@ function answerReview(scope: Scope): string {
   return lines.join("\n");
 }
 
-/** Saves the one placement result, including each chapter's starting point. */
 export async function finishPlacement(projectRoot: string, input: unknown): Promise<string> {
   const scope = await readScope(projectRoot, "placement");
   const count = Object.values(scope.cards).filter((c) => c.card.kind === "question").length;

@@ -2,7 +2,6 @@ import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { PHASES, isDone, type PhaseStatus, type StudyPhase } from "../state/study-state.ts";
 
-/** Short Korean names shown in menus and accepted as arguments. */
 export const PHASE_KO: Record<StudyPhase, string> = {
   concept: "개념",
   lab: "실습",
@@ -164,7 +163,6 @@ export type MenuAction =
 
 export type MenuItem = { label: string; action: MenuAction };
 
-/** Choices shown by `/study-chapter` without arguments. */
 export function buildChapterMenu(catalog: ChapterCatalog, context: { dueReviews: number }): MenuItem[] {
   const items: MenuItem[] = [];
   if (context.dueReviews)
