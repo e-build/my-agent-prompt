@@ -3,30 +3,66 @@ set -euo pipefail
 
 # Install Claude Code resources from this repo.
 #
-# Claude Code support is not yet fully implemented.
-# Command adapters are not implemented; skill bridges are already available
-# through install-skills and sync-external-skills. See resources/external-skills.md.
+# Resources:
+#   resources/commands/        → ~/.agents/commands/                (shared command bodies)
+#   resources/templates/       → ~/.agents/templates/               (templates used by bodies)
+#   adapters/claude/commands/  → ~/.claude/commands/my-agent-prompt/ (slash commands)
 #
-# Planned paths:
-#   adapters/claude/commands/ → ~/.claude/commands/
-# Skill bridge: ~/.claude/skills/ → ~/.agents/skills/ (separate installers)
+# Claude Code namespaces commands by subdirectory: /my-agent-prompt:me-ladder-explain.
+# The whole directory is linked (not each file) because Windows without
+# Developer Mode can link directories (junctions) but not files.
+#
+# Agent Skills are NOT installed here: scripts/install-skills links them into
+# ~/.claude/skills/. External skills: python3 scripts/sync-external-skills.
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# shellcheck source=lib/link.sh
+source "$ROOT/scripts/lib/link.sh"
+CLAUDE_HOME="${CLAUDE_HOME:-$HOME/.claude}"
+AGENTS_HOME="${AGENTS_HOME:-$HOME/.agents}"
 
-echo "Claude Code adapter support is not yet implemented."
+usage() {
+  cat <<'EOF'
+Usage:
+  bash scripts/install-claude    # install Claude Code commands + shared bodies
+  bash scripts/install-claude -h # show this help
+
+Skills (separate):
+  bash scripts/install-skills         # locally maintained skills (+ ~/.claude/skills bridge)
+  python3 scripts/sync-external-skills # registered external skills
+EOF
+}
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    -h|--help) usage; exit 0 ;;
+    *) echo "error: unknown argument: $1" >&2; usage; exit 1 ;;
+  esac
+done
+
+# Guard: never touch a real (non-symlink) directory the user manages.
+link_managed() {
+  local src="$1" dst="$2" label="$3"
+  if [[ -e "$dst" && ! -L "$dst" ]]; then
+    echo "  ⚠ skipped $label: real path exists at $dst (user-managed)"
+    return
+  fi
+  link_dir "$src" "$dst"
+  echo "  ✓ $label → $dst"
+}
+
+echo "Installing Claude Code resources → $CLAUDE_HOME"
+mkdir -p "$CLAUDE_HOME/commands"
+
+# 1. Shared command bodies and templates (read by the command wrappers)
+link_shared "$AGENTS_HOME" "$ROOT"
+
+# 2. Command adapters
+link_managed "$ROOT/adapters/claude/commands" "$CLAUDE_HOME/commands/my-agent-prompt" "command adapters"
+
+if [[ ! -d "$CLAUDE_HOME/skills" ]]; then
+  echo "  ℹ skills: run 'bash scripts/install-skills'"
+fi
+
 echo ""
-echo "Available shared resources in this repo:"
-echo "  resources/skills/     — Agent Skills (canonical source)"
-echo "  resources/commands/   — Shared command bodies"
-echo "  resources/references/ — Reusable rules and guides"
-echo ""
-echo "Skills (separate; creates bridges when ~/.claude exists):"
-echo "  bash scripts/install-skills          — locally maintained skills"
-echo "  python3 scripts/sync-external-skills  — registered external skills"
-echo "  External source updates require explicit --update."
-echo "  See resources/external-skills.md for later-session requests and compatibility."
-echo "  Skill bridges do not register upstream plugins or subagents."
-echo "Commands need manual wrappers in ~/.claude/commands/."
-echo ""
-echo "To add proper adapter support, create adapters/claude/commands/"
-echo "with Claude Code-compatible wrapper files."
+echo "✅ Claude Code install complete. Restart Claude Code to load new commands."

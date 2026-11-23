@@ -51,7 +51,7 @@
 
 리소스 경로:
 ```
-/Users/jimmylee/IdeaProjects/e-build/my-agent-prompt/resources/templates/feature-workflow/templates/
+~/.agents/templates/feature-workflow/templates/
 ```
 
 | 템플릿 파일 | → 대상 파일 |

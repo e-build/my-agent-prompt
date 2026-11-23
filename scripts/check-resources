@@ -63,6 +63,32 @@ for f in "$ROOT/adapters/opencode/commands/"*.md; do
   fi
 done
 
+# Claude Code adapters
+for f in "$ROOT/adapters/claude/commands/"*.md; do
+  [[ -f "$f" ]] || continue
+  base="$(basename "$f" .md)"
+  if [[ -f "$ROOT/resources/commands/${base}.md" ]]; then
+    ok "claude/$base → resources/commands/$base.md"
+  else
+    fail "claude/$base → resources/commands/${base}.md NOT FOUND"
+  fi
+done
+
+# Codex command skills: body exists, name matches, implicit invocation off
+for d in "$ROOT/adapters/codex/skills/"*/; do
+  [[ -d "$d" ]] || continue
+  base="$(basename "$d")"
+  if [[ ! -f "$ROOT/resources/commands/${base}.md" ]]; then
+    fail "codex/$base → resources/commands/${base}.md NOT FOUND"
+  elif ! grep -q "^name: ${base}\$" "$d/SKILL.md" 2>/dev/null; then
+    fail "codex/$base → SKILL.md missing or name mismatch"
+  elif ! grep -q 'allow_implicit_invocation: false' "$d/agents/openai.yaml" 2>/dev/null; then
+    fail "codex/$base → agents/openai.yaml must disable implicit invocation"
+  else
+    ok "codex/$base → resources/commands/$base.md"
+  fi
+done
+
 # --- 2. zz-workflow bodies reference correct template path ---
 echo ""
 echo "2. Workflow template references"
@@ -101,9 +127,9 @@ LEGACY=$(grep -rn 'bodies/\|docs/feature-workflow' \
 if [[ -z "$LEGACY" ]]; then
   ok "no legacy path references found"
 else
-  echo "$LEGACY" | while IFS= read -r line; do
+  while IFS= read -r line; do
     fail "legacy ref: $line"
-  done
+  done <<< "$LEGACY"
 fi
 
 # --- 5. Template directory exists ---
@@ -114,6 +140,19 @@ if [[ -d "$ROOT/resources/templates/feature-workflow" ]]; then
   ok "resources/templates/feature-workflow/ exists ($count files)"
 else
   fail "resources/templates/feature-workflow/ NOT FOUND"
+fi
+
+# --- 6. No machine-specific absolute paths in installed resources ---
+echo ""
+echo "6. Machine-specific absolute paths"
+ABS=$(grep -rnE '(/Users/|/home/|[A-Z]:\\Users\\)[^ ]*my-agent-prompt' \
+  "$ROOT/resources/commands" "$ROOT/resources/skills" "$ROOT/adapters" 2>/dev/null || true)
+if [[ -z "$ABS" ]]; then
+  ok "no absolute paths into this repo (use ~/.agents/... instead)"
+else
+  while IFS= read -r line; do
+    fail "absolute path: $line"
+  done <<< "$ABS"
 fi
 
 # --- Summary ---

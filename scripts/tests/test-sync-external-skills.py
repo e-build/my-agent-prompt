@@ -4,6 +4,7 @@ import json
 import os
 from pathlib import Path
 import subprocess
+import sys
 import tempfile
 import unittest
 
@@ -45,7 +46,7 @@ class SyncTests(unittest.TestCase):
                               capture_output=True, text=True).stdout.strip()
 
     def run_sync(self, *args, success=True):
-        result = subprocess.run(['python3', str(SCRIPT), *args], env=self.env,
+        result = subprocess.run([sys.executable, str(SCRIPT), *args], env=self.env,
                                 capture_output=True, text=True)
         self.assertEqual(result.returncode == 0, success, result.stdout + result.stderr)
         return result
@@ -87,9 +88,16 @@ class SyncTests(unittest.TestCase):
 
     def test_foreign_link_is_not_replaced(self):
         self.skills.mkdir()
-        (self.skills / 'demo').symlink_to(self.root / 'foreign')
+        foreign = self.root / 'foreign'
+        try:
+            (self.skills / 'demo').symlink_to(foreign)
+        except OSError:
+            # Windows without Developer Mode: the script links with junctions.
+            import _winapi
+            foreign.mkdir()
+            _winapi.CreateJunction(str(foreign), str(self.skills / 'demo'))
         self.run_sync(success=False)
-        self.assertEqual(os.readlink(self.skills / 'demo'), str(self.root / 'foreign'))
+        self.assertEqual(os.path.realpath(self.skills / 'demo'), os.path.realpath(foreign))
 
     def test_bridge_collision_prevents_skill_link(self):
         (self.bridge / 'demo').mkdir(parents=True)

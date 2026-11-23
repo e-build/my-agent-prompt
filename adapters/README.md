@@ -9,8 +9,8 @@
 |------|----------|--------|------|
 | **Pi** | ✅ `adapters/pi/commands/` | — | `Read resources/commands/<name>.md` 참조 |
 | **OpenCode** | ✅ `adapters/opencode/commands/` | ✅ `adapters/opencode/agents/` | `!`cat resources/commands/<name>.md`` 주입 |
-| **Claude Code** | 🔲 `adapters/claude/commands/` | — | 구조만 준비됨 (adapter 미구현) |
-| **Codex** | 🔲 `adapters/codex/commands/` | — | 구조만 준비됨 (adapter 미구현) |
+| **Claude Code** | ✅ `adapters/claude/commands/` | — | `/my-agent-prompt:<name>`으로 호출. `~/.agents/commands/<name>.md` 참조 |
+| **Codex** | ✅ `adapters/codex/skills/` | — | custom prompt 폐기로 명시 호출 전용 스킬. `$<name>`으로 호출 |
 
 ## Adapter 작성 규칙
 
@@ -39,4 +39,38 @@ tools:
 ---
 
 !\`cat resources/commands/<name>.md\`
+```
+
+## Claude Code adapter 패턴
+
+```markdown
+---
+description: <명령 설명>
+---
+
+Read `~/.agents/commands/<name>.md` and follow its instructions exactly.
+
+Input: $ARGUMENTS
+```
+
+`install-claude`가 `resources/commands/`·`resources/templates/`를 `~/.agents/` 아래로, 이 디렉터리 전체를 `~/.claude/commands/my-agent-prompt/`로 링크한다.
+
+## Codex adapter 패턴
+
+`adapters/codex/skills/<name>/`에 두 파일을 둔다. `install-codex`가 디렉터리를 `~/.agents/skills/<name>`으로 링크한다.
+
+```markdown
+---
+name: <name>
+description: <명령 설명>
+disable-model-invocation: true
+---
+
+Read `~/.agents/commands/<name>.md` and follow its instructions exactly. Treat the rest of the user's message as the command input.
+```
+
+```yaml
+# agents/openai.yaml — Codex가 스스로 호출하지 않도록 막음
+policy:
+  allow_implicit_invocation: false
 ```

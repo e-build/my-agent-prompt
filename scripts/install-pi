@@ -8,12 +8,15 @@ set -euo pipefail
 # Resources:
 #   adapters/pi/commands/   → ~/.pi/agent/prompts/        (slash commands)
 #   resources/commands/     → ~/.pi/agent/commands/        (shared command bodies)
+#   resources/{commands,templates}/ → ~/.agents/            (fixed paths used by bodies)
 #   runtime/pi/extensions/  → ~/.pi/agent/extensions/      (Pi extensions)
 #   runtime/pi/themes/      → ~/.pi/agent/themes/          (Pi themes)
 #   runtime/pi/bin/pi       → ~/.local/bin/pi              (compact launcher)
 #   runtime/pi/config/      → ~/.pi/agent/ (settings/mcp, with --copy-config)
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# shellcheck source=lib/link.sh
+source "$ROOT/scripts/lib/link.sh"
 PI_HOME="${PI_HOME:-$HOME/.pi/agent}"
 COPY_CONFIG=0
 RESTORE=0
@@ -98,6 +101,7 @@ if [[ "$RESTORE" == "1" ]]; then
     ln -sfn "$ROOT/resources/commands" "$PI_HOME/commands"
     echo "  ✓ command bodies → commands/"
   fi
+  link_shared "$HOME/.agents" "$ROOT"
 
   # 3. Agent Skills → ~/.agents/skills/ (cross-agent standard)
   #    Pi reads ~/.agents/skills/ natively. Run scripts/install-skills.

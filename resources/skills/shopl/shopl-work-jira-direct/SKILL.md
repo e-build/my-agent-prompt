@@ -43,34 +43,34 @@ Load credentials from the user's shell environment:
 ### Get one issue
 
 ```bash
-node /Users/jimmylee/IdeaProjects/e-build/my-agent-prompt/resources/skills/shopl/shopl-work-jira-direct/scripts/get-issue.js SH-18398
+node ~/.agents/skills/shopl-work-jira-direct/scripts/get-issue.js SH-18398
 ```
 
 QA/버그 티켓 내용 조회:
 
 ```bash
-node /Users/jimmylee/IdeaProjects/e-build/my-agent-prompt/resources/skills/shopl/shopl-work-jira-direct/scripts/get-issue.js \
+node ~/.agents/skills/shopl-work-jira-direct/scripts/get-issue.js \
   SH-18398 summary,status,assignee,parent,description,customfield_10037,comment
 ```
 
 ### Get child issues under a parent/epic
 
 ```bash
-node /Users/jimmylee/IdeaProjects/e-build/my-agent-prompt/resources/skills/shopl/shopl-work-jira-direct/scripts/get-children.js SH-18398
+node ~/.agents/skills/shopl-work-jira-direct/scripts/get-children.js SH-18398
 ```
 
 ### Create subtasks (with assignee + status transition)
 
 ```bash
 # 인라인 제목 목록으로 생성 + 담당자 + 상태 변경
-node /Users/jimmylee/IdeaProjects/e-build/my-agent-prompt/resources/skills/shopl/shopl-work-jira-direct/scripts/create-subtasks.js SH-18440 \
+node ~/.agents/skills/shopl-work-jira-direct/scripts/create-subtasks.js SH-18440 \
   --assignee 625df820b8be7c006a4401fc \
   --status "진행 중" \
   --prefix auto \
   --titles "첫 번째 하위작업" "두 번째 하위작업"
 
 # 마크다운 파일에서 특정 섹션의 목록만 추출하여 생성
-node /Users/jimmylee/IdeaProjects/e-build/my-agent-prompt/resources/skills/shopl/shopl-work-jira-direct/scripts/create-subtasks.js SH-18440 \
+node ~/.agents/skills/shopl-work-jira-direct/scripts/create-subtasks.js SH-18440 \
   --assignee 625df820b8be7c006a4401fc \
   --status "진행 중" \
   --prefix auto \
@@ -78,7 +78,7 @@ node /Users/jimmylee/IdeaProjects/e-build/my-agent-prompt/resources/skills/shopl
   --from-file docs/근태-종합-리포트-v-0.4/backend-requirements.md
 
 # dry-run 미리보기 (--dry-run 붙이면 실제 생성 안 함)
-node /Users/jimmylee/IdeaProjects/e-build/my-agent-prompt/resources/skills/shopl/shopl-work-jira-direct/scripts/create-subtasks.js SH-18440 \
+node ~/.agents/skills/shopl-work-jira-direct/scripts/create-subtasks.js SH-18440 \
   --section "구현 하위작업 이름" \
   --from-file requirements.md --dry-run
 

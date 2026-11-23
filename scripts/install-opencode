@@ -7,6 +7,7 @@ set -euo pipefail
 #   adapters/opencode/commands/ → ~/.config/opencode/commands/   (slash commands)
 #   adapters/opencode/agents/   → ~/.config/opencode/agents/     (subagent definitions)
 #   runtime/opencode/plugins/   → ~/.config/opencode/plugins/     (OpenCode plugins)
+#   resources/{commands,templates}/ → ~/.agents/                 (fixed paths used by bodies)
 #
 # Agent Skills are NOT installed here: OpenCode reads the cross-agent
 # standard location ~/.agents/skills/ natively. Run scripts/install-skills.
@@ -14,6 +15,8 @@ set -euo pipefail
 # No upstream updates here; see resources/external-skills.md.
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# shellcheck source=lib/link.sh
+source "$ROOT/scripts/lib/link.sh"
 OC="${OPENCODE_HOME:-$HOME/.config/opencode}"
 
 usage() {
@@ -52,6 +55,9 @@ for f in "$ROOT/adapters/opencode/agents/"*.md; do
   ln -sfn "$f" "$OC/agents/$(basename "$f")"
 done
 echo "  ✓ agent definitions → agents/"
+
+# 2b. Shared command bodies and templates at fixed paths used by bodies
+link_shared "$HOME/.agents" "$ROOT"
 
 # 3. Agent Skills → ~/.agents/skills/ (cross-agent standard)
 #    OpenCode reads it natively. Run scripts/install-skills.

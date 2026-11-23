@@ -10,7 +10,7 @@ set -euo pipefail
 # Tool support for ~/.agents/skills/:
 #   Pi, OpenCode        — native support, no bridge needed
 #   Claude Code         — reads ~/.claude/skills/ only → bridge symlinks
-#   Codex               — reads ~/.codex/skills/ (not automated yet)
+#   Codex               — native support, no bridge needed
 #
 # Also migrates legacy per-tool skill links that pointed directly into this
 # repo (~/.pi/agent/skills/, ~/.config/opencode/skills/) so each skill is
@@ -21,6 +21,8 @@ set -euo pipefail
 #   bash scripts/install-skills --no-bridge  # skip ~/.claude/skills bridge
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# shellcheck source=lib/link.sh
+source "$ROOT/scripts/lib/link.sh"
 AGENTS_SKILLS_DIR="${AGENTS_SKILLS_DIR:-$HOME/.agents/skills}"
 CLAUDE_SKILLS_DIR="${CLAUDE_SKILLS_DIR:-$HOME/.claude/skills}"
 BRIDGE_CLAUDE=1
@@ -54,7 +56,7 @@ for d in $(find "$ROOT/resources/skills" -name SKILL.md -exec dirname {} \;); do
     continue
   fi
 
-  ln -sfn "$d" "$dst"
+  link_dir "$d" "$dst"
   installed=$((installed + 1))
 done
 echo "  ✓ $installed skill(s) installed, $skipped skipped"
@@ -77,7 +79,7 @@ if [[ "$BRIDGE_CLAUDE" == "1" && -d "$HOME/.claude" ]]; then
       continue
     fi
 
-    ln -sfn "../../.agents/skills/$name" "$dst"
+    link_dir "../../.agents/skills/$name" "$dst"
     bridged=$((bridged + 1))
   done
   echo "  ✓ $bridged Claude bridge link(s) → $CLAUDE_SKILLS_DIR"
@@ -102,5 +104,4 @@ done
 
 echo ""
 echo "✅ Skills install complete."
-echo "   Pi / OpenCode read $AGENTS_SKILLS_DIR natively."
-echo "   Codex needs manual links in ~/.codex/skills/ (see scripts/install-codex)."
+echo "   Pi / OpenCode / Codex read $AGENTS_SKILLS_DIR natively."
