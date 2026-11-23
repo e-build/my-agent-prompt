@@ -1217,4 +1217,4 @@ test("no HTTP server is started and no browser is opened", options, async () => 
 
 ## 검증 기록
 
-- (Task 0 결과를 여기에 기록)
+- 2026-11-23 Task 0: `plannotator inbox call --session "$PI_SESSION_ID" send_message -`로 보낸 질문의 답장이 같은 Pi 세션에 `Plannotator Inbox: study · probe (…)` 메시지로 도착함. 답장의 질문 제목에 `[probe/q1]` 표시가 그대로 남음. → 어댑터는 계획대로 CLI 직접 전송. extension에서는 `ctx.sessionManager.getSessionId()`를 `--session`에 넘긴다(값은 `PI_SESSION_ID`와 같은 세션 ID).
