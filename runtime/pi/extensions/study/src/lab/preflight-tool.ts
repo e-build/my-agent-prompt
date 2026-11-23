@@ -1,7 +1,7 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 import { resolve } from "node:path";
-import { findStudyProjectRoot } from "../project/project-root.ts";
+import { findStudyProjectRoot } from "../state/project-root.ts";
 import { runStudyPreflight } from "./preflight.ts";
 import { createCommandRunner } from "./command-runner.ts";
 

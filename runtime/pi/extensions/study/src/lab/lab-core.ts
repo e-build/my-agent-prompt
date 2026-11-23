@@ -1,11 +1,11 @@
 import { access, mkdir, readFile, readdir, rename, stat, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import { projectPath } from "../project/project-path.ts";
-import type { StudyPhaseStatus } from "../session/study-state.ts";
+import { projectPath } from "../state/project-path.ts";
+import type { PhaseStatus } from "../state/study-state.ts";
 import type { CommandRunner } from "./command-runner.ts";
 
 export type LabStepStatus = Extract<
-  StudyPhaseStatus,
+  PhaseStatus,
   "not_started" | "in_progress" | "completed" | "skipped_understood" | "blocked"
 >;
 

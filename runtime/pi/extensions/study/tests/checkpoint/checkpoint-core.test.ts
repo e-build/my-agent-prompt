@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { execFileSync } from "node:child_process";
 import * as core from "../../src/checkpoint/checkpoint-core.ts";
-import { createEmptyChapterState, saveStudyState } from "../../src/session/study-state.ts";
+import { saveStudyState } from "../../src/state/study-state.ts";
 
 const record = {
   summary: "상황형 퀴즈로 개념 확인 중. 실행 검증 없음.",
@@ -45,17 +45,16 @@ async function fixture(t: any) {
   await mkdir(join(root, "ch-02-pattern"));
   await writeFile(join(root, "ch-01-cache/README.md"), "# Cache\n");
   await writeFile(join(root, "ch-02-pattern/README.md"), "# Pattern\n");
+  const empty = () =>
+    Object.fromEntries(
+      ["concept", "lab", "test", "review"].map((p) => [p, { status: "not_started", updatedAt: "x" }]),
+    ) as never;
   await saveStudyState(root, {
     version: 1,
-    projectRoot: root,
-    createdAt: "x",
     updatedAt: "x",
     activeChapter: "ch-02-pattern",
     activePhase: "concept",
-    chapters: {
-      "ch-01-cache": createEmptyChapterState(),
-      "ch-02-pattern": createEmptyChapterState(),
-    },
+    chapters: { "ch-01-cache": empty(), "ch-02-pattern": empty() },
   });
   git(root, "add", ".");
   git(root, "commit", "-m", "initial");

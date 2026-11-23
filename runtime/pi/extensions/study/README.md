@@ -1,346 +1,166 @@
 # study extension
 
-학습 흐름(대화형 진단 → 개념 학습 → 실습 → HTML 완료 시험 → 통합 복습)과 공통 지식·학습 근거를 연결하는 Pi extension.
+배치 진단 → 개념 → 실습 → 시험 → 복습을 **학습 채널** 하나(Pi 대화창 또는 Plannotator Inbox)로 진행하는 Pi extension.
 
 ## 목차
 
-- [명령 한눈에](#명령-한눈에)
-- [구성](#구성)
-- [유지보수 기준](#유지보수-기준)
-- [study 루트와 공통 지식](#study-루트와-공통-지식)
-- [/study-chapter 동작](#study-chapter-동작)
-- [프로젝트 경로 정책](#프로젝트-경로-정책)
-- [/study-checkpoint — 현재 학습 갈무리](#study-checkpoint--현재-학습-갈무리)
-- [상태 파일](#상태-파일)
-- [Assessment](#assessment)
-- [챕터 노트와 Lab 기록](#챕터-노트와-lab-기록)
-- [내 교과서 (book)](#내-교과서-book)
-- [통합 복습](#통합-복습)
-- [고정 회차형 복습](#고정-회차형-복습)
+- [명령](#명령)
+- [학습 흐름](#학습-흐름)
+- [학습 채널](#학습-채널)
+- [지침 고치기](#지침-고치기)
+- [도구](#도구)
+- [저장 구조](#저장-구조)
+- [코드 구성](#코드-구성)
 - [테스트](#테스트)
 
-## 명령 한눈에
+## 명령
 
-명령은 8개. 인자를 외울 필요 없이 **인자 없이 실행하면 메뉴**, 스페이스를 치면 **자동완성 목록**이 뜬다.
+| 명령 | 언제 |
+|---|---|
+| `/study-init <주제>` | 새 학습 프로젝트. 브리프 → 배치 진단 → 커리큘럼 승인 → 등록 |
+| `/study-chapter [챕터] [단계]` | 학습 이어가기. 인자 없이 실행하면 메뉴. 예: `/study-chapter 01 시험` |
+| `/study-review [챕터]` | 오늘 할 챕터 복습 |
+| `/study-checkpoint [챕터]` | 진도 갈무리, checkpoint 파일만 커밋·푸시 |
+| `/study-map` | 오른쪽 학습 로드맵 패널 켜기/끄기 |
+| `/study-prompts` | 단계 지침 덮어쓰기 관리 |
 
-| 명령 | 언제 | 인자 없이 | 자동완성 |
-|---|---|---|---|
-| `/study-chapter` | 학습 이어가기 (거의 항상 이것) | 메뉴: 이어서·다른 단계·챕터 고르기·복습 시작·멈춘 진단 다시 | 챕터 번호+제목+상태 → 단계(진단·개념·실습·시험·복습) |
-| `/study-review` | 복습 | 오늘 할 복습 목록 후 선택 | (prompt라 없음) 번호나 제목 일부 |
-| `/study-checkpoint` | 진도 갈무리·커밋 | 현재 챕터 | 챕터 번호 |
-| `/study-map` | 현재 프로젝트 학습 로드맵 | 터미널 오른쪽 패널 켜기/끄기 | — |
-| `/study-init` | 새 학습 프로젝트. 브리프 → 배치 진단(`study_placement`, 상한 8) → 커리큘럼 미리보기 | — | — |
-| `/study-book` | 내 교과서를 HTML로 보기 | 대시보드 | 개념 이름(별칭 포함) → 그 페이지 |
-| `/study-concepts` | 내 교과서(`book/`)의 개념 위계 정리 | 메뉴: 최상위 영역 만들기·이름 바꾸기·옮기기·위계 보기·에이전트 제안 보기 | — |
+단계 인자는 `개념·실습·시험·복습`(영문 `concept·lab·test·review`도 가능).
 
-화면 위젯 마지막 줄에 `메뉴: /study-chapter`가 항상 보인다.
-
-### /study-map — 학습 로드맵 패널
-
-- 터미널 오른쪽에 붙는 패널. 같은 명령을 다시 입력하면 닫힘. 키보드 입력을 가져가지 않아 대화를 계속할 수 있음
-- 내용: README의 Phase 순서와 챕터, 챕터별 상태(✓완료 ▶현재 ◐진행 ○시작 전 –건너뜀)와 현재 단계, 완료 수
-- 챕터 선행 관계: README `## 개념 의존성 지도`의 Mermaid에서 **챕터끼리 이어진 실선 화살표**만 읽음. 바로 앞 챕터가 아닌 선행만 `선행:`으로 표시. 지도가 개념 단위면(챕터를 가리키지 않으면) 선행을 지어내지 않고 Phase 순서만 표시
-- 매 턴이 끝나면 다시 그림. 터미널 너비가 110칸보다 좁으면 자동으로 숨고 넓어지면 다시 나타남
-- 챕터가 많으면 현재 챕터 주변을 보여 주고 위·아래 생략 줄 수를 표시
-
-## 구성
+## 학습 흐름
 
 ```text
-study/
-├── index.ts                    # Pi 진입점: lifecycle + 의존성 조립
-├── src/                        # 프로덕션 구현
-│   ├── assessment/             # 문항·채점 검증, HTML 생성, 시험 완료, 도구 등록
-│   ├── book/                   # 내 교과서: 개념 위계·페이지·원자적 변경·대시보드·md 렌더러·정적 사이트
-│   ├── bridge/                 # HTTP 서버·라우트, 브라우저 실행, agent 메시지
-│   ├── checkpoint/             # checkpoint 명령·승인·기록·Git publish
-│   ├── curriculum/             # 커리큘럼 산출물·미리보기 도구
-│   ├── evidence/               # 출제 전 기준 저장·원 응답·지식별 판정·기존 기록 연결
-│   ├── knowledge/              # 명제·버전·병합, 교재 관리 영역
-│   ├── lab/                    # 실습 검증·환경 검사·명령 실행 adapter
-│   ├── placement/              # 커리큘럼 확정 전 배치 진단(등록 전 프로젝트에 저장)
-│   ├── project/                # 프로젝트 경로·manifest
-│   ├── review/                 # 통합 복습 일정·조회·시작 페이지, 기존 고정 회차형
-│   ├── session/                # 상태·챕터 명령·대화형 진단·개념 완료·위젯·지침 로더
-│   └── workspace/              # study 루트 탐색·등록, 쓰기 범위, 변경 계획·복구, 이전
-├── tests/                      # 프로덕션 코드와 같은 기능별 분류
-│   ├── assessment/
-│   ├── book/
-│   ├── bridge/
-│   ├── checkpoint/
-│   ├── curriculum/
-│   ├── evidence/
-│   ├── knowledge/
-│   ├── lab/
-│   ├── placement/
-│   ├── project/
-│   ├── review/
-│   ├── session/
-│   ├── workspace/
-│   ├── integration/            # Pi entry point 등록·디렉터리 경계
-│   └── support/                # 테스트 전용 공통 fixture
-├── instructions/               # phase별 짧은 agent 지시
-├── prompts/                    # /study-init, /study-review
-└── assets/                     # curriculum/assessment browser UI, book/(교과서 CSS·JS·vendor/mermaid)
+/study-init ── 배치 진단(최대 8문항, 챕터별 출발점까지 결정) ── 커리큘럼 승인 ── 등록
+      │
+      ▼  챕터마다
+  concept ──▶ lab ──▶ test ──▶ review (+1 / +3 / +7 / +14일)
 ```
 
-## 유지보수 기준
+- **배치 진단은 한 번:** 챕터를 시작할 때 다시 진단하지 않는다. 배치 진단에서 확인하지 못한 항목은 개념 학습 중 예측 질문으로 확인한다.
+- **concept:** 개념마다 `ch-xx/concepts/NN-<slug>.md`를 쓰고 학습 채널로 보낸다. 챕터 README의 `## 개념 파일` 목록과 실제 파일이 같아야 완료된다.
+- **lab:** `lab/manifest.json`의 step을 하나씩 검증한다. 모든 step이 끝나야 완료된다.
+- **test:** 기록된 문항 점수로 코드가 통과 여부를 계산한다. 통과하면 복습 일정이 자동 등록된다.
+- **review:** 챕터 단위. 모든 문항을 혼자 맞히면 다음 간격, 아니면 그 챕터만 첫 간격부터 다시 한다.
 
-**수정할 동작에 맞는 모듈부터 확인.** `index.ts`에 업무 로직을 다시 추가하지 않음.
+## 학습 채널
 
-| 수정 대상 | 위치 | 주요 검증 |
-|---|---|---|
-| 도구 스키마·실행 순서 | `src/<기능>/*-tool.ts`, `*-tools.ts` | `tests/integration/extension-registration.test.ts` |
-| 브라우저 요청·응답 | `src/bridge/study-routes.ts` | `tests/bridge/study-routes.test.ts` — 실제 loopback HTTP |
-| 서버 시작·종료 | `src/bridge/browser-server.ts` | `tests/bridge/browser-server.test.ts` |
-| agent 메시지 | `src/bridge/study-prompts.ts`, `src/session/diagnosis-review-prompt.ts` | 같은 기능의 prompt 테스트 |
-| 전송 fallback | `src/bridge/agent-delivery.ts` | `tests/bridge/agent-delivery.test.ts` |
-| 채점 검증·기록 | `src/assessment/assessment-grade.ts` | `tests/assessment/assessment-grade.test.ts` |
-| grade와 세션 연결 | `src/assessment/grade-handler.ts` | `tests/assessment/grade-handler.test.ts` |
-| HTML config·치환 | `src/assessment/assessment-page.ts` | `tests/assessment/assessment-page.test.ts` |
-| 상태·실습·경로 정책 | `src/session/`, `src/lab/`, `src/project/` | 대응하는 `tests/<기능>/` |
+질문·교재·결과는 모두 카드로 만들어 채널로 보낸다. extension은 카드를 보내기만 하고, 학습자의 답장은 에이전트가 읽어 `study_answer_record`로 기록한다.
 
-- 순수 변환/도메인 코드와 Pi 도구 등록을 분리. 테스트를 위해 HTTP 서버나 실제 브라우저 실행을 요구하지 않는 경계 유지.
-- 공통화는 실제 중복만 대상. diagnosis/test의 상태 전환·완료 조건은 명시적으로 유지.
-- 세션은 extension 인스턴스가 소유. 서버는 첫 도구 호출에서 시작하고 shutdown 시 종료·세션 정리.
-- phase 저장 실패는 `updateProjectPhase`가 결과로 반환하고 도구 출력에 경고로 표시(성공처럼 보고하지 않음). 메시지 전달 fallback, review 페이지 실패 경고 등 기존 실패 정책 유지. 리팩터링과 정책 변경은 별도 작업.
-- 도구 이름·스키마, HTTP 경로, grade marker, 저장 형식, 안내 프롬프트는 호환 계약. 변경 시 관련 회귀 테스트 먼저 보강.
-- 루트 TypeScript 파일은 Pi가 로드하는 `index.ts`만 유지. 구현은 `src/<기능>/`, 테스트는 `tests/<기능>/`에 배치. 기능 안에서 도구 등록과 core 파일을 함께 탐색.
-- `src/`와 `index.ts`에서 `tests/` import 금지. barrel export나 과거 경로의 호환 stub 없이 실제 파일을 직접 import.
-- `tests/support/fixtures.ts`는 bridge·assessment 테스트의 최소 공통 fixture. 도메인별 기존 fixture는 각 테스트 옆에 유지.
-- `instructions/`, `prompts/`, `assets/`는 extension 루트 기준 리소스. 구현·테스트 이동 시 `import.meta.url` 기반 상대 경로도 함께 확인.
-- TypeScript 포맷은 `.prettierrc.json` 기준: 공백 2칸, 폭 100. HTML assets와 학습 지침은 포맷 대상에서 제외.
+| 채널 | 동작 |
+|---|---|
+| `chat` (기본) | 에이전트가 카드를 Pi 대화창에 그대로 보여 준다. 외부 의존 없음 |
+| `plannotator` | `plannotator inbox call send_message`로 챕터별 스레드에 보낸다. 문항은 답할 수 있는 질문 블록, 개념 파일은 첨부로 간다. 답장은 Pi 세션으로 돌아온다 |
 
-## study 루트와 공통 지식
+설정:
 
-여러 학습 프로젝트가 공통 지식과 복습을 함께 쓰도록 study 루트에 등록한다. **등록은 자동:** `/study-init`의 커리큘럼 미리보기에서 “이 방향으로 시작”을 누르는 것이 동의다. 상위에 등록된 루트가 있으면 그 루트에 프로젝트를 추가하고, 없으면 프로젝트의 상위 폴더를 루트로 등록한다. 승인한 그 프로젝트만 추가하며 다른 미등록 폴더는 건드리지 않는다. 등록 전 프로젝트는 기존 기능(HTML 시험·lab·고정 회차형 복습)이 그대로 동작한다.
+```jsonc
+// <study 루트>/.study/workspace.json  (프로젝트 .study/project.json의 channel이 있으면 그쪽이 우선)
+{ "channel": "plannotator" }
+```
+
+- 보내기에 실패하면 chat으로 보내고 도구 결과에 `fallback: <이유>`를 남긴다.
+- 같은 카드는 두 번 보내지 않는다(카드 ID가 Inbox 멱등 키).
+- 다른 도구를 붙이려면 `src/channel/`에 `Channel`(`available`, `deliver`)을 구현하고 `select-channel.ts`의 목록과 `channel-context.ts`의 생성 함수에 추가한다.
+
+## 지침 고치기
+
+단계별 지침은 `prompts/`의 마크다운이다. 같은 이름의 파일을 아래 위치에 두면 그 파일이 쓰인다(위가 우선).
+
+1. `<프로젝트>/.study/prompts/<이름>.md`
+2. `<study 루트>/.study/prompts/<이름>.md`
+3. `prompts/<이름>.md` (기본값)
+
+| 이름 | 쓰이는 곳 |
+|---|---|
+| `init` | `/study-init` (`{{topic}}`을 주제로 바꿈) |
+| `concept`, `lab`, `test` | `/study-chapter`의 각 단계 |
+| `review` | `/study-review` |
+| `checkpoint` | `/study-checkpoint` |
+| `templates/concept-page` | 개념 파일 양식 (개념 단계 지침 뒤에 붙음) |
+| `templates/chapter-readme` | 챕터 README 양식 (init 지침이 참조) |
+
+```text
+/study-prompts                     어느 층의 파일이 쓰이는지 목록
+/study-prompts eject concept       기본값을 study 루트에 복사 (--project면 프로젝트에)
+/study-prompts diff concept        현재 쓰이는 파일과 기본값 비교
+/study-prompts reset concept       덮어쓴 파일 삭제 (확인 후)
+```
+
+- 파일 단위로 통째로 바뀐다. 병합하지 않는다.
+- 요청 헤더(projectRoot, chapterSlug, phase, 채널, 배치 진단 출발점)는 코드가 항상 앞에 붙인다.
+- 기준 선저장, 응답 원문 기록, 점수 기반 통과 판정은 코드와 도구 규칙(`promptGuidelines`)에 있어 지침을 고쳐도 깨지지 않는다.
+- 덮어쓴 파일을 읽지 못하면 기본값을 쓰고 경고를 표시한다. 기본값이 없으면 오류로 멈춘다.
+
+## 도구
+
+| 도구 | 역할 |
+|---|---|
+| `study_ask` | 비공개 채점 기준을 저장한 **뒤** 질문 카드를 보낸다 |
+| `study_send` | 개념 파일(lesson)이나 안내·결과(notice)를 보낸다 |
+| `study_answer_record` | 학습자 원문·확신도·도움 정도·판정·점수 기록. 최초 응답은 덮어쓰지 않음 |
+| `study_placement_finish` | 배치 진단 종료, 챕터별 출발점 저장 (상한 8문항) |
+| `study_project_approve` | 커리큘럼 승인 후 project.json 작성, study 루트 등록, 챕터 상태 생성 |
+| `study_phase` | 단계 상태 조회, 개념·실습 완료(완료 조건 검사) |
+| `study_test_finish` | 점수로 통과 계산, 통과 시 복습 일정 등록 |
+| `study_review_next` | 오늘 할 챕터 복습(정답 없음) |
+| `study_review_finish` | 복습 회차 기록, 다음 간격 계산 |
+| `study_lab_verify`, `study_lab_step_update`, `study_preflight` | 실습 step 검증·상태, 실행 환경 검사 |
+| `study_checkpoint_publish` | `/study-checkpoint`가 준비한 기록 저장·커밋·푸시 |
+
+## 저장 구조
 
 ```text
 <study 루트>/
-├── .study/workspace.json      # 루트 표시: workspaceId, timezone(기본 Asia/Seoul), 복습 간격, 프로젝트(상대 경로)
-├── .study/local/              # PC 전용(.gitignore): pending 변경 계획, locks, applied 기록
-├── knowledge/items/k-*.md     # 명제 하나당 파일: JSON 메타 + 설명 본문
-├── knowledge/concepts/cn-*.json # 교과서 개념 노드: 위계·소유자·소속 명제·배운 곳
-├── knowledge/concepts/history/, changes/, proposals.jsonl # 버전·변경 기록(undo)·에이전트 제안
-├── book/README.md             # 교과서 대시보드(생성물): 영역 수치·목차·학습 현황·할 일·최근 변경 + 메모
-├── book/<영역>/…/README.md    # 개념별 교과서 페이지: head·main·foot 관리 영역 + 메모
-├── book/_media/<개념 ID>/     # 교과서 그림. 본문은 book/ 안의 파일만 가리킴(웹 링크는 허용)
-├── knowledge/history/k-*.jsonl# 버전별 전체 스냅숏·이유 (추가만)
-├── knowledge/changes/*.json   # 변경 기록 (멱등 재시도·undo)
-├── review/items/k-*.json      # 지식별 복습 일정 하나
-├── review/questions/, sessions/ # 복습 질문(비공개 기준)·원 응답
-└── study-*/.study/            # project.json(projectId), bindings/, dialogue/, links/
+├── .study/workspace.json        # timezone, review.intervals, projects, channel
+├── .study/prompts/              # (선택) 지침 덮어쓰기
+└── review/schedule.json         # 챕터 복습 일정 (모든 프로젝트)
+
+<프로젝트>/
+├── .study/project.json          # 주제, 챕터, 배치 진단 결과(챕터별 출발점), channel(선택)
+├── .study/state.json            # 챕터별 concept/lab/test/review 상태
+├── .study/cards/<scope>.jsonl   # 카드·비공개 기준·응답 (scope = 챕터 slug 또는 placement)
+├── .study/prompts/              # (선택) 프로젝트 지침
+└── ch-xx-<slug>/
+    ├── README.md                # 학습 지도 + ## 개념 파일
+    ├── concepts/NN-<slug>.md    # 개념 교재
+    ├── concepts/media/          # 그림 (diagram-design HTML + SVG)
+    └── lab/                     # manifest.json, README.md, results.md
 ```
 
-- 점검은 세션 시작 때 자동. 문제(깨진 연결·Git 충돌 표시·중단된 저장)가 있을 때만 알림. 중단된 저장은 `/study-chapter` 메뉴 맨 위 “중단된 저장 정리”로 마무리(다른 곳에서 바뀐 파일은 건드리지 않고 보류 보고)
-- 여러 파일을 바꾸는 작업은 모두 변경 계획(전·후 내용 저장) → 파일별 hash 비교·원자적 교체 → 완료 순서. 중단되면 “중단된 저장 정리”로 마저 적용하며, 그 사이 다른 곳에서 바뀐 파일은 건드리지 않는다.
-- 루트 공통 쓰기는 `.study/`, `knowledge/`, `review/`, `book/`만. 프로젝트 쓰기는 등록된 프로젝트 안만. `..`·절대 경로·심볼릭 링크 경유 거부.
-- 손상된 `state.json`/`project.json`/`workspace.json`은 다시 만들지 않고 오류로 알린다. `state.json`의 알 수 없는 필드와 과거 절대 `projectRoot`는 그대로 보존한다.
+- 카드 기록은 한 줄 = 한 이벤트로 추가만 한다(append-only).
+- `state.json`의 옛 `diagnosis` 단계와 `awaiting_*` 상태는 읽을 때 무시하거나 `in_progress`로 바꾼다.
 
-도구:
-
-- `study_workspace`: (agent용) 등록 상태 확인(inspect)·검사(check), 읽기 전용
-- `study_knowledge`: 공통 지식 조회(query, 기본은 이름·상태만)·변경(apply: create/add_expression/revise/set_status/merge/unmerge/undo). changeId·reason·기대 revision 필수
-- `study_book`: 내 교과서 위계 조회(query)·챕터 배치 계획(plan: 챕터 명제가 이미 속한 페이지와 미배치 명제)·원자적 변경(apply: create/rename/move/retire/place/unplace/move_member/relate/unrelate/write_page/adopt_page/record_learned/propose 묶음, undo). plan은 재료(챕터 README·lab·문제·통과한 시험)를 경로로만 알려 주고 정답은 담지 않음. agent 권한이라 최상위 영역 생성·사용자 소유 개념의 이름·위치 변경·직접 고친 본문 덮어쓰기는 거부. 명제는 한 페이지에만 속하며, 명제 merge/unmerge 때 소속도 같은 변경 안에서 옮김. 설계는 `docs/plans/2026-11-03-study-my-textbook-design.md`
-- `study_textbook_refresh`: 챕터-지식 연결(bindingJson) 저장 후 README의 `<!-- study:knowledge ... -->` 관리 영역만 갱신. 직접 고친 영역은 보류·차이 보고
-- `study_question_prepare`: 비공개 채점 기준을 먼저 저장하고 공개 질문만 반환
-- `study_answer_record`: 원 응답·도움 정도·지식별 판정 추가 기록, kind=link로 기존 lab·시험 기록을 복사 없이 연결
-- `study_learning_route`: 대화형 진단 조회·종료(경로 기록)·새 시도, 개념 학습 완료
-- `study_review_next`: 오늘 할 통합 복습과 묶음 후보(정답 없음)
-- 상태 위젯(`study-status`): 현재 프로젝트·챕터·단계, 지식 수, 오늘 복습 수. 표시 실패는 학습 진행에 영향 없음
-
-## /study-chapter 동작
-
-기존 이름은 유지하되 prompt가 아니라 `registerCommand("study-chapter")`로 실행한다.
+## 코드 구성
 
 ```text
-/study-chapter                  → 메뉴: (중단된 저장 정리) / 이어서 / 다른 단계 / 챕터 고르기 / 복습 시작 / 멈춘 진단 다시
-/study-chapter 01 개념          → 바로 이동 (단계: 진단·개념·실습·시험·복습, 영문도 가능)
-/study-chapter ␣                → 자동완성: 챕터 제목·현재 상태, 다음 단계 표시
-→ .study/state.json 로드 또는 기존 markdown migration
-→ 대상 챕터와 다음 phase 선택
-→ 해당 phase instruction만 agent에 전달
+study/
+├── index.ts          # Pi 진입점: 도구·명령·위젯 등록
+├── prompts/          # 기본 지침과 템플릿
+├── src/
+│   ├── channel/      # Channel 포트, chat·plannotator 어댑터, 선택·fallback
+│   ├── cards/        # 카드 저장소(기준 선저장, 응답 append), ask/send/record
+│   ├── flow/         # 단계 요청 조립, 완료 조건, 시험 판정, 배치 진단·승인·복습 흐름
+│   ├── prompts/      # 지침 로더(세 층), eject/diff/reset
+│   ├── review/       # study 루트, 복습 일정, 날짜 계산
+│   ├── state/        # state.json, project.json, 프로젝트 경로
+│   ├── lab/          # 실습 검증, preflight
+│   ├── checkpoint/   # /study-checkpoint
+│   ├── ui/           # 챕터 목록·메뉴·인자, 위젯, 로드맵 패널
+│   ├── study-tools.ts     # 채널·흐름 도구 등록
+│   └── study-commands.ts  # 명령 등록
+└── tests/            # src와 같은 분류 + integration(Pi 로더로 실제 등록 확인)
 ```
 
-test phase에서 `study_test_open` 호출 없이 turn이 끝나면 extension이 1회 교정 follow-up을 전송한다. diagnosis는 대화형이며 HTML을 강제하지 않는다. 등록된 루트에서는 diagnosis 지침에 재개 상태(시도 ID, 준비한 질문 수/상한, 경로)가 붙는다. 이미 열려 있는 과거 HTML 진단(awaiting_*)은 그 상태 안내가 우선한다.
-
-명령으로 concept를 시작할 때와 진단 결과 확인 후 자동으로 concept로 전환할 때 모두 같은 phase 지침 로더를 사용한다. `instructions/concept.md`가 두 진입 경로의 정본이며, book 페이지 작성·README `교과서 페이지` 링크 규칙을 별도로 복사하지 않는다.
-
-## 프로젝트 경로 정책
-
-**`projectSlug`는 식별자, `projectRoot`는 실제 저장 위치.** 문서·HTML·manifest·학습 상태는 프로젝트 루트 하나에서 관리.
-
-- `study_curriculum_open`에 선택적 `projectRoot` 지원. `/study-init`은 문서 생성 전에 확정한 절대 루트를 명시적으로 전달.
-- 루트·챕터·`app/` 내부 호출: 같은 slug의 기존 프로젝트 루트 재사용. `cwd/projectSlug`를 무조건 덧붙이지 않음.
-- 프로젝트 밖 호출: 요청한 slug의 `cwd/projectSlug` 사용. 다른 프로젝트가 여러 개 있어도 요청한 slug만 선택.
-- 일반 진단·시험·실습·checkpoint 탐색: 현재 또는 상위 프로젝트 우선. 상위 디렉토리의 후보가 여러 개면 오류, 첫 후보 임의 선택 금지.
-- 명시적 `projectRoot`: 루트 이름·요청 slug·기존 manifest slug 일치 검증. 다른 프로젝트 내부의 중첩 루트는 거부하고 별도 루트 요구.
-- 잘못된 slug·JSON·manifest·루트 불일치는 산출물 쓰기 전에 오류. 커리큘럼 HTML과 manifest는 같은 루트에 저장.
-- 기존 프로젝트에서 init 재실행: 커리큘럼 수정과 신규 생성 구분부터 확인. 기존 문서·학습 기록의 묵시적 덮어쓰기 금지.
-- `.study/project.json`은 환경·챕터 설정, `.study/state.json`은 진행 상태. 역할이 다르므로 하나로 합치지 않음.
-
-설치가 원본 저장소 symlink이면 변경 후 `/reload`로 새 도구 스키마·프롬프트 적용. 현재 세션의 기존 브라우저 bridge는 reload 시 종료되므로 제출 대기 여부 먼저 확인.
-
-## /study-checkpoint — 현재 학습 갈무리
-
-```text
-/study-checkpoint
-/study-checkpoint 04
-```
-
-- 기본 대상: `.study/state.json`의 활성 챕터. 챕터 번호·slug로 지정 가능
-- 항상 **현재 대화 정리 → 구조 검증 → 챕터 checkpoint.md에 추가 → 해당 파일만 커밋 → upstream 푸시 → 원격 커밋 검증**
-- 명령은 대화 요약 지시를 현재 agent에 전달. `study_checkpoint_publish`는 명령이 발급한 requestId와 현재 세션이 일치할 때만 Git 작업 수행
-- 기록: 현재까지의 요약, 진행 방식·선호, 원 답변/정확한 요지와 보완, 건너뛴 항목, 남은 학습, 재개 지점, 실제 실행 근거 유무
-- 확인 수준: `answer_verified`(직접 답변 확인), `self_reported`(이해 자기보고), `explained`(설명 제공), `skipped`(요청으로 건너뜀), `unverified`(미확인). 의미 판단은 agent가 실제 대화 근거로 수행하며 구조 검증이 학습 내용의 진실성을 자동 인증하지 않음
-- 기존 checkpoint와 개인 메모는 보존하고 시간순 snapshot 누적. 같은 request의 재시도는 snapshot·커밋 중복 생성 없음
-- 공식 phase·실습·시험 완료 상태는 변경하지 않음. 시험 기록·복습 pack이 아니라 **이어서 공부하기 위한 진도 기록**
-- 교과서 본문은 book 페이지. checkpoint에 본문 복사나 새 concept.md 생성 금지. 새 퀴즈를 시작하지 않음
-
-### Git 안전 조건과 실패 처리
-
-- 현재 브랜치 upstream 필요. 기존 HEAD와 실제 원격 HEAD가 같아야 함. 기존 미푸시 커밋을 함께 내보내지 않음
-- 다른 파일의 스테이징·미커밋 변경은 보존하고 커밋에서 제외
-- checkpoint 자체의 미커밋 변경·ignore·symlink, detached HEAD, 모호한 프로젝트/챕터는 중단
-- 준비 후 브랜치·HEAD·checkpoint·원격 변경 감지 시 중단. 강제 push·pull·stash·reset 수행 없음
-- 저장/커밋/푸시 결과를 각각 보고. 푸시 실패해도 기록·로컬 커밋 유지. 현재 세션에서 같은 requestId로 저장 도구를 재호출해 push 재시도 가능
-- `/reload`나 세션 교체는 pending request를 지움. 실패 후 재로드한 경우 기존 로컬 커밋을 확인하고 일반 Git 절차로 복구한 뒤 다시 명령 실행
-- 설치가 로컬 소스 symlink라면 `/reload` 후 새 명령 사용 가능
-
-## 상태 파일
-
-```text
-.study/
-├── project.json       # 환경, shared workspace, 서비스, 챕터 lab mode, 배치 진단 공개 요약
-├── placement.json     # 배치 진단 1회 시도: 갈래·질문(채점 기준 포함)·응답·경로. 등록 전에 생김
-├── state.json         # 챕터별 phase 상태
-└── assessments/*.json# question/submission/validated grade
-```
-
-배치 진단은 커리큘럼 승인(= 등록) 전에 일어나므로 루트의 질문 저장소를 쓰지 않고 `placement.json`에 따로 저장한다. `/study-chapter` 진단 프롬프트는 이 결과를 읽어 확인된 갈래를 다시 묻지 않는다. 등록 뒤 `study_answer_record kind:"link"`의 `kind:"placement"`으로 질문 id를 공통 지식에 연결할 수 있다.
-
-상태:
-
-```text
-not_started → in_progress → awaiting_submission → awaiting_grade → awaiting_review → completed
-                                            └→ relearn_required
-skipped_understood / blocked
-```
-
-기존 프로젝트는 markdown 내용을 읽어 state를 최초 생성한다. `아직`, `대기`, 빈 체크리스트 같은 stub은 완료로 보지 않는다.
-
-## Assessment
-
-- 완료 시험(test)은 `assessment-template.html` 사용. 같은 템플릿의 HTML 진단은 과거 진단 재개용으로만 유지
-- question에 `context`, `assumptions`, `learningObjective` 선택 가능
-- browser 결과에서 `ready_to_continue`, `explain_first`, `practice_more`, `feels_guessed` preference 전달
-- grade는 ID, attempt, 문항 ID, 배점, 점수 합계 검증 후 브라우저에 표시
-- extension이 diagnosis.md/test.md와 structured record를 자동 기록
-- test attempt는 marker 기반 append-only
-
-## 챕터 노트와 Lab 기록
-
-- **교재는 개념 학습 중 book 페이지에 먼저 쓰고 그것으로 수업한다.** 챕터 `README.md`는 학습 지도와 `## 교과서 페이지`(이번에 쓴 book 페이지 링크)만 갖는다. 예전 방식(README `개념 학습 노트`, 레거시 `concept.md`)은 호환 입력으로 계속 인정한다.
-- `finish_concept`: 챕터-지식 연결(binding, 복습 일정 근거) 필수. `교과서 페이지` 링크가 있으면 링크된 페이지가 모두 있고 본문이 있어야 하며, 내부 동작 섹션·SVG 그림·출처 웹 링크가 없으면 **구조 경고만** 돌려준다(막지 않음). 링크가 없으면 예전 README 관리 영역 검사.
-- 교재 품질 원칙(페이지 구성: 왜 필요한가 → 핵심 한 문장 → 최소 예시 → 내부 동작 → 왜 이렇게 설계됐나 → 성립 조건 → 흔한 오해 → 비교 → 스스로 확인/풀이 → 출처, 깊이 자가 점검, 재구성, 챕터 범위, 용어 통일, 공식 문서·실행 확인)은 `instructions/*.md`가 정본이다.
-- 그림은 diagram-design SVG(원본 HTML과 함께 `book/_media/<개념 ID>/`). study 루트의 `.diagram-design`이 `~/.diagram-design/profiles/study-plain.md`(흰 배경·검정·회색, 강조는 굵기, 시스템 폰트)를 고른다. 설계: `docs/plans/2026-11-16-study-concept-textbook-quality-design.md` 여러 프롬프트에 같은 문구를 복사하지 않고 phase 지침 로더로 전달한다.
-- 프로젝트별 선호(언어·버전·문법 수준·예제 제공 방식·용어)는 각 프로젝트의 AGENTS.md와 루트 README에 기록한다. extension 지침은 도메인 무반 규칙만 담는다.
-- `lab/README.md`는 실습 계획, `lab/results.md`는 검증을 통과한 step의 측정 증거와 학습자 관찰/배운 점을 쌓는 결과 노트다.
-- `study_lab_verify`는 manifest 파일/산출물/명령/실제 JUnit test 수를 검증하고, 성공 시 observation/takeaway와 검증 결과를 `lab/results.md`에 추가한다. 실패하면 결과를 기록하거나 step을 완료하지 않는다.
-- 시험 통과+확인 시 `chapter-evidence.ts`가 교과서 페이지(또는 예전 개념 학습 노트)·최종 시험·lab 기록 검증. 누락 증거는 blocked 사유지만 `review/README.md` 생성 실패는 경고이며 시험 완료 유지.
-- 중복 study-pack 신규 생성 폐지. 기존 pack 원본 유지, 고유 회상 구역은 legacy-recall.md로 멱등 보존.
-- 테스트 수·출력은 extension이 기록하고, 관찰·배운 점은 학습자가 제공한다. 확인하지 않은 로그나 결론을 만들지 않는다.
-
-도구:
-
-- `study_preflight`: Java/Gradle/Docker/전용 서비스 검사
-- `study_lab_verify`: 파일·산출물·명령·실제 JUnit test count 검증 및 step 결과 기록
-- `study_lab_step_update`: `in_progress`, `blocked`, `skipped_understood` 기록
-- `study_review_refresh`: 등록된 프로젝트는 루트 통합 복습 페이지 갱신, 미등록 프로젝트는 schedule.md 원본으로 정답 비노출 `review/README.md` 갱신. 통과+ack 시험의 별도 증거 검증 후 상태 복구 가능.
-- `study_pack_refresh`: deprecated 호환 alias. 시작 페이지만 생성하며 새 pack 생성 없음.
-
-`skipped_understood`는 reason/evidence가 필수이며 README 내용은 삭제하지 않는다.
-
-## 내 교과서 (book)
-
-여러 프로젝트에서 배운 것을 **개념 위계로 정리한 교과서**를 루트 `book/`에 쌓는다. 개념 학습 중 교재를 여기에 바로 쓴다.
-
-- 시험 통과+확인으로 챕터가 끝나면(등록된 루트) agent에게 `# STUDY_BOOK_PENDING` follow-up이 간다. agent는 `instructions/book.md`(정본)에 따라 `study_book plan`(재료에 `교과서 페이지` 포함) → 개념 학습 때 쓴 페이지를 실습 출력·시험 문제로 **보강** → `apply` 한 묶음 → 보고(페이지별 변경과 undo용 changeId)
-- 정리가 실패하거나 중단돼도 챕터 완료는 그대로. **정리 대기** = 완료됐지만 어떤 개념의 `learnedIn`에도 없는 챕터(따로 저장하지 않고 계산). 세션 시작 때 정보 알림, `/study-chapter` 메뉴 "📘 교과서 정리 대기"로 이어서 처리
-- 최상위 영역과 사용자 소유 개념은 `/study-concepts`(사용자)만 바꿈. agent는 하위 개념을 직접 정리하고 상위는 `propose`
-- **교과서는 book/ 안에서 완결**: 본문(main)의 로컬 링크·이미지는 book/ 안만 가리킨다. `write_page`가 밖을 가리키면 거부하고, `checkBookIntegrity`가 기존 위반을 보고한다. 그림은 `book/_media/<개념 ID>/`에 둔다(`_`로 시작하는 개념 이름은 예약). `record_source`의 path도 book/ 아래만 허용하며, 밖의 자료는 url(웹 링크)로 남긴다. 예전 `sources/` 경로가 남은 자료는 링크 없이 제목만 보인다
-- `book/README.md` 대시보드는 book 변경마다 다시 생성. 갱신 실패는 경고일 뿐 변경은 유지. 명제 본문·정답은 넣지 않음
-- **HTML 교과서**: `.study/local/book-site/`(PC 전용, 지워도 다시 생성)에 정적 사이트로 빌드. book 변경마다 다시 빌드하며 실패는 경고(`siteWarning`)일 뿐 변경은 유지. `/study-book [개념]`은 다시 빌드한 뒤 `file://`로 연다
-  - 렌더러는 직접 구현(`src/book/md-parse.ts`·`md-html.ts`): 제목·문단·목록(중첩·순서·체크박스)·인용·코드 펜스(``` ~~~)·GFM 표·링크·강조. raw HTML은 글자로 escape, `javascript:` 등 위험한 링크는 글자로만
-  - 제목 앵커는 GitHub 방식이라 README 목차 링크가 그대로 동작. java·kotlin·sql·sh·ts·json 간단 문법 강조
-  - book이 링크하는 챕터 README와 그 README가 링크하는 md까지(한 단계)만 `_src/`에 함께 렌더링. `.study/`·`review/` 등 학습 기록은 링크가 있어도 렌더링하지 않음
-  - Mermaid는 `assets/book/vendor/mermaid.min.js`(12.3.0, MIT) 고정 포함, 다이어그램이 있는 페이지만 불러옴. CSP: `script-src 'self'`(inline 스크립트 없음), Mermaid가 넣는 inline style 때문에 `style-src 'unsafe-inline'`
-  - 왼쪽 개념 트리, 오른쪽 "이 페이지" 목차, 상단 검색(개념 이름·소제목, `/`로 포커스). 검색 색인은 `file://`에서도 되도록 스크립트 파일로 둠
-  - 변경마다 `_changes/<changeId>.html` 비교 페이지(머리말·관리 표시 제외, 읽는 글자만 비교). `study_book apply` 결과의 `차이:` 링크와 대시보드 "최근 교과서 변경"에서 연다
-- 링크 공유(배포)는 아직 정하지 않음. 결과물은 상대 경로만 쓰므로 디렉터리를 그대로 정적 호스팅에 올릴 수 있음
-
-## 통합 복습
-
-등록된 study 루트의 기본 복습. 지식(명제)마다 일정 하나.
-
-- 간격 +1 / +3 / +7 / +14일, 기준일은 챕터 완료일(시험 통과+확인일, 최초 1회만 기록). 다음 날짜는 실제 복습한 날부터 달력 날짜로 계산.
-- 독립 정답 → 다음 간격, 틀림·부분·힌트 후 정답 → 그 지식만 +1일부터 재시작, 미응답·도움 불명·설명 직후 확인 → 기록만 하고 날짜 유지. 마지막 회차 후 completed, 자동 연장 없음. 미래 회차 응답은 거부.
-- 시험 통과+확인 시 챕터에 연결된 지식이 자동 등록. 이미 일정이 있는 지식(다른 챕터에서 배움·완료됨)은 그대로 둠. 연결이 없으면 시험은 completed, 복습 연결만 대기.
-- 지식 병합 시 일정도 같은 변경에서 합침(진행 단계 승격 없음, 이른 예정일 유지, 흡수한 일정 스냅숏 보존). 병합 해제 시 원래 일정 복원.
-- 하루 양 제한 없음. 루트 `review/README.md`는 이름·예정일·회차만 표시하고 정답·명제는 넣지 않음.
-
-## 고정 회차형 복습
-
-등록되지 않은 프로젝트의 기존 방식.
-
-- `/study-review`: 매 회차 STT/텍스트 선택 및 중간 전환. self-lecture는 실제 구두 설명 훈련, 텍스트 회상도 복습 회차 완료 가능.
-- 공통: 문서 없는 핵심 개념 회상 → 판정 → 필요한 보충. 회차별 강조점은 변경하되 같은 개념 반복 유지.
-- STRONG은 이번 보충 불필요 의미. 이후 회차 반복 대상 유지. 독립 지연 회상/힌트 후/교정 직후 결과 분리.
-- 간격·기준일·시간대는 학습자 합의 전 자동 지정 없음. 기한 경과는 실제 수행일 기록, 밀린 회차 몰아치기 금지.
-- 교재·정답·개인 오답 본문은 시작 페이지에 복사하지 않음. 일정은 schedule.md 하나, 회차 기록은 sessions/r1.md 등 append-only.
-- 일정 등록은 in_progress, 모든 회차 실제 수행과 명시적 주기 완료로 completed. 장기 기억 정착 인증 아님.
-- 시작 페이지 관리 구역 밖 메모 유지. 기존 비관리 README 덮어쓰기 중단. 기존 고유 기록 먼저 보존.
-- 로드만으로 기존 state.json을 자동 강등하지 않음. `study_review_refresh` 호출 시 schedule 원본·회차 파일로 review 상태 동기화, active core chapter/phase 유지. 날짜만 등록된 기존 일정은 in_progress로 추정.
-
-```text
-review/
-├── README.md         # 정답 비노출 현재 위치·개념 이름·원문/기록 링크
-├── schedule.md       # 일정 원본 및 고정 표 (prompts/study-review.md 참고)
-├── sessions/r1.md    # 개념별 원 응답·판정·교정·입력 모드
-├── learning-gaps.md  # 본 학습 범위 밖 항목
-└── legacy-recall.md  # 기존 pack 고유 기록 보존 (있을 때만)
-```
-
-구형 blank-recall/gap-fill/self-lecture/analogy-lock 문서는 과거 기록으로 유지. 학습 프로젝트 자동 마이그레이션은 페이지 갱신 호출 시에만 수행.
+- 업무 로직은 `src/<기능>/`의 순수 함수에 두고, `study-tools.ts`·`study-commands.ts`는 인자 해석과 호출만 한다.
+- 도구 이름·스키마, 저장 형식, 지침 파일 이름은 호환 계약이다. 바꿀 때는 관련 테스트를 먼저 고친다.
+- `src/`와 `index.ts`에서 `tests/`를 import하지 않는다. HTTP 서버와 브라우저를 쓰지 않는다(레이아웃 테스트가 검사).
+- TypeScript 포맷은 `.prettierrc.json`(공백 2칸, 폭 100).
 
 ## 테스트
 
 ```bash
 cd runtime/pi/extensions/study
-node --test 'tests/**/*.test.ts'
+NODE_PATH="<Pi 설치의 node_modules>" node --test 'tests/**/*.test.ts'
 ```
 
-Node.js 22의 TypeScript 실행을 사용. 일반 실행은 Pi 의존성 없이 core·HTTP·prompt 테스트 수행. `tests/integration/extension-registration.test.ts`의 host 테스트는 Pi를 찾지 못하면 명시적으로 skip.
-
-Pi가 전역 npm 경로에 설치된 개발 환경에서는 다음 명령으로 host 테스트까지 실행:
-
-```bash
-NODE_PATH="$(npm root -g)" node --test 'tests/**/*.test.ts'
-```
-
-`tests/**/*.test.ts`는 Node.js 22가 확장하도록 인용. 셸의 globstar 설정에 의존하지 않음. `tests/integration/directory-layout.test.ts`에서 루트 진입점·기능별 분류·프로덕션/테스트 경계 확인.
-
-host 테스트는 설치된 Pi의 `jiti`·`typebox`로 실제 entry point를 로드하고 명령·도구 등록, HTML 생성, 세션 재사용을 확인. 브라우저 실행은 대체 함수 사용, 실제 학습 프로젝트는 변경하지 않음.
-
-포맷 검사/정리(Prettier 3 사용 가능 환경):
-
-```bash
-prettier --check 'index.ts' 'src/**/*.ts' 'tests/**/*.ts'
-prettier --write 'index.ts' 'src/**/*.ts' 'tests/**/*.ts'
-```
-
-저장소 루트 검증:
-
-```bash
-bash scripts/check-resources
-git diff --check
-```
+- `NODE_PATH`는 `@earendil-works/pi-coding-agent`, `jiti`, `typebox`가 있는 `node_modules`다. 관리형 설치라면 `~/.pi/agent/install/releases/<버전>/node_modules`.
+- `NODE_PATH`가 없으면 Pi 로더 테스트(`tests/integration/extension-registration.test.ts`)는 이유를 표시하고 건너뛴다. 나머지는 Node만으로 돈다.

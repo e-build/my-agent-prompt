@@ -18,7 +18,7 @@ runtime/pi/
 │   ├── comment-cleanup/       (새로 쓴 주석을 종료 직전에 한 번 정리)
 │   ├── filechanges/           (/filechanges 변경사항 리뷰/되돌리기)
 │   ├── prompt-snippets/       (/snippets, Ctrl+Alt+S — 다음 메시지에 규칙 한 번 적용)
-│   └── study/                 (/study-init, /study-chapter, /study-review + 인터랙티브 사전진단 브라우저 세션)
+│   └── study/                 (/study-init, /study-chapter, /study-review — 학습 채널로 진행하는 학습 흐름)
 ├── themes/                ← Pi 테마 10종 (nebula-pulse, tokyo-night 등)
 ├── config/
 │   ├── settings.example.json
@@ -38,18 +38,7 @@ code ~/.pi/agent/settings.json
 
 ## study extension
 
-학습 커리큘럼(`study-{slug}` 프로젝트)과 인터랙티브 사전진단/학습 완료 테스트를 담당하는 self-contained extension.
-
-| 구성 | 설명 |
-|------|------|
-| `prompts/study-init.md` | `/study-init <주제>` — 학습 프로젝트 생성 |
-| `prompts/study-chapter.md` | `/study-chapter [챕터] [단계]` — 챕터 학습 (diagnosis/lab/test/review) |
-| `prompts/study-review.md` | `/study-review [챕터] [단계]` — 5단계 복습 |
-| `study_diagnosis_open` tool | diagnosis HTML 생성 + 브라우저 자동 open + 제출/채점 bridge |
-| `study_test_open` tool | test HTML 생성 + 브라우저 자동 open + 제출/채점/점수별 handoff bridge |
-| `assets/assessment-template.html` | 사전진단/테스트 공통 UI 템플릿 (self-contained) |
-
-`/study-chapter {챕터} diagnosis`와 `/study-chapter {챕터} test`는 각 tool로 브라우저를 자동으로 연다. 제출 답안은 현재 Pi 세션에서 채점되고 정답/해설이 같은 브라우저에 표시된다. test는 통과 시 복습, 미달 시 취약 개념 재학습으로 분기하며 `test.md`에 attempt별 문제·답안·채점을 누적한다. 자세한 흐름은 `runtime/pi/extensions/study/README.md` 참조.
+배치 진단 → 개념 → 실습 → 시험 → 복습을 학습 채널 하나(Pi 대화창 또는 Plannotator Inbox)로 진행하는 extension. 단계별 지침은 마크다운이고 `/study-prompts`로 덮어쓸 수 있다. 자세한 내용은 [study/README.md](./extensions/study/README.md).
 
 ## Extension 설명
 
@@ -64,4 +53,4 @@ code ~/.pi/agent/settings.json
 | `comment-cleanup/` | (자동) | 에이전트가 새로 쓴 주석을 종료 직전에 규칙에 맞게 한 번 정리 ([README](./extensions/comment-cleanup/README.md)) |
 | `filechanges/` | `/filechanges`<br>`/filechanges-accept`<br>`/filechanges-decline` | Pi edit/write 내역 리뷰 (select list), diff 확인, 일괄 승인/되돌리기 |
 | `prompt-snippets/` | `/snippets` · `Ctrl+Alt+S` | 다음 메시지 앞·뒤에 규칙 한 번 적용. 사용자 지정 `Explain clearly` 스니펫 포함 ([README](./extensions/prompt-snippets/README.md)) |
-| `study/` | `/study-init`<br>`/study-chapter`<br>`/study-review` | 학습 프로젝트 + 인터랙티브 사전진단 브라우저 세션 (위 study extension 섹션 참조) |
+| `study/` | `/study-init`<br>`/study-chapter`<br>`/study-review`<br>`/study-prompts` | 학습 프로젝트와 채널 기반 학습 흐름 (위 study extension 섹션 참조) |

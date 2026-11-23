@@ -1,7 +1,7 @@
 import { access, readFile } from "node:fs/promises";
 import { join } from "node:path";
-import { loadProjectManifest, type StudyProjectManifest } from "../project/project-manifest.ts";
-import { projectPath } from "../project/project-path.ts";
+import { loadProjectManifest, type StudyProjectManifest } from "../state/project-manifest.ts";
+import { projectPath } from "../state/project-path.ts";
 import type { CommandRunner } from "./command-runner.ts";
 export type { CommandRunner } from "./command-runner.ts";
 

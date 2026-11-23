@@ -5,20 +5,7 @@ import { fileURLToPath } from "node:url";
 import { dirname, join, relative, resolve, sep } from "node:path";
 
 const root = fileURLToPath(new URL("../../", import.meta.url));
-const features = [
-  "assessment",
-  "book",
-  "bridge",
-  "checkpoint",
-  "curriculum",
-  "evidence",
-  "knowledge",
-  "lab",
-  "project",
-  "review",
-  "session",
-  "workspace",
-];
+const features = ["cards", "channel", "checkpoint", "flow", "lab", "prompts", "review", "state", "ui"];
 
 async function typescriptFiles(directory: string): Promise<string[]> {
   const entries = await readdir(directory, { withFileTypes: true });
@@ -31,40 +18,37 @@ async function typescriptFiles(directory: string): Promise<string[]> {
   return files.flat();
 }
 
-test("the extension root contains only the Pi entry point as TypeScript", async () => {
-  assert.deepEqual(
-    (await readdir(root)).filter((name) => name.endsWith(".ts")),
-    ["index.ts"],
-  );
+test("the root contains only the Pi entry point as TypeScript", async () => {
+  assert.deepEqual((await readdir(root)).filter((name) => name.endsWith(".ts")), ["index.ts"]);
 });
 
-test("production and tests use matching feature directories", async () => {
+test("every feature has production modules and tests", async () => {
   for (const feature of features) {
-    const source = await typescriptFiles(join(root, "src", feature));
-    const tests = await typescriptFiles(join(root, "tests", feature));
-    assert.ok(source.length > 0, `${feature}: production modules required`);
+    assert.ok((await typescriptFiles(join(root, "src", feature))).length, `${feature}: src`);
     assert.ok(
-      tests.some((path) => path.endsWith(".test.ts")),
-      `${feature}: tests required`,
+      (await typescriptFiles(join(root, "tests", feature))).some((p) => p.endsWith(".test.ts")),
+      `${feature}: tests`,
     );
   }
 });
 
-test("production code never imports tests and all test cases live under tests", async () => {
-  const files = await typescriptFiles(root);
-  for (const path of files) {
+test("production code never imports tests and never starts a server or browser", async () => {
+  for (const path of await typescriptFiles(root)) {
     const local = relative(root, path).split(sep).join("/");
-    // next/ follows its own layout test.
-    if (local.startsWith("next/")) continue;
     if (local.endsWith(".test.ts")) assert.ok(local.startsWith("tests/"), local);
     if (local !== "index.ts" && !local.startsWith("src/")) continue;
-    assert.ok(!local.endsWith(".test.ts"), local);
     const source = await readFile(path, "utf8");
+    assert.doesNotMatch(source, /node:http|createServer|openBrowser/, local);
     for (const [, specifier] of source.matchAll(/(?:from\s+|import\s*\()\s*["'](\.[^"']+)["']/g)) {
-      const target = relative(root, resolve(dirname(path), specifier))
-        .split(sep)
-        .join("/");
+      const target = relative(root, resolve(dirname(path), specifier)).split(sep).join("/");
       assert.ok(!target.startsWith("tests/"), `${local} imports ${target}`);
     }
+  }
+});
+
+test("removed features are gone from production code", async () => {
+  for (const path of await typescriptFiles(join(root, "src"))) {
+    const source = await readFile(path, "utf8");
+    assert.doesNotMatch(source, /study_book|study_knowledge|study_test_open|GRADE_JSON|"diagnosis"/, path);
   }
 });

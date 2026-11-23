@@ -1,7 +1,7 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
-import { join } from "node:path";
-import { findStudyProjectRoot } from "../project/project-root.ts";
+import { findStudyProjectRoot } from "../state/project-root.ts";
+import { setPhase, type PhaseStatus } from "../state/study-state.ts";
 import {
   loadLabManifest,
   recordLabResult,
@@ -9,10 +9,20 @@ import {
   updateLabStep,
   verifyLabStep,
 } from "./lab-core.ts";
-import { phaseSaveWarning, type UpdateProjectPhase } from "../session/phase-state.ts";
 import { createCommandRunner } from "./command-runner.ts";
 
-export function registerLabTools(pi: ExtensionAPI, updateProjectPhase: UpdateProjectPhase) {
+/** A failed state write is reported in the tool output instead of failing a verified step. */
+async function phaseWarning(projectRoot: string, chapterSlug: string, status: PhaseStatus, reason?: string) {
+  try {
+    await setPhase(projectRoot, chapterSlug, "lab", status, reason ? { reason } : {});
+    return "";
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return `\n⚠️ 진도 상태 저장 실패: ${message} — 다음 단계로 자동 진행하지 마세요.`;
+  }
+}
+
+export function registerLabTools(pi: ExtensionAPI) {
   const runCommand = createCommandRunner(pi);
   pi.registerTool({
     name: "study_lab_verify",
@@ -59,15 +69,7 @@ export function registerLabTools(pi: ExtensionAPI, updateProjectPhase: UpdatePro
         const finished = manifest.steps.every(
           (step) => step.status === "completed" || step.status === "skipped_understood",
         );
-        warning = phaseSaveWarning(
-          await updateProjectPhase(
-            projectRoot,
-            params.chapterSlug,
-            "lab",
-            finished ? "completed" : "in_progress",
-            { evidence: [join(params.chapterSlug, "lab", "manifest.json")] },
-          ),
-        );
+        warning = await phaseWarning(projectRoot, params.chapterSlug, finished ? "completed" : "in_progress");
       }
       return {
         content: [
@@ -104,14 +106,11 @@ export function registerLabTools(pi: ExtensionAPI, updateProjectPhase: UpdatePro
       const manifest = await loadLabManifest(projectRoot, params.chapterSlug);
       updateLabStep(manifest, params.stepId, params.status, params.reason);
       await saveLabManifest(projectRoot, manifest);
-      const warning = phaseSaveWarning(
-        await updateProjectPhase(
-          projectRoot,
-          params.chapterSlug,
-          "lab",
-          params.status === "blocked" ? "blocked" : "in_progress",
-          { reason: params.reason },
-        ),
+      const warning = await phaseWarning(
+        projectRoot,
+        params.chapterSlug,
+        params.status === "blocked" ? "blocked" : "in_progress",
+        params.reason,
       );
       return {
         content: [{ type: "text", text: `lab step ${params.stepId} → ${params.status}${warning}` }],

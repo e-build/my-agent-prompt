@@ -2,6 +2,8 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import * as command from "../../src/checkpoint/checkpoint-command.ts";
 
+const promptsDir = new URL("../../prompts/", import.meta.url).pathname;
+
 function harness() {
   const commands = new Map<string, any>();
   const tools = new Map<string, any>();
@@ -37,6 +39,7 @@ test("checkpoint registration function is exported", () => {
 test("command prepares target and sends evidence-aware prompt without starting a quiz", async () => {
   const h = harness();
   command.registerStudyCheckpoint(h.pi as any, {}, async (_path, fn) => fn(), {
+    promptsDir,
     prepare: async () => request as any,
     publish: async () => ({
       path: request.checkpointPath,
@@ -57,6 +60,7 @@ test("command prepares target and sends evidence-aware prompt without starting a
 test("busy command and invalid target do not send a checkpoint request", async () => {
   const h = harness();
   command.registerStudyCheckpoint(h.pi as any, {}, async (_path, fn) => fn(), {
+    promptsDir,
     prepare: async () => {
       throw new Error("target missing");
     },
@@ -73,6 +77,7 @@ test("busy command and invalid target do not send a checkpoint request", async (
 test("publish tool rejects missing command authorization and session mismatch", async () => {
   const h = harness();
   command.registerStudyCheckpoint(h.pi as any, {}, async (_path, fn) => fn(), {
+    promptsDir,
     prepare: async () => request as any,
     publish: async () => {
       throw new Error("should not publish");
@@ -105,6 +110,7 @@ test("authorized publish is queued and reports push failure as an error without 
       return fn();
     },
     {
+      promptsDir,
       prepare: async () => request as any,
       publish: async () => ({
         path: request.checkpointPath,

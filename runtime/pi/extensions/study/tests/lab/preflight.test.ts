@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { mkdtemp, mkdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { saveProjectManifest } from "../../src/project/project-manifest.ts";
+import { saveProjectManifest } from "../../src/state/project-manifest.ts";
 import { runStudyPreflight, type CommandRunner } from "../../src/lab/preflight.ts";
 
 test("detects Java path shadowing and wrong dedicated Redis port", async () => {

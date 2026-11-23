@@ -3,9 +3,10 @@ import { createHash, randomUUID } from "node:crypto";
 import { lstat, readFile, realpath, readdir, writeFile } from "node:fs/promises";
 import { join, relative, resolve, sep } from "node:path";
 import { promisify } from "node:util";
-import { findStudyProjectRoot, resolveChapterSlug } from "../session/study-command.ts";
-import { resolveNextPhase, type StudyPhase, type StudyState } from "../session/study-state.ts";
-import { projectPath } from "../project/project-path.ts";
+import { findStudyProjectRoot } from "../state/project-root.ts";
+import { resolveChapterSlug } from "../ui/chapter-target.ts";
+import { nextPhase as resolveNextPhase, type StudyPhase, type StudyState } from "../state/study-state.ts";
+import { projectPath } from "../state/project-path.ts";
 
 const exec = promisify(execFile);
 export const CHECKPOINT_STATUSES = [

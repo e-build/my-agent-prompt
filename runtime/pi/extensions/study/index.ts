@@ -1,83 +1,45 @@
-/** Study composition root: Pi lifecycle, session ownership and registrations. */
+/** Study composition root: learning channel, commands, tools and session UI. */
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { withFileMutationQueue, type ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
-import {
-  registerStudyChapterCommand,
-  type StudyChapterTarget,
-} from "./src/session/study-command.ts";
+import { defaultChannelFactory } from "./src/channel/channel-context.ts";
+import { spawnExec } from "./src/channel/spawn-exec.ts";
 import { registerStudyCheckpoint } from "./src/checkpoint/checkpoint-command.ts";
-import { hasAssessmentSession } from "./src/session/session-core.ts";
-import { createStudySessions } from "./src/session/study-sessions.ts";
-import { updateProjectPhase } from "./src/session/phase-state.ts";
-import { createAssessmentOpenGuard } from "./src/session/assessment-open-guard.ts";
-import { registerLearningRouteTools } from "./src/session/learning-route-tools.ts";
-import { registerPlacementTools } from "./src/placement/placement-tools.ts";
-import { diagnosisPrepareOptions } from "./src/session/dialogue-store.ts";
-import { createBrowserServer } from "./src/bridge/browser-server.ts";
-import { createStudyRoutes } from "./src/bridge/study-routes.ts";
-import { createGradeHandler } from "./src/assessment/grade-handler.ts";
-import { openBrowser } from "./src/bridge/open-browser.ts";
-import { registerAssessmentTools } from "./src/assessment/assessment-tools.ts";
-import { registerCurriculumTool } from "./src/curriculum/curriculum-tool.ts";
 import { registerLabTools } from "./src/lab/lab-tools.ts";
-import { registerReviewTools } from "./src/review/review-tools.ts";
 import { registerPreflightTool } from "./src/lab/preflight-tool.ts";
-import { registerWorkspaceTools } from "./src/workspace/workspace-command.ts";
-import { registerApprovedProject } from "./src/workspace/auto-registration.ts";
-import { registerKnowledgeTools } from "./src/knowledge/knowledge-tools.ts";
-import { registerTextbookTools } from "./src/knowledge/textbook-tools.ts";
-import { registerQuestionTools } from "./src/evidence/question-tools.ts";
-import { reviewMergeChanges } from "./src/review/review-merge.ts";
-import { reviewAnswerOptions } from "./src/review/review-store.ts";
-import { registerReviewNextTool } from "./src/review/review-next-tool.ts";
-import { registerBookTools } from "./src/book/book-tools.ts";
-import { registerConceptsCommand } from "./src/book/concepts-command.ts";
-import { checkBookIntegrity } from "./src/book/book-integrity.ts";
-import { bookMergeChanges } from "./src/book/book-merge.ts";
-import { registerBookCommand } from "./src/book/book-command.ts";
-import { createStudyWidget } from "./src/session/study-widget.ts";
-import { checkKnowledgeIntegrity } from "./src/knowledge/knowledge-integrity.ts";
-import { chapterReviewHooks } from "./src/review/chapter-review-start.ts";
-import { createRoadmapPanel } from "./src/session/roadmap-panel.ts";
+import { registerStudyCommands } from "./src/study-commands.ts";
+import { registerStudyTools } from "./src/study-tools.ts";
+import { createRoadmapPanel } from "./src/ui/roadmap-panel.ts";
+import { createStudyWidget } from "./src/ui/study-widget.ts";
 
 export default function (pi: ExtensionAPI) {
-  const sessionStore = createStudySessions();
-  const { sessions, testSessions, curriculumSessions } = sessionStore;
-  const moduleDir = dirname(fileURLToPath(import.meta.url));
-  const promptsDir = join(moduleDir, "prompts");
+  const promptsDir = join(dirname(fileURLToPath(import.meta.url)), "prompts");
   const widget = createStudyWidget();
   const roadmap = createRoadmapPanel();
+  let sessionId = "";
 
-  const routes = createStudyRoutes({
-    pi,
-    ...sessionStore,
-    updateProjectPhase,
-    getPort: () => server.port,
-    registerApprovedProject,
+  pi.on("session_start", (_event, ctx) => {
+    sessionId = ctx?.sessionManager?.getSessionId?.() ?? "";
+    widget.setTarget(null);
+    if (ctx) void widget.refresh(ctx);
   });
-  const server = createBrowserServer(routes, (port) =>
-    pi.events.emit("study:server-started", { port }),
-  );
-  const handleGrade = createGradeHandler({ pi, sessions, testSessions, updateProjectPhase });
-
-  // Completion exams stay in the browser; diagnosis is conversational.
-  const guard = createAssessmentOpenGuard({
-    send: (message) => pi.sendUserMessage(message, { deliverAs: "followUp" }),
-    hasOpenSession: (target) =>
-      hasAssessmentSession<{ chapterSlug: string; status: string }>(
-        [...testSessions.values()],
-        target.chapterSlug,
-      ),
+  pi.on("turn_end", (_event, ctx) => {
+    if (ctx) void widget.refresh(ctx);
+    void roadmap.refresh();
+  });
+  pi.on("session_shutdown", async (_event, ctx) => {
+    if (ctx) widget.dispose(ctx);
   });
 
-  // /study-init and /study-review remain prompt resources. /study-chapter is promoted
-  // from the old prompt to a registered command with structured state resolution.
-  pi.on("resources_discover", async () => ({
-    promptPaths: [promptsDir],
-  }));
-
+  registerStudyTools(pi, {
+    channelFor: defaultChannelFactory({ exec: spawnExec, sessionId: () => sessionId }),
+    queue: withFileMutationQueue,
+  });
+  registerStudyCommands(pi, {
+    promptsDir,
+    onTarget: (target) => widget.setTarget({ chapterSlug: target.chapterSlug, phase: target.phase }),
+  });
   registerStudyCheckpoint(
     pi,
     Type.Object({
@@ -88,76 +50,21 @@ export default function (pi: ExtensionAPI) {
       }),
     }),
     withFileMutationQueue,
+    { promptsDir },
   );
-
-  registerStudyChapterCommand(pi, {
-    ...chapterReviewHooks(),
-    onTarget: (target: StudyChapterTarget) => {
-      guard.setTarget(target);
-      widget.setTarget(target);
-    },
-    hasLiveDiagnosis: (chapterSlug) =>
-      hasAssessmentSession<{ chapterSlug: string; status: string }>([...sessions.values()], chapterSlug),
-  });
-  pi.on("tool_execution_end", (event) => guard.onToolEnd(event.toolName));
-  pi.on("session_start", (_event, ctx) => {
-    widget.setTarget(null);
-    if (ctx) void widget.refresh(ctx);
-  });
-  pi.on("turn_end", (_event, ctx) => {
-    guard.onTurnEnd();
-    if (ctx) void widget.refresh(ctx);
-    void roadmap.refresh();
-  });
+  registerLabTools(pi);
+  registerPreflightTool(pi);
   pi.registerCommand("study-map", {
     description: "현재 프로젝트 학습 로드맵을 오른쪽 패널로 켜기/끄기",
     handler: async (_args, ctx) => {
       try {
         await roadmap.toggle(ctx);
       } catch (error) {
-        ctx.ui.notify(`로드맵을 열지 못했습니다: ${error instanceof Error ? error.message : String(error)}`, "warning");
+        ctx.ui.notify(
+          `로드맵을 열지 못했습니다: ${error instanceof Error ? error.message : String(error)}`,
+          "warning",
+        );
       }
     },
-  });
-
-  registerWorkspaceTools(pi, [checkKnowledgeIntegrity, checkBookIntegrity]);
-  registerKnowledgeTools(pi, (root) => ({
-    extraChanges: async (record) => [...(await reviewMergeChanges(root, record)), ...(await bookMergeChanges(root, record))],
-  }));
-  registerTextbookTools(pi);
-  registerBookTools(pi);
-  registerConceptsCommand(pi);
-  registerBookCommand(pi, { openBrowser });
-  registerQuestionTools(pi, { prepareOptions: diagnosisPrepareOptions, answerOptions: reviewAnswerOptions });
-  registerLearningRouteTools(pi);
-  registerPlacementTools(pi);
-  registerLabTools(pi, updateProjectPhase);
-  registerReviewTools(pi);
-  registerReviewNextTool(pi);
-  registerPreflightTool(pi);
-  registerCurriculumTool(pi, {
-    curriculumSessions,
-    curriculumTemplatePath: join(moduleDir, "assets", "curriculum-template.html"),
-    startServer: server.start,
-    openBrowser,
-  });
-  registerAssessmentTools(pi, {
-    sessions,
-    testSessions,
-    templatePath: join(moduleDir, "assets", "assessment-template.html"),
-    startServer: server.start,
-    openBrowser,
-    onAssessmentOpened: () => guard.markOpened(),
-    updateProjectPhase,
-  });
-
-  pi.on("message_end", (event) => handleGrade(event.message));
-  pi.on("session_shutdown", async (_event, ctx) => {
-    guard.clear();
-    if (ctx) widget.dispose(ctx);
-    await server.close();
-    sessions.clear();
-    testSessions.clear();
-    curriculumSessions.clear();
   });
 }
