@@ -15,7 +15,7 @@ runtime/pi/
 │   ├── safety-guard.ts        (/safety 위험 명령 차단)
 │   ├── flow-title.ts          (맞춤형 시작 헤더)
 │   ├── cliproxyapi-sync/      (cliproxy model 동기화 — 별도 설정 파일)
-│   ├── comment-cleanup/       (새로 쓴 주석을 종료 직전에 한 번 정리)
+│   ├── comment-cleanup/       (새로 쓴 주석을 수정 직후 조용히 정리)
 │   ├── filechanges/           (/filechanges 변경사항 리뷰/되돌리기)
 │   ├── prompt-snippets/       (/snippets, Ctrl+Alt+S — 다음 메시지에 규칙 한 번 적용)
 │   └── study/                 (/study-init, /study-chapter, /study-review — 학습 채널로 진행하는 학습 흐름)
@@ -50,7 +50,7 @@ code ~/.pi/agent/settings.json
 | `safety-guard.ts` | `/safety` | force push, rm -rf 등 위험 명령 차단 |
 | `flow-title.ts` | (자동) | 시작 시 헤더 (full/minimal 모드, `/welcome mode minimal` 전환) |
 | `cliproxyapi-sync/` | (자동) | 로컬 CLIProxyAPI 모델을 `cp-*` provider로 자동 등록 ([README](./extensions/cliproxyapi-sync/README.md)) |
-| `comment-cleanup/` | (자동) | 에이전트가 새로 쓴 주석을 종료 직전에 규칙에 맞게 한 번 정리 ([README](./extensions/comment-cleanup/README.md)) |
+| `comment-cleanup/` | (자동) | 에이전트가 새로 쓴 주석을 파일 수정 직후 규칙에 맞게 조용히 정리 ([README](./extensions/comment-cleanup/README.md)) |
 | `filechanges/` | `/filechanges`<br>`/filechanges-accept`<br>`/filechanges-decline` | Pi edit/write 내역 리뷰 (select list), diff 확인, 일괄 승인/되돌리기 |
 | `prompt-snippets/` | `/snippets` · `Ctrl+Alt+S` | 다음 메시지 앞·뒤에 규칙 한 번 적용. 사용자 지정 `Explain clearly` 스니펫 포함 ([README](./extensions/prompt-snippets/README.md)) |
 | `study/` | `/study-init`<br>`/study-chapter`<br>`/study-review`<br>`/study-prompts` | 학습 프로젝트와 채널 기반 학습 흐름 (위 study extension 섹션 참조) |

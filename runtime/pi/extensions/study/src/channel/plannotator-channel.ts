@@ -22,7 +22,6 @@ export function renderInbox(card: LearningCard): string {
   return blocks.join("\n\n");
 }
 
-/** One thread per chapter; cards without a chapter (placement, its explanations, curriculum) share `init`. */
 function threadName(card: LearningCard): string {
   return `study · ${card.projectSlug} · ${card.chapterSlug ?? "init"}`;
 }
